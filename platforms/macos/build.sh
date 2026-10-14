@@ -105,6 +105,10 @@ else
 fi
 
 cp "$HERE/Info.plist" "$CONTENTS/Info.plist"
+# Version override for nightly/formal release builds: patch only the build copy, never the source plist.
+if [[ -n "${LIANA_VERSION:-}" ]]; then
+    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${LIANA_VERSION#v}" "$CONTENTS/Info.plist"
+fi
 printf 'APPL????' > "$CONTENTS/PkgInfo"
 cp "$HERE/assets/Liana.icns" "$CONTENTS/Resources/Liana.icns"
 cp "$HERE/assets/LianaMenu.png" "$CONTENTS/Resources/LianaMenu.png"
@@ -179,6 +183,9 @@ swiftc -O -wmo -parse-as-library \
     -o "$INSTALLER_BIN/LianaInstaller" \
     "$HERE/installer/Installer.swift"
 cp "$HERE/installer/Info.plist" "$INSTALLER_CONTENTS/Info.plist"
+if [[ -n "${LIANA_VERSION:-}" ]]; then
+    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${LIANA_VERSION#v}" "$INSTALLER_CONTENTS/Info.plist"
+fi
 printf 'APPL????' > "$INSTALLER_CONTENTS/PkgInfo"
 cp "$HERE/assets/LianaInstaller.icns" "$INSTALLER_RES/LianaInstaller.icns"
 cp "$HERE/assets/Liana.icns" "$INSTALLER_RES/Liana.icns"

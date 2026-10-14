@@ -17,7 +17,8 @@ crates/        内核 crates：core、dict、pinyin、en、ja、emoji、symbol�
 xtask/         构建工具（词库构建/导入、插件脚手架、准确率评测）
 platforms/     各平台集成：macos/ ios/ android/ linux/ harmonyos/ windows/
 examples/      插件示例
-docs/          PRD、架构、ADR、同步协议、威胁模型、设计 token
+docs/          架构、ADR、同步协议、威胁模型、使用指南、设计 token
+ops/           本地过程文档（gitignored，不进 GitHub）
 tools/         零散工具
 dist/ target/  构建产物（gitignored）
 ```
@@ -65,19 +66,23 @@ lint：无项目级配置（可用标准 `cargo clippy` / `cargo fmt`）。
 - 仓库已改名：GitHub `sevenaaaaaaaaa/liana`（原 inputflow，旧地址自动跳转）；本地目录仍是 `~/InputFlow`
 - 分支 `main`（另有本地分支 `m1-p0-wrapup`、远端分支 `ui-glass-and-accuracy`）
 
-## 发版（每日）
+## 发版（Nightly + 正式版）
 
-**硬性规则：每天开发结束必须跑一次 daily-release（或由 launchd 自动跑）。**
+**硬性规则：每天开发结束跑一次 daily-release（或由全局 launchd `com.nownexts.daily-release-all` 调度）。** 日常只出 Nightly；正式版只发主版本 `X.Y.0`（`X.Y.Z` 仅限正式版的紧急修复）。
 
 ```bash
-scripts/daily-release.sh              # 正式发版
-scripts/daily-release.sh --dry-run    # 只测试 + 本地打 DMG，不 commit/tag/push/release/安装
-scripts/daily-release.sh --no-install # 发版但不更新本机输入法
-scripts/daily-release.sh --force      # 自上个 tag 无新提交也发
+scripts/daily-release.sh              # Nightly：构建并更新滚动预发布「Nightly」
+scripts/daily-release.sh --dry-run    # 只测试 + 本地打 DMG，不动 tag/不推送/不发布/不安装
+scripts/daily-release.sh --no-install # 发布 nightly 但不更新本机输入法
+scripts/daily-release.sh --force      # nightly 已指向 HEAD 也重新发
+scripts/release.sh 0.5.0 [--dry-run]  # 正式版（先把 CHANGELOG 的 Unreleased 整理成 0.5.0 小节）
 ```
 
-- 流程：必须在 `main` 且工作区干净（否则打印改动并以「skipped」退出 0，绝不替你提交 WIP）→ 落后则 `pull --rebase --autostash`（冲突即 abort 失败）→ `cargo test` → 上个 `v*` tag 后无新提交则跳过 → patch +1 并统一写入 `Cargo.toml`/`Cargo.lock`、`platforms/macos/Info.plist`、`platforms/macos/installer/Info.plist`、Android `versionName`(+`versionCode`)、iOS `project.yml` `MARKETING_VERSION` → 提交 `chore(release): vX.Y.Z` + 附注 tag → `dist.sh` 打 DMG 并挂载校验 → push main 与 tag → `gh release create`（说明 = 上个 tag 以来的提交标题 + 安装指引 + sha256）→ 优雅退出本机输入法，按 `.bundle-id`（本机 dev id）重建并 `install.sh` 装到 `~/Library/Input Methods`，去隔离后重新拉起。
-- 中途失败可重跑（会从 HEAD 上的发版提交续跑）；单实例锁；日志 `~/Library/Logs/liana-daily-release.log`。
+- **版本号唯一来源**：`Cargo.toml` `[workspace.package] version`（= 最近的正式版）。`release.sh` 从它同步写入 `Cargo.lock`、两个 macOS `Info.plist`（含 CFBundleVersion +1）、Android `versionName`/`versionCode`、iOS `MARKETING_VERSION`。
+- **Nightly**（`daily-release.sh`）：`main` + 工作区干净（否则打印改动，`skipped` 退出 0，绝不替你提交 WIP）→ 落后则 `pull --rebase --autostash`（冲突 abort 失败；本地领先 origin 则 skipped，nightly 从不推 main）→ `nightly` tag 已在 HEAD 且 Release 上已有本次构建则跳过 → `cargo test` → 版本 = 下一个 minor + 后缀，如 `0.5.0-nightly.YYYYMMDD`（semver 预发布，高于 0.4.x、低于正式 0.5.0），**只经 `LIANA_VERSION` 注入构建产物的 Info.plist，绝不改源文件/提交**；CFBundleVersion 保持源值 → `dist.sh` 打 DMG 并挂载校验（4 项 + 版本号）→ 强制移动 tag `nightly` 并推送（不匹配 CI 的 `v*`，不触发 CI）→ 更新唯一的预发布 `nightly`（标题「Nightly · YYYY-MM-DD」、`--prerelease --latest=false`、说明 = 上个正式 `v*` tag 以来的提交标题 + macOS 安装指引 + sha256，旧日期资产删除、新资产 `--clobber`）→ 优雅退出本机输入法，按 `.bundle-id` 重建并 `install.sh`，去隔离后拉起。
+- 最后一行固定输出 `RESULT: built nightly <版本> <sha>` / `RESULT: skipped <原因>` / `RESULT: failed <原因>`（全局调度脚本据此判定）。失败直接重跑即可；单实例锁；日志 `~/Library/Logs/liana-daily-release.log`。
+- **正式版**（`release.sh X.Y.0`）：前置条件 + `CHANGELOG.md` 必须有该版本小节 → `cargo test` → 写版本号 → 提交 `chore(release): vX.Y.0` + 附注 tag → `dist.sh` 打 DMG → push main 与 tag（CI `release.yml` 补 Android/Linux 产物）→ `gh release create --latest`（说明 = CHANGELOG 小节 + `.github/release-notes-template.md` + sha256）。可续跑；日志 `~/Library/Logs/liana-release.log`。
+- `CHANGELOG.md` 是唯一面向用户的版本记录；未发布的改动写在顶部 `## Unreleased`。过程文档（路线图、调研、PRD、发版清理计划）放 gitignored 的 `ops/`。
 - **macOS 放行助手**：DMG 内含 `Liana.app`、`松萝安装器.app`、`Applications` 链接、`打不开？双击我.command`、`安装说明.txt`；模板在 `packaging/macos/`，由 `dist.sh` 拷入。
 - **改名禁区（勿动，否则用户数据/输入法注册失效）**：钥匙串服务名与偏好域 `dev.inputflow.inputmethod`、本机 `.bundle-id`（`dev.inputflow.inputmethod.dev`）、`main.swift` 迁移逻辑与 `uninstall.sh` 里的旧名。
 
