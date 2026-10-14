@@ -28,3 +28,6 @@ platforms/macos/.bundle-id
 # 发布产物
 /dist/
 platforms/macos/build/
+
+# Local operations workspace (process docs, release journals, purge notes) — never on GitHub
+/ops/

@@ -1,5 +1,5 @@
 //! 临时性能检查：`cargo run --release -p liana-pinyin --example bench`
-//! 度量单键解码延迟（PRD 预算：P99 < 8ms）。
+//! 度量单键解码延迟（延迟预算：P99 < 8ms）。
 
 use std::sync::Arc;
 use std::time::Instant;
