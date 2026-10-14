@@ -209,10 +209,10 @@ fn accuracy_cmd() -> Result<(), String> {
     {
         let mut ok = true;
         let mut s = Session::with_mode(dict.clone(), Mode::Pinyin);
-        for ch in "lovart.ai".chars() {
+        for ch in "example.ai".chars() {
             ok = ok && s.feed(ch);
         }
-        ok = ok && s.commit_raw().as_deref() == Some("lovart.ai");
+        ok = ok && s.commit_raw().as_deref() == Some("example.ai");
 
         let mut t = Session::with_mode(dict.clone(), Mode::Pinyin);
         for ch in "http://x.com/a_1?k=v".chars() {
@@ -235,7 +235,7 @@ fn accuracy_cmd() -> Result<(), String> {
         } else {
             failures.push((
                 "英文/网址",
-                "lovart.ai 等",
+                "example.ai 等",
                 "符号续接+原样上屏",
                 "续接或上屏失败".into(),
             ));

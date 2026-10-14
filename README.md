@@ -125,7 +125,7 @@ cargo run -p xtask -- plugin check plugins/skin-mine
 
 ## 定位说明
 
-**松萝不是 Flow,也不走 Flow 家族的业务线**——它是芭乐派产品矩阵**第三层:Studio 套件**的周边产品,解决的是 AI 时代的输入与隐私输入:当越来越多文字经由 AI 生成与处理,输入法这个最敏感的入口更不该把数据交给云。矩阵的分层是:
+**松萝不是 Flow,也不走 Flow 家族的业务线**——它是林下 Understory 产品矩阵**第三层:Studio 套件**的周边产品,解决的是 AI 时代的输入与隐私输入:当越来越多文字经由 AI 生成与处理,输入法这个最敏感的入口更不该把数据交给云。矩阵的分层是:
 
 - **OpenFlow = 入口层**:TIPS all-in-one,让一人团队(OPC)与中小团队低门槛完成数字化 + AI 化。
 - **Flow 家族 = 进阶层**:MFlow / inFlow / UserLoop / PayFlow / LearnFlow / WebsFlow 按需进阶,各自深耕一个业务场景。

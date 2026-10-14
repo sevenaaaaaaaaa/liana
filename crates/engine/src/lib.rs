@@ -222,7 +222,7 @@ impl Session {
     pub fn feed(&mut self, ch: char) -> bool {
         let ok = ch.is_ascii_alphabetic() || ch == '\'' || ch == ';';
         if !ok {
-            // 英文串续接：lovart.ai、http://、someone@example.com、v1.2——
+            // 英文串续接：example.ai、http://、someone@example.com、v1.2——
             // 符号与数字直接进组合，空格/回车由前端原样上屏。
             // url_prefix_like 额外放行 `www.`/`http:` 这类「首字符点」：否则 `www`
             // 会命中整词短拼候选（万维网）被当作中文，网址就打不下去。
@@ -246,7 +246,7 @@ impl Session {
     }
 
     /// 组合是否已是「英文串」：缓冲非空、模式可打中文、且没有任何**全覆盖**
-    /// 的汉字候选——整串解码不出中文（`lovart`，部分覆盖的零星单字不算），
+    /// 的汉字候选——整串解码不出中文（`example`，部分覆盖的零星单字不算），
     /// 或全覆盖命中英文词（`hello`）。中文组合（全覆盖汉字候选）绝不触发。
     fn english_like(&self) -> bool {
         let raw_len = self.buffer.chars().count();
@@ -1664,12 +1664,12 @@ mod tests {
     #[test]
     fn english_string_continues_with_url_chars() {
         let mut s = session(Mode::Pinyin);
-        for ch in "lovart.ai/corp?v=1.2".chars() {
+        for ch in "example.ai/corp?v=1.2".chars() {
             assert!(s.feed(ch), "{ch}");
         }
-        assert_eq!(s.buffer(), "lovart.ai/corp?v=1.2");
+        assert_eq!(s.buffer(), "example.ai/corp?v=1.2");
         // 组合里全是字面候选，没有任何全覆盖汉字
-        assert_eq!(s.commit_raw().as_deref(), Some("lovart.ai/corp?v=1.2"));
+        assert_eq!(s.commit_raw().as_deref(), Some("example.ai/corp?v=1.2"));
     }
 
     /// 邮箱：字母 + @ + 域名一路续接；中文组合则拒绝符号（走前端首选+标点）。
