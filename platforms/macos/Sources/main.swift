@@ -619,6 +619,9 @@ private func migrateLegacyBrandData() {
 
 // M1：加密用户数据（钥匙串密钥；不可用则本次仅内存）+ 剪切板监控（默认关闭）
 _ = NSApplication.shared
+// 应用代理只处理「打开文件」（双击 .lianapet 导入）；NSApplication.delegate 是弱引用，用全局常量持有
+let appDelegate = LianaAppDelegate()
+NSApplication.shared.delegate = appDelegate
 migrateLegacyBrandData()
 PluginStore.seedBundledPacks()
 _ = EncryptedStore.shared.load()

@@ -893,3 +893,23 @@ final class PuppetPetView: PetWebView {
 
     required init?(coder: NSCoder) { nil }
 }
+
+// MARK: - 双击 .lianapet 导入
+
+/// 输入法进程的应用代理：Finder 里双击 `.lianapet`（例如从松萝社区购买下载的）直接导入并换上。
+final class LianaAppDelegate: NSObject, NSApplicationDelegate {
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls where url.pathExtension.lowercased() == PuppetPackStore.fileExtension {
+            do {
+                let id = try PuppetPackStore.importPack(from: url)
+                PetWindowController.activePackId = id
+                if !PetWindowController.isEnabled { PetWindowController.setEnabled(true) }
+                let name = PuppetPackStore.load(packId: id)?.name ?? url.deletingPathExtension().lastPathComponent
+                GlassToast.shared.show("已导入并换上「\(name)」", symbol: "pawprint.fill")
+            } catch {
+                GlassToast.shared.show("导入失败：\(error.localizedDescription)",
+                                       symbol: "exclamationmark.triangle.fill", duration: 6)
+            }
+        }
+    }
+}

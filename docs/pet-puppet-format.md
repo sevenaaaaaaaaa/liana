@@ -129,8 +129,9 @@ happy.png …     其他表情图（可选）
 
 ## 形象源
 
-松萝社区（nownexts.com，筹建中）上线后会作为官方形象源，发布需审核。此外，
-任何人都可以把 `.lianapet` 放在任意 https 地址上，再发布一份 `index.json` 作为**形象源**；
+官方形象源是**松萝社区**（`https://nownexts.com/api/pets`，即 nownexts.com 生态市场的「桌宠」分类），客户端内置、不可移除：
+认证开发者在会员中心上传 `.lianapet`，审核通过后上架；只收原创或已获授权的形象，可免费也可定价。
+此外，任何人都可以把 `.lianapet` 放在任意 https 地址上，再发布一份 `index.json` 作为**形象源**；
 用户在「形象源」窗口里自己添加想订阅的地址（客户端不内置任何形象源）：
 
 ```json
@@ -153,11 +154,13 @@ happy.png …     其他表情图（可选）
 }
 ```
 
-客户端只收 `https` 地址、`puppet-` 前缀、带 sha256 的条目；下载后 sha256 不符直接丢弃。
+可选字段：`price`（大于 0 为付费形象，此时不给 `url`，改给 `page` 购买页；用户在网页购买、下载后双击 `.lianapet` 导入）。
+
+客户端只收 `puppet-` 前缀、带 sha256 的条目，免费的要有 https `url`、付费的要有 https `page`；下载后 sha256 不符直接丢弃。
 计算 sha256：`shasum -a 256 puppet-maple-fox.lianapet`。
 
 ## 版权
 
 本地使用不干预：用什么图片做形象、导出发给谁，都由用户自己决定。
-发布到松萝社区（nownexts.com，筹建中）只收原创或已获授权的形象（`rights: shareable`），并经过审核。
+发布到松萝社区（nownexts.com）只收原创或已获授权的形象（`rights: shareable`），并经过审核。
 第三方形象源的内容由发布者自行负责。

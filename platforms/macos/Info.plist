@@ -94,6 +94,42 @@
     <string>用于端上语音输入：音频只在本机识别，不落盘、不上传。</string>
     <key>NSSpeechRecognitionUsageDescription</key>
     <string>用于端上语音转文字：强制使用系统端上识别，绝不回退云端。</string>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>松萝桌宠形象</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSHandlerRank</key>
+            <string>Owner</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>dev.liana.lianapet</string>
+            </array>
+        </dict>
+    </array>
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>dev.liana.lianapet</string>
+            <key>UTTypeDescription</key>
+            <string>松萝桌宠形象</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.data</string>
+                <string>public.archive</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>lianapet</string>
+                </array>
+            </dict>
+        </dict>
+    </array>
     <key>TICapsLockLanguageSwitchCapable</key>
     <true/>
 </dict>

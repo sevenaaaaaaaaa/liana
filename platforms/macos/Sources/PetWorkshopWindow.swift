@@ -323,6 +323,27 @@ final class WorkshopModel: ObservableObject {
         }
     }
 
+    /// 发布到松萝社区（nownexts.com，审核制）：导出到「下载」并打开发布页，由用户在网页上传。
+    /// 松萝里不保存社区账号，上传、登录都在浏览器里完成。
+    func publishToCommunity() {
+        guard draft.shareable else {
+            status = "发布到松萝社区需要原创或已获授权：确认后勾选「这些图片是我原创或已获授权」"
+            return
+        }
+        guard let id = save() else { return }
+        let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
+        let safeName = draft.name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+        let file = downloads.appendingPathComponent("\(safeName.isEmpty ? id : safeName).\(PuppetPackStore.fileExtension)")
+        do {
+            try PuppetPackStore.export(packId: id, to: file)
+            NSWorkspace.shared.activateFileViewerSelecting([file])
+            NSWorkspace.shared.open(PetCommunity.publishPage)
+            status = "已导出到「下载」：在打开的网页里上传（需认证开发者），审核通过后上架"
+        } catch {
+            status = error.localizedDescription
+        }
+    }
+
     func importPack() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
@@ -473,6 +494,9 @@ struct WorkshopView: View {
                 Button("导入 .lianapet…") { model.importPack() }
                 Button("导出…") { model.exportPack() }
                     .disabled(model.draft.images.isEmpty)
+                Button("发布到松萝社区…") { model.publishToCommunity() }
+                    .disabled(model.draft.images.isEmpty || !model.draft.shareable)
+                    .help("需勾选「这些图片是我原创或已获授权」；在 nownexts.com 上传并审核")
                 Button("保存并使用") { model.save() }
                     .keyboardShortcut(.defaultAction)
                     .disabled(!model.draft.images.contains { $0.role == .idle } || model.busy)
@@ -587,7 +611,7 @@ struct WorkshopView: View {
     private var shareSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Toggle("这些图片是我原创或已获授权", isOn: $model.draft.shareable)
-            Text("自己用、导出发给朋友都不受限制。将来发布到松萝社区时，只收原创或已获授权的形象，并且需要审核。")
+            Text("自己用、导出发给朋友都不受限制。发布到松萝社区（nownexts.com）只收原创或已获授权的形象，并且需要审核。")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

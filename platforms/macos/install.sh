@@ -28,6 +28,9 @@ killall "$APP" 2>/dev/null || true
 BIN="$DEST_DIR/$APP.app/Contents/MacOS/$APP"
 if [[ -x "$BIN" ]]; then
     "$BIN" --register-input-source || echo "（注册失败，注销重新登录后系统也会自动发现）"
+    # 登记 .lianapet 文件类型：Finder 里双击形象包即由松萝导入
+    /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+        -f "$DEST_DIR/$APP.app" 2>/dev/null || true
     "$BIN" --enable-input-source || true
     # 防止升级后旧注册残留导致 HIToolbox 与第三方表双写 → 菜单出现两个同名输入法
     "$BIN" --dedupe-input-source || true
