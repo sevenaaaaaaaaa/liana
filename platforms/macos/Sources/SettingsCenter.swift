@@ -671,12 +671,22 @@ struct PetPage: View {
         let installed = PetWindowController.availablePets()
         let installedIds = Set(installed.map { $0.id })
         let downloadable = PetCatalogStore.entries().filter { !installedIds.contains($0.id) }
-        return SettingsPage(section: .pet, subtitle: "陪你打字的小伙伴：会对输入做出反应，点它切中英，右键看统计。") {
+        return SettingsPage(section: .pet, subtitle: "陪你打字的小伙伴：会对输入做出反应。点它摸头、双击戳一戳，右键看统计与更多设置。") {
             Section {
                 ToggleRow(
                     title: "显示桌宠",
                     detail: "在桌面角落常驻，可拖动",
                     isOn: model.binding({ PetWindowController.isEnabled }, { PetWindowController.setEnabled($0) })
+                )
+                ToggleRow(
+                    title: "安静模式",
+                    detail: "不主动问候和闲聊，只在你摸它时回应",
+                    isOn: model.binding({ PetWindowController.quietMode }, { PetWindowController.quietMode = $0 })
+                )
+                ToggleRow(
+                    title: "休息提醒",
+                    detail: "连续打字 \(PetWindowController.breakMinutes) 分钟后提醒你起身活动",
+                    isOn: model.binding({ PetWindowController.breakReminder }, { PetWindowController.breakReminder = $0 })
                 )
                 Picker("画幅", selection: model.binding({ PetWindowController.framingOverride }, { PetWindowController.framingOverride = $0 })) {
                     Text("全身").tag("full")

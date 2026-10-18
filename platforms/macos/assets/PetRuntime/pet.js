@@ -178,9 +178,10 @@ const LINES = {
   level: ['今天打了好多字呀', '继续保持！'],
 };
 function pick(list) { return list[Math.floor(Math.random() * list.length)]; }
-function say(list) {
+// force：用户直接互动（摸头/戳）必回应，不受闲聊节流限制
+function say(list, force = false) {
   const now = performance.now();
-  if (now < nextSayAt * 1000) return;
+  if (!force && now < nextSayAt * 1000) return;
   nextSayAt = now / 1000 + 22 + Math.random() * 25;
   post({ say: pick(list) });
 }
@@ -305,6 +306,10 @@ function ensureSize() {
 }
 
 let lastFrameAt = 0;
+// 省电：平时 30fps 足够顺滑，打盹时降到 12fps（桌宠常驻，不该吃满 GPU）
+function frameInterval() {
+  return sleepy && !dragging && !hovered ? 1000 / 12 : 1000 / 30;
+}
 function step() {
   ensureSize();
   const dt = Math.min(clock.getDelta(), 0.05);
@@ -344,6 +349,7 @@ function step() {
 }
 function animate() {
   requestAnimationFrame(animate);
+  if (performance.now() - lastFrameAt < frameInterval() - 2) return;
   step();
 }
 // WebKit 在非激活/遮挡时会节流 rAF：用定时器兜底，保证桌宠始终有动作
@@ -393,7 +399,10 @@ loader.load(
 
 // Swift → JS 接口
 window.petSetState = (value) => {
-  state = value || 'idle';
+  const next = value || 'idle';
+  // 打字时每次按键都会重复下发 typing：同状态不重置相位，避免动作一卡一卡
+  if (next === state && next !== 'commit') return;
+  state = next;
   elapsed = 0;
   if (state === 'commit') {
     setExpression('happy', 1);
@@ -405,7 +414,7 @@ window.petPetted = () => {
   setExpression('happy', 1);
   setTimeout(() => setExpression('happy', 0), 1200);
   post({ hearts: true });
-  say(LINES.petted);
+  say(LINES.petted, true);
 };
 window.petHover = (on) => {
   hovered = !!on;
@@ -434,7 +443,9 @@ window.petPoke = () => {
   pettedUntil = performance.now() + 900;
   setExpression('surprised', 1);
   setTimeout(() => setExpression('surprised', 0), 900);
-  say(['哎呀！', '干嘛呀～', '戳我干嘛']);
+  idleAction = 'hop';
+  idleUntil = performance.now() + 700;
+  say(['哎呀！', '干嘛呀～', '戳我干嘛'], true);
 };
 window.petSetGaze = (x, y) => {
   gaze.x = Math.max(-1, Math.min(1, x));

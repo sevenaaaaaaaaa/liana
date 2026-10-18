@@ -66,9 +66,9 @@
   // 状态 → Cubism 动作组名（pet.json 的 states 可覆盖，PR-3 接线）
   const MOTION_MAP = { idle: 'Idle', typing: 'TapBody', commit: 'TapHead' };
   const pick = (list) => list[Math.floor(Math.random() * list.length)];
-  function say(list) {
+  function say(list, force = false) {
     const now = performance.now();
-    if (now < nextSayAt * 1000) return;
+    if (!force && now < nextSayAt * 1000) return;
     nextSayAt = now / 1000 + 22 + Math.random() * 25;
     post({ say: pick(list) });
   }
@@ -137,18 +137,30 @@
       app.stage.addChild(model);
       fit();
       window.addEventListener('resize', fit);
+      applyState();
       window.__petReady = true;
       post({ ready: true });
     })
     .catch((err) => fail('Live2D 模型加载失败：' + String((err && err.message) || err)));
 
   // ── Swift → JS 接口（与 pet.js 同名同义） ──
-  window.petSetState = (value) => { state = value || 'idle'; applyState(); };
+  window.petSetState = (value) => {
+    const next = value || 'idle';
+    // 打字时每次按键都会重复下发 typing：同状态不重播动作
+    if (next === state && next !== 'commit') return;
+    state = next;
+    applyState();
+  };
   window.petPetted = () => {
     pettedUntil = performance.now() + 1200;
     playMotion('TapHead');
     post({ hearts: true });
-    say(LINES.petted);
+    say(LINES.petted, true);
+  };
+  window.petPoke = () => {
+    pettedUntil = performance.now() + 900;
+    playMotion('TapBody');
+    say(['哎呀！', '干嘛呀～', '戳我干嘛'], true);
   };
   window.petHover = (on) => { hovered = !!on; };
   window.petSetDrag = (on) => { dragging = !!on; };
@@ -156,6 +168,10 @@
     if (sleepy !== !!on) {
       sleepy = !!on;
       if (sleepy) say(LINES.sleepy); else say(LINES.wake);
+      // 打盹：整体略暗、减速；醒来恢复
+      if (model) model.alpha = sleepy ? 0.78 : 1;
+      app.ticker.speed = sleepy ? 0.5 : 1;
+      applyState();
     }
   };
   window.petSetMood = (level) => { moodLevel = Math.max(0, Math.min(3, level | 0)); };

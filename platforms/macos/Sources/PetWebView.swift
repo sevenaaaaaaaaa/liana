@@ -55,6 +55,7 @@ class PetWebView: WKWebView, WKScriptMessageHandler, WKNavigationDelegate {
     }
 
     func petted() { eval("window.petPetted && window.petPetted()") }
+    func poke() { eval("window.petPoke && window.petPoke()") }
     func setHover(_ on: Bool) { eval("window.petHover && window.petHover(\(on))") }
     func setDragging(_ on: Bool) { eval("window.petSetDrag && window.petSetDrag(\(on))") }
     func setSleepy(_ on: Bool) { eval("window.petSetSleepy && window.petSetSleepy(\(on))") }
@@ -82,7 +83,7 @@ class PetWebView: WKWebView, WKScriptMessageHandler, WKNavigationDelegate {
         }
         if let line = body["say"] as? String {
             DispatchQueue.main.async {
-                PetWindowController.shared.showToast(line, duration: 3.5)
+                PetWindowController.shared.pageSays(line)
             }
         }
         if body["hearts"] as? Bool == true {

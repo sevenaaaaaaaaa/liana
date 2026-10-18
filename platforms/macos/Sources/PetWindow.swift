@@ -51,6 +51,24 @@ final class PetWindowController {
         }
     }
 
+    private static let quietKey = "LianaPetQuiet"
+    private static let breakReminderKey = "LianaPetBreakReminder"
+    private static let hintCountKey = "LianaPetHintCount"
+
+    /// 安静模式：桌宠不主动说话（问候/闲聊/打盹台词），只回应用户的直接互动。
+    static var quietMode: Bool {
+        get { UserDefaults.standard.bool(forKey: quietKey) }
+        set { UserDefaults.standard.set(newValue, forKey: quietKey) }
+    }
+
+    /// 休息提醒：连续打字超过 `breakMinutes` 分钟时提醒起身活动（默认开）。
+    static var breakReminder: Bool {
+        get { UserDefaults.standard.object(forKey: breakReminderKey) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: breakReminderKey) }
+    }
+
+    static let breakMinutes = 50
+
     static var isEnabled: Bool {
         // 默认开启：仅当用户显式关过（键已存在且为 false）时才关闭。
         if UserDefaults.standard.object(forKey: enabledKey) == nil { return true }
@@ -140,6 +158,18 @@ final class PetWindowController {
     private var statsButton: PetQuickButton?
     /// 鼠标追踪：30fps 轮询（无权限需求），只在包声明 follow_cursor 时启动。
     private var mouseTimer: Timer?
+    /// 生活节律：1Hz，与渲染器无关（打盹 / 问候 / 休息提醒 / 心情），emoji 与图片形象同样生效。
+    private var lifeTimer: Timer?
+    private var sleepy = false
+    private var zzzLabel: NSTextField?
+    private var groundShadow: CAGradientLayer?
+    /// 连续打字段：段内相邻输入间隔 < 5 分钟；超过 breakMinutes 提醒一次
+    private var sessionStart: Date?
+    private var breakReminded = false
+    /// 最近一次用户直接互动（点按/戳/拖动/菜单）：安静模式下仍允许这之后的回应台词
+    private var lastUserTouch = Date.distantPast
+    private var lastMilestone = 0
+    private var lastMood = -1
 
     private struct PetPack {
         var size: CGFloat = 84
@@ -279,6 +309,9 @@ final class PetWindowController {
         petView = nil
         unsupportedRenderer = nil
         particleEmitter = nil
+        zzzLabel = nil
+        groundShadow = nil
+        sleepy = false
         loadPack()
         if Self.isEnabled {
             show()
@@ -294,8 +327,11 @@ final class PetWindowController {
         panel?.orderFrontRegardless()
         startMouseTrackingIfNeeded()
         startAnimTimerIfNeeded()
+        startLifeTimer()
         react(.idle)
-        petView?.setMood(moodLevel())
+        lastMood = -1
+        lastMilestone = Self.milestone(for: PetStats.shared.today.chars)
+        refreshMood()
         greetedPeriod = ""
         if let renderer = unsupportedRenderer {
             showToast("该形象包需要 \(renderer.uppercased()) 渲染器（尚未接入，见 ADR-0007）", duration: 5)
@@ -305,6 +341,9 @@ final class PetWindowController {
     func hide() {
         stopMouseTracking()
         stopAnimTimer()
+        lifeTimer?.invalidate()
+        lifeTimer = nil
+        hideToast()
         panel?.orderOut(nil)
     }
 
@@ -320,8 +359,7 @@ final class PetWindowController {
     }
 
     /// 今天的输入量 → 心情等级 0..3（仅本机统计，不上传）。
-    private func moodLevel() -> Int {
-        let chars = PetStats.shared.today.chars
+    private static func moodLevel(chars: Int) -> Int {
         switch chars {
         case ..<200: return 0
         case ..<1_000: return 1
@@ -330,12 +368,40 @@ final class PetWindowController {
         }
     }
 
+    /// 当日字数里程碑：跨过时庆祝一次。
+    private static let milestones = [1_000, 3_000, 5_000, 10_000, 20_000]
+
+    private static func milestone(for chars: Int) -> Int {
+        milestones.last(where: { chars >= $0 }) ?? 0
+    }
+
+    private func refreshMood() {
+        let level = Self.moodLevel(chars: PetStats.shared.today.chars)
+        guard level != lastMood else { return }
+        lastMood = level
+        petView?.setMood(level)
+    }
+
+    /// 上屏后检查当日字数里程碑。
+    private func checkMilestone() {
+        let chars = PetStats.shared.today.chars
+        let reached = Self.milestone(for: chars)
+        // 跨过午夜，当日计数归零：里程碑跟着重来
+        if reached < lastMilestone { lastMilestone = reached }
+        guard reached > lastMilestone else { return }
+        lastMilestone = reached
+        refreshMood()
+        emitSparks(hearts: true)
+        showToast("🎉 今天已经输入 \(reached.formatted()) 字啦！", duration: 4)
+    }
+
     /// 按时间段问候（每天每段只问候一次；VRM 走页面台词，其他渲染器用气泡）。
     private func greetIfNeeded() {
         let hour = Calendar.current.component(.hour, from: Date())
         let period = hour < 11 ? "morning" : (hour < 18 ? "afternoon" : "evening")
         guard period != greetedPeriod else { return }
         greetedPeriod = period
+        guard !Self.quietMode else { return }
         if let petView {
             petView.greet(period)
         } else {
@@ -344,9 +410,95 @@ final class PetWindowController {
         }
     }
 
-    /// 摸头/上屏的庆祝特效（供 VRM 页面上报 hearts 时调用）。
+    /// 页面（VRM/Live2D）主动说话：安静模式下只放行用户刚互动后的回应。
+    func pageSays(_ line: String) {
+        if Self.quietMode, Date().timeIntervalSince(lastUserTouch) > 2.5 { return }
+        showToast(line, duration: 3.5)
+    }
+
+    /// 摸头的庆祝特效（供 VRM/Live2D 页面上报 hearts 时调用）。
     func celebrate() {
-        emitSparks()
+        emitSparks(hearts: true)
+    }
+
+    // MARK: - 生活节律（打盹 / 问候 / 休息提醒）
+
+    private func startLifeTimer() {
+        guard lifeTimer == nil else { return }
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            self?.lifeTick()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        lifeTimer = timer
+    }
+
+    private func lifeTick() {
+        guard panel?.isVisible == true else { return }
+        let idleFor = Date().timeIntervalSince(lastActivity)
+        // 90 秒无输入 → 发呆打盹；有输入或被摸时 wake()
+        if !sleepy, idleFor > 90 { setSleepy(true) }
+        // 休息 5 分钟以上视为新的一段打字
+        if idleFor > 300 {
+            sessionStart = nil
+            breakReminded = false
+        }
+        if Self.breakReminder, !breakReminded, let start = sessionStart,
+           Date().timeIntervalSince(start) > Double(Self.breakMinutes * 60) {
+            breakReminded = true
+            emitSparks(hearts: true)
+            showToast("已经连续打字 \(Self.breakMinutes) 分钟了，起来伸个懒腰、喝口水吧 ☕️", duration: 8)
+        }
+        greetIfNeeded()
+    }
+
+    private func setSleepy(_ on: Bool) {
+        guard sleepy != on else { return }
+        sleepy = on
+        if let petView {
+            petView.setSleepy(on)
+            return
+        }
+        // 非 WebKit 形象：变淡 + 头顶 💤
+        guard let host = panel?.contentView else { return }
+        if on {
+            let label = zzzLabel ?? {
+                let l = NSTextField(labelWithString: "💤")
+                l.font = .systemFont(ofSize: max(12, host.bounds.width * 0.18))
+                l.translatesAutoresizingMaskIntoConstraints = false
+                host.addSubview(l)
+                NSLayoutConstraint.activate([
+                    l.trailingAnchor.constraint(equalTo: host.trailingAnchor, constant: -2),
+                    l.topAnchor.constraint(equalTo: host.topAnchor, constant: 2),
+                ])
+                zzzLabel = l
+                return l
+            }()
+            label.isHidden = false
+            label.wantsLayer = true
+            let float = CABasicAnimation(keyPath: "transform.translation.y")
+            float.fromValue = 0
+            float.toValue = 4
+            float.duration = 1.6
+            float.autoreverses = true
+            float.repeatCount = .infinity
+            label.layer?.add(float, forKey: "zzz")
+        } else {
+            zzzLabel?.isHidden = true
+            zzzLabel?.layer?.removeAnimation(forKey: "zzz")
+        }
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.4
+            for view in host.subviews where view !== zzzLabel {
+                view.animator().alphaValue = on ? 0.72 : 1
+            }
+        }
+    }
+
+    /// 有输入或被互动：记活跃、唤醒、累计连续打字段。
+    private func markActive(typing: Bool) {
+        lastActivity = Date()
+        if typing, sessionStart == nil { sessionStart = Date() }
+        setSleepy(false)
     }
 
     /// 把桌宠移到「输入所在屏幕」：保持相对位置，跟随光标/输入焦点跨屏。
@@ -376,7 +528,7 @@ final class PetWindowController {
         case "typing": react(.composing)
         case "commit": react(.commit)
         case "petted", "happy": petView?.petted()
-        case "sleepy": petView?.setSleepy(true)
+        case "sleepy": setSleepy(true)
         case "drag": petView?.setDragging(true)
         default: react(.idle)
         }
@@ -429,6 +581,7 @@ final class PetWindowController {
     private var currentState: State = .idle
     private var frameIndex = 0
     private var animTimer: Timer?
+    private var animFps: Double = 0
 
     private func startAnimTimerIfNeeded() {
         guard animTimer == nil else { return }
@@ -437,14 +590,16 @@ final class PetWindowController {
 
     /// 按当前状态用对应帧率重启计时器：idle 慢速省电，typing 提速跟手。
     private func restartAnimTimer() {
-        animTimer?.invalidate()
-        animTimer = nil
         guard pack != nil else { return }
         let fps: Double
         switch currentState {
         case .idle: fps = pack?.idleFps ?? 3
         case .composing, .commit: fps = pack?.typingFps ?? 9
         }
+        // 每次按键都会 react(.composing)：帧率没变就不重建计时器
+        if animTimer != nil, fps == animFps { return }
+        animTimer?.invalidate()
+        animFps = fps
         let timer = Timer(timeInterval: 1.0 / max(1, fps), repeats: true) { [weak self] _ in
             self?.tick()
         }
@@ -461,11 +616,6 @@ final class PetWindowController {
         guard panel?.isVisible == true else { return }
         // VRM：状态给 JS 处理；这里只按鼠标更新注视（约 20fps 节流）
         if let petView {
-            // 90 秒无输入 → 发呆打盹；有输入时 react() 会唤醒
-            if Date().timeIntervalSince(lastActivity) > 90 {
-                petView.setSleepy(true)
-            }
-            greetIfNeeded()
             gazeTick += 1
             if gazeTick % 3 == 0, let panel {
                 let mouse = NSEvent.mouseLocation
@@ -512,8 +662,10 @@ final class PetWindowController {
         guard let panel, panel.isVisible else { return }
         resetWorkItem?.cancel()
         if state == .composing || state == .commit {
-            lastActivity = Date()
-            petView?.setSleepy(false)
+            markActive(typing: true)
+        }
+        if state == .commit {
+            checkMilestone()
         }
         // 形象包：切状态、帧归零、按状态换帧率
         if let pack, let imageView {
@@ -608,9 +760,32 @@ final class PetWindowController {
         background.onRightClick = { [weak self] event in
             self?.presentPetMenu(event)
         }
+        background.onDoubleClick = { [weak self] in self?.pokeBody() }
         background.onDragChanged = { [weak self] dragging in
-            self?.lastActivity = Date()
-            self?.petView?.setDragging(dragging)
+            guard let self else { return }
+            self.lastUserTouch = Date()
+            self.markActive(typing: false)
+            self.petView?.setDragging(dragging)
+            if !dragging { self.clampToScreen(animated: true) }
+        }
+
+        // 脚下柔和的椭圆投影：让角色「站」在桌面上（半身构图没有脚，不画）
+        let webBust = (pack?.renderer == "vrm" || pack?.renderer == "live2d") && Self.framingOverride == "bust"
+        background.wantsLayer = true   // 投影与礼花粒子都挂在这一层
+        if !webBust {
+            let shadow = CAGradientLayer()
+            shadow.type = .radial
+            shadow.colors = [
+                NSColor.black.withAlphaComponent(0.28).cgColor,
+                NSColor.black.withAlphaComponent(0).cgColor,
+            ]
+            shadow.startPoint = CGPoint(x: 0.5, y: 0.5)
+            shadow.endPoint = CGPoint(x: 1, y: 1)
+            let w = panelW * 0.56
+            let h = max(8, panelW * 0.09)
+            shadow.frame = CGRect(x: (panelW - w) / 2, y: 2, width: w, height: h)
+            background.layer?.addSublayer(shadow)
+            groundShadow = shadow
         }
 
         if let pack, pack.renderer == "vrm" {
@@ -719,9 +894,9 @@ final class PetWindowController {
             NotificationCenter.default.post(name: .petToggleLanguage, object: nil)
         }
         let statsBtn = PetQuickButton(title: "📊")
-        statsBtn.toolTip = "昨日输入总结"
-        statsBtn.handler = {
-            NotificationCenter.default.post(name: .petShowStats, object: nil)
+        statsBtn.toolTip = "今日输入小结"
+        statsBtn.handler = { [weak self] in
+            self?.showStatsCard(yesterday: false)
         }
         let dock = NSStackView(views: [modeBtn, statsBtn])
         dock.orientation = .horizontal
@@ -749,6 +924,8 @@ final class PetWindowController {
             queue: .main
         ) { _ in
             PetWindowController.shared.saveOrigin()
+            // 气泡跟着桌宠走（拖动 / 跨屏）
+            PetWindowController.shared.positionToast()
         }
         return panel
     }
@@ -758,11 +935,25 @@ final class PetWindowController {
     /// 左键点按身体 = 摸头：桌宠开心弹跳 + 台词；中英切换改由快捷圆钮/右键菜单。
     private func tapBody() {
         pulse(scale: 1.12, duration: 0.2)
-        lastActivity = Date()
+        lastUserTouch = Date()
+        markActive(typing: false)
         if let petView {
             petView.petted()
         } else {
+            emitSparks(hearts: true)
             showToast(pickPetLine(["嘿嘿～", "好舒服", "再摸一下嘛", "我在呢"]), duration: 2.5)
+        }
+    }
+
+    /// 双击 = 戳一戳：惊讶小跳。
+    private func pokeBody() {
+        pulse(scale: 1.2, duration: 0.26)
+        lastUserTouch = Date()
+        markActive(typing: false)
+        if let petView {
+            petView.poke()
+        } else {
+            showToast(pickPetLine(["哎呀！", "干嘛呀～", "戳我干嘛"]), duration: 2.5)
         }
     }
 
@@ -770,23 +961,23 @@ final class PetWindowController {
         lines.randomElement() ?? lines[0]
     }
 
-    /// 悬停 = 被摸头：轻晃 + 显示吸附按钮 + 提示气泡（不刷屏，5 秒内只提示一次）。
+    /// 悬停：轻晃 + 显示吸附按钮；操作提示只在前 3 次悬停时出现，之后不再打扰。
     private func hoverBody(_ hovering: Bool) {
         modeButton?.isHidden = !hovering
         statsButton?.isHidden = !hovering
+        statsButton?.toolTip = "今日已输入 \(PetStats.shared.today.chars.formatted()) 字 · 点开看小结"
         petView?.setHover(hovering)
         guard hovering else { return }
         pulse(scale: 1.06, duration: 0.16)
-        let now = Date().timeIntervalSince1970
-        guard now - lastHintAt > 5 else { return }
-        lastHintAt = now
-        showToast("点按：中/英 · 右键：标点与统计", duration: 3.5)
+        let shown = UserDefaults.standard.integer(forKey: Self.hintCountKey)
+        guard shown < 3 else { return }
+        UserDefaults.standard.set(shown + 1, forKey: Self.hintCountKey)
+        showToast("点我摸头 · 双击戳一戳 · 右键更多", duration: 3.5)
     }
 
-    private var lastHintAt: TimeInterval = 0
-
-    /// 右键菜单：模式、标点、统计、隐私。
+    /// 右键菜单：模式、标点、统计、桌宠设置、隐私。
     private func presentPetMenu(_ event: NSEvent?) {
+        lastUserTouch = Date()
         let menu = NSMenu()
         let lang = NSMenuItem(title: "切换 中/英", action: #selector(petMenuToggleLanguage(_:)), keyEquivalent: "")
         lang.target = self
@@ -828,14 +1019,69 @@ final class PetWindowController {
         let more = NSMenuItem(title: "更多 VRM 形象…", action: #selector(petMenuOpenCatalog(_:)), keyEquivalent: "")
         more.target = self
         menu.addItem(more)
+        let sizeItem = NSMenuItem(title: "大小", action: nil, keyEquivalent: "")
+        let sizeMenu = NSMenu(title: "大小")
+        for (title, value) in [("80%", 0.8), ("100%", 1.0), ("125%", 1.25), ("150%", 1.5)] {
+            let item = NSMenuItem(title: title, action: #selector(petMenuZoom(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = value
+            item.state = abs(Self.zoomOverride - value) < 0.01 ? .on : .off
+            sizeMenu.addItem(item)
+        }
+        sizeItem.submenu = sizeMenu
+        menu.addItem(sizeItem)
+        let quiet = NSMenuItem(title: "安静模式（不主动说话）", action: #selector(petMenuToggleQuiet(_:)), keyEquivalent: "")
+        quiet.target = self
+        quiet.state = Self.quietMode ? .on : .off
+        menu.addItem(quiet)
+        let rest = NSMenuItem(
+            title: "连续打字 \(Self.breakMinutes) 分钟提醒休息",
+            action: #selector(petMenuToggleBreak(_:)),
+            keyEquivalent: ""
+        )
+        rest.target = self
+        rest.state = Self.breakReminder ? .on : .off
+        menu.addItem(rest)
         menu.addItem(.separator())
+        let today = NSMenuItem(title: "今日输入小结", action: #selector(petMenuShowToday(_:)), keyEquivalent: "")
+        today.target = self
+        menu.addItem(today)
         let stats = NSMenuItem(title: "昨日输入总结", action: #selector(petMenuShowStats(_:)), keyEquivalent: "")
         stats.target = self
         menu.addItem(stats)
         let perms = NSMenuItem(title: "权限与隐私…", action: #selector(petMenuPermissions(_:)), keyEquivalent: "")
         perms.target = self
         menu.addItem(perms)
+        menu.addItem(.separator())
+        let hide = NSMenuItem(title: "隐藏桌宠", action: #selector(petMenuHide(_:)), keyEquivalent: "")
+        hide.target = self
+        menu.addItem(hide)
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    @objc private func petMenuZoom(_ sender: NSMenuItem) {
+        guard let value = sender.representedObject as? Double else { return }
+        Self.zoomOverride = value
+    }
+
+    @objc private func petMenuToggleQuiet(_ sender: Any) {
+        Self.quietMode.toggle()
+        showToast(Self.quietMode ? "好的，我安静陪着你 🤫" : "我又可以说话啦", duration: 2.5)
+    }
+
+    @objc private func petMenuToggleBreak(_ sender: Any) {
+        Self.breakReminder.toggle()
+        breakReminded = false
+        showToast(Self.breakReminder ? "连续打字 \(Self.breakMinutes) 分钟会提醒你休息" : "已关闭休息提醒", duration: 2.5)
+    }
+
+    @objc private func petMenuShowToday(_ sender: Any) {
+        showStatsCard(yesterday: false)
+    }
+
+    @objc private func petMenuHide(_ sender: Any) {
+        Self.setEnabled(false)
+        GlassToast.shared.show("桌宠已隐藏，可在输入法菜单或设置 › 桌宠里重新打开", duration: 5)
     }
 
     @objc private func petMenuToggleLanguage(_ sender: Any) {
@@ -910,9 +1156,16 @@ final class PetWindowController {
         toastLabel.preferredMaxLayoutWidth = 200
         let size = toastLabel.intrinsicContentSize
         let width = min(230, max(120, size.width + 24))
-        let height = max(34, size.height + 18)
+        let height = max(34, size.height + 18) + Self.tailHeight
         panel.setContentSize(NSSize(width: width, height: height))
         positionToast()
+        if !panel.isVisible {
+            panel.alphaValue = 0
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.18
+                panel.animator().alphaValue = 1
+            }
+        }
         toastWorkItem?.cancel()
         panel.orderFrontRegardless()
         let item = DispatchWorkItem { [weak panel] in
@@ -946,27 +1199,72 @@ final class PetWindowController {
         box.material = .hudWindow
         box.blendingMode = .behindWindow
         box.state = .active
-        box.wantsLayer = true
-        box.layer?.cornerRadius = 12
-        box.layer?.masksToBounds = true
+        box.autoresizingMask = [.width, .height]
         toastLabel.font = .systemFont(ofSize: 11.5)
         toastLabel.textColor = .labelColor
         toastLabel.translatesAutoresizingMaskIntoConstraints = false
         box.addSubview(toastLabel)
+        let centerY = toastLabel.centerYAnchor.constraint(equalTo: box.centerYAnchor)
         NSLayoutConstraint.activate([
             toastLabel.centerXAnchor.constraint(equalTo: box.centerXAnchor),
-            toastLabel.centerYAnchor.constraint(equalTo: box.centerYAnchor),
+            centerY,
         ])
+        toastLabelCenterY = centerY
         panel.contentView = box
+        toastBox = box
         toastPanel = panel
         return panel
     }
 
-    private func positionToast() {
+    private static let tailHeight: CGFloat = 7
+    private var toastBox: NSVisualEffectView?
+    private var toastLabelCenterY: NSLayoutConstraint?
+
+    /// 气泡放在桌宠头顶；头顶放不下就翻到脚下。水平方向夹在屏幕内，尾巴始终指向桌宠。
+    fileprivate func positionToast() {
         guard let toast = toastPanel, let pet = panel else { return }
-        let x = pet.frame.midX - toast.frame.width / 2
-        let y = pet.frame.maxY + 6
+        let size = toast.frame.size
+        let visible = (pet.screen ?? NSScreen.main)?.visibleFrame ?? pet.frame
+        var x = pet.frame.midX - size.width / 2
+        x = min(max(x, visible.minX + 4), visible.maxX - size.width - 4)
+        var y = pet.frame.maxY + 2
+        let below = y + size.height > visible.maxY
+        if below {
+            y = max(visible.minY, pet.frame.minY - size.height - 2)
+        }
         toast.setFrameOrigin(NSPoint(x: x, y: y))
+        // 尾巴横坐标：桌宠中心相对气泡左边缘（避开圆角）
+        let tailX = min(max(pet.frame.midX - x, 16), size.width - 16)
+        toastBox?.maskImage = Self.bubbleMask(size: size, tailX: tailX, tailOnTop: below)
+        // 文字避开尾巴所在的那一条
+        toastLabelCenterY?.constant = below ? Self.tailHeight / 2 : -Self.tailHeight / 2
+    }
+
+    /// 圆角气泡 + 三角尾巴的遮罩（尾巴朝向桌宠）。
+    private static func bubbleMask(size: NSSize, tailX: CGFloat, tailOnTop: Bool) -> NSImage {
+        NSImage(size: size, flipped: false) { _ in
+            let t = tailHeight
+            let body = NSRect(
+                x: 0, y: tailOnTop ? 0 : t,
+                width: size.width, height: size.height - t
+            )
+            let path = NSBezierPath(roundedRect: body, xRadius: 12, yRadius: 12)
+            let tail = NSBezierPath()
+            if tailOnTop {
+                tail.move(to: NSPoint(x: tailX - 7, y: body.maxY - 1))
+                tail.line(to: NSPoint(x: tailX, y: size.height))
+                tail.line(to: NSPoint(x: tailX + 7, y: body.maxY - 1))
+            } else {
+                tail.move(to: NSPoint(x: tailX - 7, y: t + 1))
+                tail.line(to: NSPoint(x: tailX, y: 0))
+                tail.line(to: NSPoint(x: tailX + 7, y: t + 1))
+            }
+            tail.close()
+            NSColor.black.setFill()
+            path.fill()
+            tail.fill()
+            return true
+        }
     }
 
     /// 快启动台的模式徽标：中文模式显示「中」，英文显示「EN」。
@@ -996,8 +1294,12 @@ final class PetWindowController {
         layer.add(animation, forKey: "pulse")
     }
 
-    /// 上屏礼花：在桌宠脚下撒一小把 accent 色光点。
-    private func emitSparks() {
+    /// 上屏礼花：在桌宠脚下撒一小把 accent 色光点；摸头/里程碑时从头顶飘出小爱心。
+    private func emitSparks(hearts: Bool = false) {
+        if hearts {
+            emitHearts()
+            return
+        }
         guard let panel, let background = panel.contentView else { return }
         particleEmitter?.removeFromSuperlayer()
         let emitter = CAEmitterLayer()
@@ -1035,6 +1337,47 @@ final class PetWindowController {
             if self?.particleEmitter === emitter {
                 self?.particleEmitter = nil
             }
+        }
+    }
+
+    private static let heartImage: CGImage? = {
+        let image = NSImage(size: NSSize(width: 24, height: 24), flipped: false) { rect in
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 18, weight: .bold),
+                .foregroundColor: NSColor.systemPink,
+            ]
+            NSAttributedString(string: "♥", attributes: attrs).draw(at: NSPoint(x: 4, y: 2))
+            return true
+        }
+        return image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+    }()
+
+    private func emitHearts() {
+        guard let panel, let background = panel.contentView, let layer = background.layer else { return }
+        let emitter = CAEmitterLayer()
+        emitter.emitterPosition = CGPoint(x: background.bounds.midX, y: background.bounds.height * 0.78)
+        emitter.emitterSize = CGSize(width: background.bounds.width * 0.4, height: 2)
+        emitter.emitterShape = .line
+        let cell = CAEmitterCell()
+        cell.contents = Self.heartImage
+        cell.birthRate = 9
+        cell.lifetime = 1.3
+        cell.velocity = 34
+        cell.velocityRange = 12
+        cell.yAcceleration = 12
+        cell.emissionLongitude = .pi / 2
+        cell.emissionRange = .pi / 5
+        cell.scale = 0.6
+        cell.scaleRange = 0.25
+        cell.alphaSpeed = -0.7
+        cell.spinRange = 0.8
+        emitter.emitterCells = [cell]
+        layer.addSublayer(emitter)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak emitter] in
+            emitter?.birthRate = 0
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { [weak emitter] in
+            emitter?.removeFromSuperlayer()
         }
     }
 
@@ -1091,6 +1434,8 @@ final class PetWindowController {
         guard let panel else { return }
         if let saved = UserDefaults.standard.array(forKey: Self.originKey) as? [Double], saved.count == 2 {
             panel.setFrameOrigin(NSPoint(x: saved[0], y: saved[1]))
+            // 外接屏拔掉 / 分辨率变化后，旧位置可能落在屏外：拉回可见区域
+            clampToScreen(animated: false)
             return
         }
         if let screen = NSScreen.main {
@@ -1099,6 +1444,30 @@ final class PetWindowController {
                 x: visible.maxX - panel.frame.width - 28,
                 y: visible.minY + 28
             ))
+        }
+    }
+
+    /// 保证桌宠至少大半个身子在某块屏幕的可见区域内（拖出屏外 / 屏幕消失时拉回）。
+    private func clampToScreen(animated: Bool) {
+        guard let panel else { return }
+        let frame = panel.frame
+        let screen = NSScreen.screens.max(by: {
+            $0.visibleFrame.intersection(frame).area < $1.visibleFrame.intersection(frame).area
+        })
+        guard let visible = (screen ?? NSScreen.main)?.visibleFrame else { return }
+        let keep = frame.width * 0.6
+        var origin = frame.origin
+        origin.x = min(max(origin.x, visible.minX - frame.width + keep), visible.maxX - keep)
+        origin.y = min(max(origin.y, visible.minY), visible.maxY - frame.height)
+        guard origin != frame.origin else { return }
+        if animated {
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.25
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                panel.animator().setFrameOrigin(origin)
+            }
+        } else {
+            panel.setFrameOrigin(origin)
         }
     }
 
@@ -1114,6 +1483,7 @@ final class PetWindowController {
 /// 透明无背景，角色直接悬浮在桌面上。
 private final class PetBackgroundView: NSView {
     var onClick: (() -> Void)?
+    var onDoubleClick: (() -> Void)?
     var onHover: ((Bool) -> Void)?
     var onRightClick: ((NSEvent) -> Void)?
     /// 拖动状态变化（true = 正在被拎起来）
@@ -1183,7 +1553,11 @@ private final class PetBackgroundView: NSView {
             dragging = false
             onDragChanged?(false)
         } else if moved < 3, held < 0.35 {
-            onClick?()
+            if event.clickCount >= 2 {
+                onDoubleClick?()
+            } else {
+                onClick?()
+            }
         }
     }
 
@@ -1216,6 +1590,10 @@ private final class PetQuickButton: NSButton {
     @objc private func fire() {
         handler?()
     }
+}
+
+private extension CGRect {
+    var area: CGFloat { isNull ? 0 : width * height }
 }
 
 extension Notification.Name {
