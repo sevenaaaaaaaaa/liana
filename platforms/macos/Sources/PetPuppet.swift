@@ -232,7 +232,7 @@ struct PuppetDraft {
     var packId: String?
     var name = "我的桌宠"
     var faces = "front"           // front | left | right
-    var shareable = false         // 用户声明「原创或已获授权，可分享」
+    var shareable = false         // 作者声明「原创或已获授权」：发布到松萝社区的前提（本地使用与导出不受限）
     var images: [PuppetImage] = []
     var actions: [PuppetActionDraft] = []
     /// 编辑器表达不了的包内动作（波形 / 循环 / 溜达），保存时原样写回
@@ -754,13 +754,10 @@ enum PuppetPackStore {
         return draft.images.isEmpty ? nil : draft
     }
 
-    /// 导出 `.lianapet`（zip）。仅限用户声明了可分享的形象。
+    /// 导出 `.lianapet`（zip）。本地使用不干预：任何纸偶形象都能导出。
     static func export(packId: String, to url: URL) throws {
-        guard let draft = load(packId: packId) else {
+        guard isPuppet(packId: packId) else {
             throw PuppetError.message("只能导出纸偶形象")
-        }
-        guard draft.shareable else {
-            throw PuppetError.message("这个形象标记为「仅个人使用」：确认图片是原创或已获授权后，在形象工坊勾选「可以分享」再导出")
         }
         let dir = PluginStore.pluginsDir.appendingPathComponent(packId, isDirectory: true)
         try? FileManager.default.removeItem(at: url)

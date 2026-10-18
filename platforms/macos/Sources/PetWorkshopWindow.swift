@@ -308,10 +308,6 @@ final class WorkshopModel: ObservableObject {
     }
 
     func exportPack() {
-        guard draft.shareable else {
-            status = "导出前请先确认图片是原创或已获授权，并勾选「可以分享」"
-            return
-        }
         guard let id = save() else { return }
         let panel = NSSavePanel()
         panel.nameFieldStringValue = "\(draft.name).\(PuppetPackStore.fileExtension)"
@@ -590,8 +586,8 @@ struct WorkshopView: View {
 
     private var shareSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Toggle("这些图片是我原创或已获授权，可以分享", isOn: $model.draft.shareable)
-            Text("用他人照片（包括明星、网红）做的形象请只自己用：导出分享可能侵犯肖像权和著作权。未勾选时不能导出 .lianapet。")
+            Toggle("这些图片是我原创或已获授权", isOn: $model.draft.shareable)
+            Text("自己用、导出发给朋友都不受限制。将来发布到松萝社区时，只收原创或已获授权的形象，并且需要审核。")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
