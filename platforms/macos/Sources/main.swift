@@ -543,6 +543,28 @@ if installArgs.count > 1 {
         NSApplication.shared.run()
         exit(0)
 
+    case "--imagegen-test":
+        // 开发用：对本地模拟服务跑一遍「AI 补全表情」的请求与解析（参数：<baseURL> <openai|gemini> <参考图>）
+        var config = PetImageGenConfig()
+        config.provider = PetImageGenProvider(rawValue: installArgs[3]) ?? .openai
+        config.baseURL = installArgs[2]
+        guard let png = try? Data(contentsOf: URL(fileURLWithPath: installArgs[4])),
+              let reference = PetImageGen.referencePNG(from: png) else { print("参考图读不了"); exit(1) }
+        PetImageGen.generate(role: .happy, reference: reference, config: config, key: "test-key") { result in
+            switch result {
+            case .success(let data):
+                let file = FileManager.default.temporaryDirectory.appendingPathComponent("imagegen-test.png")
+                try? data.write(to: file)
+                let processed = try? PuppetBuilder.process([file])
+                print("OK", config.provider.rawValue, "bytes:", data.count, "processed:", processed?.first?.image.pixelSize ?? .zero)
+            case .failure(let error):
+                print("FAILED", error.localizedDescription)
+            }
+            exit(0)
+        }
+        NSApplication.shared.run()
+        exit(0)
+
     case "--puppet-make":
         // 开发用：用一组按表情命名的 PNG（idle.png、happy.png…）+ 固定骨架生成 .lianapet
         // 参数：<图片目录> <名字> <输出 .lianapet> [骨架 JSON]

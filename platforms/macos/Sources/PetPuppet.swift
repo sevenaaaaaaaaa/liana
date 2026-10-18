@@ -178,6 +178,26 @@ enum PuppetRole: String, CaseIterable, Identifiable {
         }
     }
 
+    /// 给图像模型的英文描述（「AI 补全表情」用）
+    var englishPhrase: String {
+        switch self {
+        case .idle: return "standing naturally with a gentle smile, arms relaxed at the sides"
+        case .blink: return "exactly the same as the reference, only both eyes gently closed as in a natural blink; nothing else changes"
+        case .talk: return "exactly the same as the reference, only the mouth open as if saying 'ah'; nothing else changes"
+        case .happy: return "laughing happily with eyes curved into smiles, both arms raised in joy"
+        case .typing: return "looking slightly down with a focused expression, both hands held in front of the body as if typing on a keyboard"
+        case .sleep: return "eyes closed, dozing off, head tilted to one side, one hand rubbing an eye"
+        case .surprised: return "eyes wide open, mouth open in an O shape, both hands open beside the body in surprise"
+        case .shy: return "blushing, looking away shyly, both hands touching the cheeks"
+        case .sad: return "sad and wronged: corners of the mouth down, eyebrows raised in the middle, head slightly lowered, hands clasped in front"
+        case .angry: return "pouting angrily with puffed cheeks and furrowed brows, hands on hips"
+        case .love: return "smiling sweetly with blushing cheeks, making a heart shape with both hands in front of the chest"
+        case .tired: return "exhausted, half-closed eyes, slouching, yawning"
+        case .covereyes: return "covering both eyes with both hands, peeking shyly between the fingers"
+        case .listen: return "one hand cupped behind the ear, leaning forward slightly with a curious listening expression"
+        }
+    }
+
     /// 文件名关键词 → 角色（AI 生成的一组图常按表情命名）
     static func guess(from filename: String) -> PuppetRole? {
         let name = filename.lowercased()

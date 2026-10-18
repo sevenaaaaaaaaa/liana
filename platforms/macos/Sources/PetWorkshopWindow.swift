@@ -306,25 +306,108 @@ final class WorkshopModel: ObservableObject {
         refreshPreview(immediately: true)
     }
 
+    // MARK: AI 补全表情
+
+    @Published var showAISheet = false
+    @Published var aiRunning = false
+    private var aiCancelled = false
+
+    var aiConfigured: Bool { PetImageGen.isConfigured }
+
+    /// 按顺序逐个表情生成 → 抠图 / 裁切 / 骨架 → 放进对应格子 → 自动对齐
+    func generateWithAI(_ roles: [PuppetRole]) {
+        guard !aiRunning, let idle = image(for: .idle), let reference = PetImageGen.referencePNG(from: idle.png) else {
+            status = "先放一张「平时」图"
+            return
+        }
+        let queue = roles.filter { $0 != .idle }
+        guard !queue.isEmpty else { return }
+        aiRunning = true
+        aiCancelled = false
+        busy = true
+        var done = 0, failed: [String] = []
+        func next(_ index: Int) {
+            guard index < queue.count, !aiCancelled else {
+                aiRunning = false
+                busy = false
+                realign()
+                refreshPreview(immediately: true)
+                status = aiCancelled ? "已停止，生成了 \(done) 张"
+                    : (failed.isEmpty ? "AI 补全完成：\(done) 张，已自动对齐" : "完成 \(done) 张；没成功：\(failed.joined(separator: "、"))")
+                return
+            }
+            let role = queue[index]
+            status = "AI 生成中 \(index + 1)/\(queue.count)：\(role.shortTitle)…（上传的是「平时」图）"
+            PetImageGen.generate(role: role, reference: reference) { [weak self] result in
+                guard let self else { return }
+                switch result {
+                case .failure(let error):
+                    failed.append(role.shortTitle)
+                    if index == 0 { self.status = error.localizedDescription }
+                    // 第一张就失败（多半是 Key / 地址 / 额度问题）就别继续烧请求了
+                    if done == 0 && failed.count >= 2 {
+                        self.aiCancelled = true
+                        self.status = error.localizedDescription
+                    }
+                    next(index + 1)
+                case .success(let png):
+                    let file = FileManager.default.temporaryDirectory.appendingPathComponent("liana-ai-\(role.rawValue)-\(UUID().uuidString).png")
+                    try? png.write(to: file)
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        let processed = try? PuppetBuilder.process([file])
+                        try? FileManager.default.removeItem(at: file)
+                        DispatchQueue.main.async {
+                            if var image = processed?.first?.image {
+                                image.role = role
+                                self.draft.images.removeAll { $0.role == role }
+                                self.manuallyAligned.remove(image.id)
+                                self.draft.images.append(image)
+                                done += 1
+                                self.realign()
+                                self.refreshPreview(immediately: true)
+                            } else {
+                                failed.append(role.shortTitle)
+                            }
+                            next(index + 1)
+                        }
+                    }
+                }
+            }
+        }
+        next(0)
+    }
+
+    func cancelAI() {
+        aiCancelled = true
+    }
+
     // MARK: 提示词
 
     /// 角色描述（拼进每个格子的生成提示词）
     @Published var characterDesc = ""
 
+    /// 单张提示词：以「平时」图为参考（只有一张图时最好用）；没有平时图时生成第一张
     func prompt(for role: PuppetRole) -> String {
-        let who = characterDesc.trimmingCharacters(in: .whitespaces).isEmpty
-            ? "【在这里描述你的角色：性别/年龄感、发型发色、服装、配饰、画风】"
-            : characterDesc.trimmingCharacters(in: .whitespaces)
-        let ref = role == .idle ? "" : "以我上传的「平时」图为参考，保持同一个角色、同样的服装发型、同样的构图大小和站位。"
-        return "桌宠立绘：\(who)。全身、正面、居中、单人、纯白或纯色背景、无文字无水印。\(ref)这一张：\(role.promptPhrase)。"
+        let who = characterDesc.trimmingCharacters(in: .whitespaces)
+        if role == .idle {
+            return "桌宠立绘：\(who.isEmpty ? "【描述你的角色：发型发色、服装、画风】" : who)。全身、正面、居中、单人，自然站立、微笑、双手自然下垂，纯白背景，无文字无水印。"
+        }
+        return "参考我上传的图片，保持完全相同的人物：同一张脸和五官、同样的发型发色、服装、体型和画风；"
+            + "同样的镜头距离和构图，人物在画面中的位置和大小不变，正面、居中，纯白背景，单人，无文字无水印。"
+            + "只改变表情和手势：\(role.promptPhrase)。"
     }
 
+    /// 整套提示词：先有一张「平时」，再逐张用它当参考图生成
     var fullPrompt: String {
-        var lines = ["同一个角色的一组桌宠立绘，每张单独输出，构图、大小、站位、服装发型完全一致，只改变表情和手势：",
-                     "角色：" + (characterDesc.isEmpty ? "【在这里描述你的角色】" : characterDesc),
-                     "统一要求：全身、正面、居中、单人、纯白或纯色背景、无文字无水印。"]
-        for (i, role) in PuppetRole.allCases.enumerated() {
-            lines.append("\(i + 1). \(role.shortTitle)（文件名 \(role.rawValue)）：\(role.promptPhrase)")
+        var lines = [
+            "【用法】先准备一张「平时」图（正面、全身、纯白背景）；之后每一张都把「平时」图作为参考图上传，配上对应的一句提示词生成。",
+            "",
+            "【通用前缀，每张都带上】参考我上传的图片，保持完全相同的人物：同一张脸和五官、同样的发型发色、服装、体型和画风；同样的镜头距离和构图，人物在画面中的位置和大小不变，正面、居中，纯白背景，单人，无文字无水印。只改变表情和手势：",
+            "",
+        ]
+        if !characterDesc.isEmpty { lines.insert("【角色】" + characterDesc, at: 1) }
+        for (i, role) in PuppetRole.allCases.enumerated() where role != .idle {
+            lines.append("\(i). \(role.shortTitle)（存成 \(role.rawValue).png）：\(role.promptPhrase)")
         }
         return lines.joined(separator: "\n")
     }
@@ -458,6 +541,7 @@ struct WorkshopView: View {
             editorColumn
         }
         .frame(minWidth: 760, minHeight: 560)
+        .sheet(isPresented: $model.showAISheet) { AIGenSheet(model: model) }
     }
 
     // 左：实时预览 + 试动作
@@ -613,6 +697,20 @@ struct WorkshopView: View {
                     model.status = "整套提示词已复制：先生成「平时」，再拿它当参考图生成其他表情，一致性最好"
                 }
                 .controlSize(.small)
+            }
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles").foregroundStyle(.purple)
+                Text("只有一张「平时」？可以用你自己的图像生成服务一键补全其余表情")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if model.aiRunning {
+                    Button("停止") { model.cancelAI() }.controlSize(.small)
+                } else {
+                    Button("AI 补全表情…") { model.showAISheet = true }
+                        .controlSize(.small)
+                        .disabled(model.image(for: .idle) == nil || model.busy)
+                }
             }
         }
         .padding(10)
@@ -1229,6 +1327,15 @@ private struct RoleSlot: View {
                     Image(systemName: "doc.on.doc")
                 }
                 .help("复制这张图的 AI 生成提示词")
+                if role != .idle, model.image(for: .idle) != nil {
+                    Button {
+                        if model.aiConfigured { model.generateWithAI([role]) } else { model.showAISheet = true }
+                    } label: {
+                        Image(systemName: "sparkles")
+                    }
+                    .disabled(model.aiRunning)
+                    .help("用 AI 按「平时」图生成这一张")
+                }
             }
             .controlSize(.small)
         }
@@ -1491,5 +1598,76 @@ func renderRoleSketches(to path: String) {
     if let image = renderer.cgImage,
        let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
         try? png.write(to: URL(fileURLWithPath: path))
+    }
+}
+
+// MARK: - AI 补全表情：配置与发起
+
+private struct AIGenSheet: View {
+    @ObservedObject var model: WorkshopModel
+    @State private var config = PetImageGenConfig.load()
+    @State private var apiKey = ""
+    @State private var consent = false
+    @State private var roles: Set<PuppetRole> = []
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("AI 补全表情").font(.system(size: 16, weight: .semibold))
+            Text("用你自己的图像生成服务，以「平时」图为参考，按每个格子的提示词逐张生成，生成后自动抠图、对齐、放进格子。")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Picker("服务", selection: $config.provider) {
+                ForEach(PetImageGenProvider.allCases) { Text($0.title).tag($0) }
+            }
+            .onChange(of: config.provider) { provider in apiKey = PetImageGenKeychain.get(provider) ?? "" }
+            SecureField("API Key（存在系统钥匙串）", text: $apiKey)
+                .textFieldStyle(.roundedBorder)
+            HStack {
+                TextField("模型（默认 \(config.provider.defaultModel)）", text: $config.model).textFieldStyle(.roundedBorder)
+                TextField("服务地址（默认官方）", text: $config.baseURL).textFieldStyle(.roundedBorder)
+            }
+            .font(.system(size: 11))
+            Text("要生成的表情").font(.system(size: 12, weight: .semibold))
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: 4), spacing: 4) {
+                ForEach(PuppetRole.allCases.filter { $0 != .idle }) { role in
+                    Toggle(isOn: Binding(get: { roles.contains(role) },
+                                         set: { if $0 { roles.insert(role) } else { roles.remove(role) } })) {
+                        Text(role.shortTitle + (model.image(for: role) != nil ? "（替换）" : ""))
+                            .font(.system(size: 11))
+                    }
+                    .toggleStyle(.checkbox)
+                }
+            }
+            Toggle(isOn: $consent) {
+                Text("我知道「平时」图会上传到上面选的服务，由该服务按它自己的条款处理；生成 \(roles.count) 张会按该服务的价格计费")
+                    .font(.system(size: 11))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .toggleStyle(.checkbox)
+            HStack {
+                Button("只保存设置") { saveSettings(); model.showAISheet = false }
+                Spacer()
+                Button("取消") { model.showAISheet = false }
+                Button("开始生成 \(roles.count) 张") {
+                    saveSettings()
+                    model.showAISheet = false
+                    model.generateWithAI(PuppetRole.allCases.filter { roles.contains($0) })
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!consent || roles.isEmpty || apiKey.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 520)
+        .onAppear {
+            apiKey = PetImageGenKeychain.get(config.provider) ?? ""
+            // 默认勾选还空着的格子（闭眼 / 张嘴可以自动生成，也默认勾上：AI 生成的更自然）
+            roles = Set(PuppetRole.allCases.filter { $0 != .idle && model.image(for: $0) == nil })
+        }
+    }
+
+    private func saveSettings() {
+        config.save()
+        PetImageGenKeychain.set(apiKey.trimmingCharacters(in: .whitespacesAndNewlines), for: config.provider)
     }
 }
