@@ -256,6 +256,8 @@ struct PuppetImage: Identifiable {
     var pixelSize: CGSize
     var rig: PuppetRig
     var align = PuppetAlign.identity
+    /// 处理时的裁切组（同一次添加里尺寸相同、主体位置高度重合的图用同一个裁切框）；不存进形象包
+    var cropGroup: String?
 
     var aspect: CGFloat { pixelSize.width / max(1, pixelSize.height) }
 
@@ -265,6 +267,12 @@ struct PuppetImage: Identifiable {
         let s = min(2.5, max(0.4, g.height / f.height))
         let dx = (g.midX - 0.5) * idle.aspect - (f.midX - 0.5) * image.aspect * s
         let dy = (g.midY - idle.rig.ground) - (f.midY - image.rig.ground) * s
+        // 同一个裁切组（同一次拍摄 / 生成、构图一致）且按脸算出来只差一点：几何上本来就重合，
+        // 偏差来自人脸框在闭眼 / 张嘴时的细微变化，用原位反而更准（眨眼不跳）
+        if let group = image.cropGroup, group == idle.cropGroup,
+           abs(s - 1) < 0.15, abs(dx) < 0.08, abs(dy) < 0.12 {
+            return .identity
+        }
         return PuppetAlign(scale: s, dx: dx, dy: dy)
     }
 
@@ -447,6 +455,7 @@ enum PuppetBuilder {
         // 表情切换、眨眼时不跳动；同一部手机拍的不同照片尺寸也相同，但主体位置不同，不会被并组
         var groups: [(size: CGSize, box: CGRect)] = []
         var groupOf: [Int] = []
+        let batch = UUID().uuidString
         for (_, image) in cutouts {
             guard let box = alphaBounds(image) else {
                 throw PuppetError.message("抠图结果是空的：请换一张主体更明显的图")
@@ -469,12 +478,13 @@ enum PuppetBuilder {
             guard let png = NSBitmapImageRep(cgImage: scaled).representation(using: .png, properties: [:]) else {
                 throw PuppetError.message("编码失败：\(item.name)")
             }
-            let image = PuppetImage(
+            var image = PuppetImage(
                 role: .idle,
                 png: png,
                 pixelSize: CGSize(width: scaled.width, height: scaled.height),
                 rig: detectRig(scaled)
             )
+            image.cropGroup = "\(batch)-\(groupOf[index])"
             return (item.name, image)
         }
     }

@@ -570,6 +570,8 @@ if installArgs.count > 1 {
         // 参数：<名字> <输出 .lianapet> <对齐检查图.png> [--no-talk] <role=图片路径>…（第一个必须是 idle）
         let name = installArgs[2], out = installArgs[3], sheetPath = installArgs[4]
         let noTalk = installArgs.contains("--no-talk")
+        // --id=<形象包 id>：覆盖已装的同一个形象（不加则新建）
+        let fixedId = installArgs.first { $0.hasPrefix("--id=") }.map { String($0.dropFirst(5)) }
         let pairs: [(PuppetRole, URL)] = installArgs.dropFirst(5).compactMap { arg in
             let parts = arg.split(separator: "=", maxSplits: 1).map(String.init)
             guard parts.count == 2, let role = PuppetRole(rawValue: parts[0]) else { return nil }
@@ -622,7 +624,7 @@ if installArgs.count > 1 {
             var draft = PuppetDraft()
             draft.name = name
             draft.images = images
-            let id = PuppetPackStore.newPackId()
+            let id = fixedId ?? PuppetPackStore.newPackId()
             let work = FileManager.default.temporaryDirectory.appendingPathComponent("puppet-build-\(UUID().uuidString)")
             try PuppetPackStore.write(draft, to: work, id: id)
             try? FileManager.default.removeItem(atPath: out)
