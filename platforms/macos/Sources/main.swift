@@ -520,6 +520,26 @@ if installArgs.count > 1 {
         }
         exit(0)
 
+    case "--pet-workshop":
+        // 开发用：打开形象工坊，可附带图片路径直接载入（不改桌宠设置，除非点「保存并使用」）
+        PetWorkshopWindowController.shared.show()
+        let paths = installArgs.dropFirst(2)
+        let images = paths.filter { !$0.hasSuffix(".snapshot.png") }.map { URL(fileURLWithPath: $0) }
+        if !images.isEmpty { PetWorkshopWindowController.shared.debugAdd(Array(images)) }
+        // 以 .snapshot.png 结尾的参数：6 秒后把窗口内容存成 PNG 并退出（WebGL 预览区会是空白）
+        if let out = paths.first(where: { $0.hasSuffix(".snapshot.png") }) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
+                if let view = PetWorkshopWindowController.shared.window?.contentView,
+                   let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+                    view.cacheDisplay(in: view.bounds, to: rep)
+                    try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: out))
+                }
+                exit(0)
+            }
+        }
+        NSApplication.shared.run()
+        exit(0)
+
     case "--clipboard-window":
         ClipboardWindowController.shared.show()
         NSApplication.shared.run()

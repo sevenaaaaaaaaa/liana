@@ -20,6 +20,8 @@ class PetWebView: WKWebView, WKScriptMessageHandler, WKNavigationDelegate {
     var onNeedsRuntime: (() -> Void)?
 
     private var pendingState = "idle"
+    /// 页面事件（台词 / 特效 / 溜达）是否转给桌面上的桌宠；形象工坊预览关掉。
+    var routesToPet = true
 
     init(frame: NSRect, pageURL: URL, readRoot: URL) {
         let config = WKWebViewConfiguration()
@@ -62,6 +64,15 @@ class PetWebView: WKWebView, WKScriptMessageHandler, WKNavigationDelegate {
     func setMood(_ level: Int) { eval("window.petSetMood && window.petSetMood(\(level))") }
     func greet(_ period: String) { eval("window.petGreet && window.petGreet('\(period)')") }
     func setGaze(dx: Double, dy: Double) { eval("window.petSetGaze && window.petSetGaze(\(dx), \(dy))") }
+    /// 通用触发器（milestone / break …），纸偶渲染器支持；其他渲染器没有该函数时静默忽略。
+    func trigger(_ name: String) { eval("window.petTrigger && window.petTrigger('\(Self.jsSafe(name))')") }
+    /// 直接播放某个动作（形象工坊「试试动作」）。
+    func play(_ actionId: String) { eval("window.petPlay && window.petPlay('\(Self.jsSafe(actionId))')") }
+
+    /// 动作 id / 触发器名只允许字母数字下划线连字符，杜绝拼进 JS 的注入。
+    private static func jsSafe(_ value: String) -> String {
+        String(value.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) || $0 == "_" || $0 == "-" })
+    }
 
     private func eval(_ js: String) {
         evaluateJavaScript(js) { _, _ in }
@@ -81,6 +92,7 @@ class PetWebView: WKWebView, WKScriptMessageHandler, WKNavigationDelegate {
         if body["needsRuntime"] as? Bool == true {
             onNeedsRuntime?()
         }
+        guard routesToPet else { return }
         if let line = body["say"] as? String {
             DispatchQueue.main.async {
                 PetWindowController.shared.pageSays(line)
@@ -89,6 +101,17 @@ class PetWebView: WKWebView, WKScriptMessageHandler, WKNavigationDelegate {
         if body["hearts"] as? Bool == true {
             DispatchQueue.main.async {
                 PetWindowController.shared.celebrate()
+            }
+        }
+        if body["sparks"] as? Bool == true {
+            DispatchQueue.main.async {
+                PetWindowController.shared.celebrate(hearts: false)
+            }
+        }
+        if let widths = body["walk"] as? Double {
+            let duration = body["duration"] as? Double ?? 2
+            DispatchQueue.main.async {
+                PetWindowController.shared.walk(byWidths: widths, duration: duration)
             }
         }
     }

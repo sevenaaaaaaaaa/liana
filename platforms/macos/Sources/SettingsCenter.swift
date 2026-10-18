@@ -748,6 +748,16 @@ struct PetPage: View {
                 }
             }
             Section("自定义形象") {
+                CustomPetRow(symbol: "wand.and.stars", title: "用图片做桌宠",
+                             detail: "1 张或几张图片，本机抠图生成会动的纸偶形象", button: "打开形象工坊…") {
+                    let active = PetWindowController.activePackId
+                    PetWorkshopWindowController.shared.show(editing: PuppetPackStore.isPuppet(packId: active) ? active : nil)
+                }
+                CustomPetRow(symbol: "shippingbox.fill", title: "导入 .lianapet 形象包",
+                             detail: "别人分享的纸偶形象（只含图片与动作数据，不含代码）", button: "选择…") {
+                    PetWorkshopWindowController.shared.importPack()
+                    model.touch()
+                }
                 CustomPetRow(symbol: "person.crop.square.fill", title: "导入 VRM 模型",
                              detail: "VRoid Studio 可免费捏人并导出 .vrm", button: "选择文件…") {
                     LianaActions.importVRM()

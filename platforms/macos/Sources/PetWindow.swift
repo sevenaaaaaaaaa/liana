@@ -69,6 +69,16 @@ final class PetWindowController {
 
     static let breakMinutes = 50
 
+    private static let roamKey = "LianaPetRoam"
+    /// 允许纸偶形象偶尔在屏幕底边溜达（会移动窗口，默认关）。
+    static var roamEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: roamKey) }
+        set {
+            UserDefaults.standard.set(newValue, forKey: roamKey)
+            shared.rebuild()
+        }
+    }
+
     static var isEnabled: Bool {
         // 默认开启：仅当用户显式关过（键已存在且为 false）时才关闭。
         if UserDefaults.standard.object(forKey: enabledKey) == nil { return true }
@@ -187,7 +197,7 @@ final class PetWindowController {
         /// emoji 角色：用系统 emoji 作为形象（`emoji` + 可选 `prop` 道具）
         var emoji: String?
         var prop: String?
-        /// 渲染器：emoji | sprites | rive | live2d | vrm（见 ADR-0007）
+        /// 渲染器：emoji | sprites | rive | live2d | vrm | puppet（见 ADR-0007 / ADR-0011）
         var renderer: String = "emoji"
         var entry: String?
         /// 画幅（宽×高）；缺省用 size 正方形
@@ -246,7 +256,7 @@ final class PetWindowController {
             }
             // 可用性：有帧图 / 有 emoji / 或声明了独立渲染器（vrm/live2d/rive）
             let usable = !pack.idle.isEmpty || pack.emoji != nil
-                || pack.renderer == "vrm" || pack.renderer == "live2d" || pack.renderer == "rive"
+                || ["vrm", "live2d", "rive", "puppet"].contains(pack.renderer)
             return usable ? pack : nil
         }
 
@@ -392,6 +402,7 @@ final class PetWindowController {
         lastMilestone = reached
         refreshMood()
         emitSparks(hearts: true)
+        petView?.trigger("milestone")
         showToast("🎉 今天已经输入 \(reached.formatted()) 字啦！", duration: 4)
     }
 
@@ -416,9 +427,23 @@ final class PetWindowController {
         showToast(line, duration: 3.5)
     }
 
-    /// 摸头的庆祝特效（供 VRM/Live2D 页面上报 hearts 时调用）。
-    func celebrate() {
-        emitSparks(hearts: true)
+    /// 庆祝特效（供 WebKit 页面上报 hearts / sparks 时调用）。
+    func celebrate(hearts: Bool = true) {
+        emitSparks(hearts: hearts)
+    }
+
+    /// 纸偶溜达：沿水平方向平移若干个身位（夹在当前屏幕内）。
+    func walk(byWidths widths: Double, duration: Double) {
+        guard let panel, panel.isVisible, Self.roamEnabled else { return }
+        let visible = (panel.screen ?? NSScreen.main)?.visibleFrame ?? panel.frame
+        var x = panel.frame.minX + CGFloat(widths) * panel.frame.width
+        x = min(max(x, visible.minX), visible.maxX - panel.frame.width)
+        guard abs(x - panel.frame.minX) > 4 else { return }
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = max(0.4, min(6, duration))
+            ctx.timingFunction = CAMediaTimingFunction(name: .linear)
+            panel.animator().setFrameOrigin(NSPoint(x: x, y: panel.frame.minY))
+        }
     }
 
     // MARK: - 生活节律（打盹 / 问候 / 休息提醒）
@@ -446,6 +471,7 @@ final class PetWindowController {
            Date().timeIntervalSince(start) > Double(Self.breakMinutes * 60) {
             breakReminded = true
             emitSparks(hearts: true)
+            petView?.trigger("break")
             showToast("已经连续打字 \(Self.breakMinutes) 分钟了，起来伸个懒腰、喝口水吧 ☕️", duration: 8)
         }
         greetIfNeeded()
@@ -684,7 +710,7 @@ final class PetWindowController {
             return
         }
         // WebKit 渲染器（VRM / Live2D）：状态交给 JS（poseIdle/poseTyping/poseCommit）
-        if let pack, let petView, pack.renderer == "vrm" || pack.renderer == "live2d" {
+        if let pack, let petView, ["vrm", "live2d", "puppet"].contains(pack.renderer) {
             currentState = state
             restartAnimTimer()
             petView.setState(state == .composing ? "typing" : (state == .commit ? "commit" : "idle"))
@@ -828,6 +854,24 @@ final class PetWindowController {
                 petView = view
             } else {
                 unsupportedRenderer = "live2d(缺少运行时/模型)"
+            }
+        } else if let pack, pack.renderer == "puppet" {
+            // 纸偶：图片 + 网格形变（我们自己的开放格式，见 ADR-0011）
+            if let packPath = PetRuntimeStore.puppetPackPath(for: Self.activePackId) {
+                let view = PuppetPetView(
+                    frame: background.bounds,
+                    packPath: packPath,
+                    zoom: pack.zoom * Self.zoomOverride,
+                    roam: Self.roamEnabled
+                )
+                view.autoresizingMask = [.width, .height]
+                view.onError = { [weak self] message in
+                    self?.showToast("纸偶形象加载失败：\(message)", duration: 6)
+                }
+                background.addSubview(view)
+                petView = view
+            } else {
+                unsupportedRenderer = "puppet(形象包缺失)"
             }
         } else if let pack, pack.renderer == "rive" {
             // 高级渲染器（Rive）尚未接入：明确提示，不用程序化丑图糊弄
@@ -1019,6 +1063,20 @@ final class PetWindowController {
         let more = NSMenuItem(title: "更多 VRM 形象…", action: #selector(petMenuOpenCatalog(_:)), keyEquivalent: "")
         more.target = self
         menu.addItem(more)
+        let isPuppet = pack?.renderer == "puppet"
+        let workshop = NSMenuItem(
+            title: isPuppet ? "在形象工坊里编辑…" : "用图片做桌宠…",
+            action: #selector(petMenuWorkshop(_:)),
+            keyEquivalent: ""
+        )
+        workshop.target = self
+        menu.addItem(workshop)
+        if isPuppet {
+            let roam = NSMenuItem(title: "允许四处溜达", action: #selector(petMenuToggleRoam(_:)), keyEquivalent: "")
+            roam.target = self
+            roam.state = Self.roamEnabled ? .on : .off
+            menu.addItem(roam)
+        }
         let sizeItem = NSMenuItem(title: "大小", action: nil, keyEquivalent: "")
         let sizeMenu = NSMenu(title: "大小")
         for (title, value) in [("80%", 0.8), ("100%", 1.0), ("125%", 1.25), ("150%", 1.5)] {
@@ -1057,6 +1115,16 @@ final class PetWindowController {
         hide.target = self
         menu.addItem(hide)
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    @objc private func petMenuWorkshop(_ sender: Any) {
+        let active = Self.activePackId
+        PetWorkshopWindowController.shared.show(editing: PuppetPackStore.isPuppet(packId: active) ? active : nil)
+    }
+
+    @objc private func petMenuToggleRoam(_ sender: Any) {
+        Self.roamEnabled.toggle()
+        showToast(Self.roamEnabled ? "我偶尔会出去溜达一下～" : "好，我乖乖待在这", duration: 2.5)
     }
 
     @objc private func petMenuZoom(_ sender: NSMenuItem) {

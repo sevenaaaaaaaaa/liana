@@ -71,6 +71,38 @@ enum PetRuntimeStore {
         return "models/\(packId).vrm"
     }
 
+    // MARK: - 纸偶（puppet）
+
+    /// 运行时内 puppet 子目录（pet-puppet.html/js + 预置动作库 + 形象包副本）。
+    static var puppetDir: URL {
+        dir.appendingPathComponent("puppet", isDirectory: true)
+    }
+
+    @discardableResult
+    static func ensurePuppet() -> URL {
+        ensure()
+        return puppetDir
+    }
+
+    /// 把纸偶形象包复制进运行时（WebKit 只能读一个根目录）。包很小，每次整体刷新，
+    /// 保证形象工坊保存后立即生效。返回相对 puppet 目录的路径（供 ?pack= 使用）。
+    static func puppetPackPath(for packId: String) -> String? {
+        let fm = FileManager.default
+        let source = PluginStore.pluginsDir.appendingPathComponent(packId, isDirectory: true)
+        guard fm.fileExists(atPath: source.appendingPathComponent("pet.json").path) else { return nil }
+        let packs = ensurePuppet().appendingPathComponent("packs", isDirectory: true)
+        let destination = packs.appendingPathComponent(packId, isDirectory: true)
+        try? fm.removeItem(at: destination)
+        try? fm.createDirectory(at: packs, withIntermediateDirectories: true)
+        guard (try? fm.copyItem(at: source, to: destination)) != nil else { return nil }
+        return "packs/\(packId)/"
+    }
+
+    /// 形象工坊实时预览用的临时包目录（不进插件目录、不出现在形象列表）。
+    static var puppetPreviewDir: URL {
+        ensurePuppet().appendingPathComponent("packs/_preview", isDirectory: true)
+    }
+
     // MARK: - Live2D（方案 A：自带运行时 + 模型）
 
     /// 用户自备 Cubism Core 的落点：`~/Library/Application Support/Liana/live2d-user/core/`。

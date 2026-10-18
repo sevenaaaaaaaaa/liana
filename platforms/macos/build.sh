@@ -75,6 +75,8 @@ SWIFT_SOURCES=("$HERE/Sources/main.swift" "$HERE/Sources/Engine.swift" \
     "$HERE/Sources/PetCatalog.swift" \
     "$HERE/Sources/PetCatalogWindow.swift" \
     "$HERE/Sources/PetImporter.swift" \
+    "$HERE/Sources/PetPuppet.swift" \
+    "$HERE/Sources/PetWorkshopWindow.swift" \
     "$HERE/Sources/AvatarCreatorWindow.swift" \
     "$HERE/Sources/VoiceInput.swift" \
     "$HERE/Sources/TranslateClient.swift" \
