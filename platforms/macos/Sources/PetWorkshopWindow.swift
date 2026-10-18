@@ -477,13 +477,6 @@ struct WorkshopView: View {
                 Button("导入 .lianapet…") { model.importPack() }
                 Button("导出…") { model.exportPack() }
                     .disabled(model.draft.images.isEmpty)
-                Button("投稿…") {
-                    if let id = model.save() {
-                        PetCommunityWindowController.shared.showSubmit(packId: id)
-                    }
-                }
-                .disabled(!model.draft.shareable || model.draft.images.isEmpty)
-                .help("先勾选「可以分享」并保存")
                 Button("保存并使用") { model.save() }
                     .keyboardShortcut(.defaultAction)
                     .disabled(!model.draft.images.contains { $0.role == .idle } || model.busy)

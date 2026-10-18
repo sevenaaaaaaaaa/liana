@@ -753,8 +753,8 @@ struct PetPage: View {
                     let active = PetWindowController.activePackId
                     PetWorkshopWindowController.shared.show(editing: PuppetPackStore.isPuppet(packId: active) ? active : nil)
                 }
-                CustomPetRow(symbol: "person.3.fill", title: "纸偶社区",
-                             detail: "下载别人做的形象，或投稿你自己的", button: "打开…") {
+                CustomPetRow(symbol: "antenna.radiowaves.left.and.right", title: "形象源",
+                             detail: "订阅别人发布的形象目录，一键下载（sha256 校验）", button: "打开…") {
                     PetCommunityWindowController.shared.show()
                 }
                 CustomPetRow(symbol: "shippingbox.fill", title: "导入 .lianapet 形象包",

@@ -1071,7 +1071,7 @@ final class PetWindowController {
         )
         workshop.target = self
         menu.addItem(workshop)
-        let community = NSMenuItem(title: "纸偶社区…", action: #selector(petMenuCommunity(_:)), keyEquivalent: "")
+        let community = NSMenuItem(title: "形象源…", action: #selector(petMenuCommunity(_:)), keyEquivalent: "")
         community.target = self
         menu.addItem(community)
         if isPuppet {

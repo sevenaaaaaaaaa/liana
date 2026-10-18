@@ -127,9 +127,11 @@ happy.png …     其他表情图（可选）
 
 台词键：上面的触发器名，以及 `morning` `afternoon` `evening` `sleep` `wake` `level`。
 
-## 社区目录
+## 形象源
 
-社区目录是 GitHub 仓库 [`sevenaaaaaaaaa/liana-pets`](https://github.com/sevenaaaaaaaaa/liana-pets) 里的一份 `index.json`，没有服务器：
+松萝官方不托管、不审核任何形象，只提供做形象、导入导出和读取形象源的能力。
+任何人都可以把 `.lianapet` 放在任意 https 地址上，再发布一份 `index.json` 作为**形象源**；
+用户在「形象源」窗口里自己添加想订阅的地址（客户端不内置任何形象源）：
 
 ```json
 {
@@ -141,8 +143,8 @@ happy.png …     其他表情图（可选）
       "author": "作者名",
       "license": "CC-BY-4.0",
       "description": "一只会打盹的狐狸",
-      "url": "https://raw.githubusercontent.com/sevenaaaaaaaaa/liana-pets/main/packs/puppet-maple-fox.lianapet",
-      "preview": "https://raw.githubusercontent.com/sevenaaaaaaaaa/liana-pets/main/packs/puppet-maple-fox.png",
+      "url": "https://example.com/pets/puppet-maple-fox.lianapet",
+      "preview": "https://example.com/pets/puppet-maple-fox.png",
       "sha256": "…64 位十六进制…",
       "bytes": 812345,
       "tags": ["动物", "原创"]
@@ -152,9 +154,9 @@ happy.png …     其他表情图（可选）
 ```
 
 客户端只收 `https` 地址、`puppet-` 前缀、带 sha256 的条目；下载后 sha256 不符直接丢弃。
-投稿：形象工坊或社区窗口里点「投稿」，会在「下载/松萝投稿」生成 `.lianapet`、预览图和目录条目，并打开 GitHub 投稿页，由作者自己上传提交。
+计算 sha256：`shasum -a 256 puppet-maple-fox.lianapet`。
 
 ## 版权
 
 形象工坊导出前要求作者勾选「图片是原创或已获授权」。用他人照片（包括明星、网红）做的形象只应自己使用。
-社区目录只收录 `rights: shareable` 且注明许可证的形象包。
+形象源的内容由发布者自行负责。
