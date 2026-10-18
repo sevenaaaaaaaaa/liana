@@ -565,6 +565,78 @@ if installArgs.count > 1 {
         NSApplication.shared.run()
         exit(0)
 
+    case "--puppet-build":
+        // 开发用：走形象工坊的完整流程（抠图 / 裁切 / 找脸 / 自动对齐）打包 .lianapet，并输出对齐检查图
+        // 参数：<名字> <输出 .lianapet> <对齐检查图.png> [--no-talk] <role=图片路径>…（第一个必须是 idle）
+        let name = installArgs[2], out = installArgs[3], sheetPath = installArgs[4]
+        let noTalk = installArgs.contains("--no-talk")
+        let pairs: [(PuppetRole, URL)] = installArgs.dropFirst(5).compactMap { arg in
+            let parts = arg.split(separator: "=", maxSplits: 1).map(String.init)
+            guard parts.count == 2, let role = PuppetRole(rawValue: parts[0]) else { return nil }
+            return (role, URL(fileURLWithPath: parts[1]))
+        }
+        guard pairs.first?.0 == .idle else { print("第一个必须是 idle=…"); exit(1) }
+        do {
+            let processed = try PuppetBuilder.process(pairs.map(\.1))
+            var images: [PuppetImage] = []
+            for (index, item) in processed.enumerated() {
+                var image = item.image
+                image.role = pairs[index].0
+                if image.role == .idle && noTalk { image.rig.mouth = nil }   // 平时本身张着嘴：不再自动生成张嘴图
+                images.append(image)
+            }
+            let idle = images[0]
+            for i in images.indices.dropFirst() { images[i].align = PuppetImage.autoAlign(images[i], to: idle) }
+            for image in images {
+                let a = image.align
+                print(String(format: "%-10@ %4.0f×%-4.0f 脸:%@ 眼:%d 对齐 s=%.2f dx=%+.2f dy=%+.2f %@",
+                             image.role.rawValue as NSString, image.pixelSize.width, image.pixelSize.height,
+                             (image.rig.face == nil ? "无" : "有") as NSString, image.rig.eyes.count,
+                             a.scale, a.dx, a.dy, (image.role == .idle ? "" : (PuppetImage.mismatch(image, idle: idle).map { "⚠️ " + $0 } ?? "✓")) as NSString))
+            }
+            // 对齐检查图：每格 = 平时（半透明）+ 该表情按对齐参数叠上去（与渲染器同一套坐标）
+            let cw: CGFloat = 260, ch: CGFloat = 320, cols = 5
+            let rows = (images.count + cols - 1) / cols
+            let sheet = NSImage(size: NSSize(width: cw * CGFloat(cols), height: (ch + 24) * CGFloat(rows)))
+            sheet.lockFocus()
+            NSColor(white: 0.93, alpha: 1).setFill()
+            NSRect(origin: .zero, size: sheet.size).fill()
+            let idleImage = NSImage(data: idle.png)!
+            for (i, image) in images.enumerated() {
+                let col = CGFloat(i % cols), row = CGFloat(rows - 1 - i / cols)
+                let cell = NSRect(x: col * cw, y: row * (ch + 24) + 24, width: cw, height: ch)
+                let hb = min(ch * 0.86, cw * 0.92 / idle.aspect), ground = cell.minY + ch * 0.05
+                idleImage.draw(in: NSRect(x: cell.midX - hb * idle.aspect / 2, y: ground, width: hb * idle.aspect, height: hb),
+                               from: .zero, operation: .sourceOver, fraction: image.role == .idle ? 1 : 0.3)
+                if image.role != .idle, let ns = NSImage(data: image.png) {
+                    let h = hb * image.align.scale, w = h * image.aspect
+                    ns.draw(in: NSRect(x: cell.midX - w / 2 + image.align.dx * hb, y: ground + image.align.dy * hb, width: w, height: h),
+                            from: .zero, operation: .sourceOver, fraction: 0.75)
+                }
+                NSAttributedString(string: image.role.shortTitle, attributes: [.font: NSFont.systemFont(ofSize: 13)])
+                    .draw(at: NSPoint(x: cell.minX + 6, y: cell.minY - 20))
+            }
+            sheet.unlockFocus()
+            if let tiff = sheet.tiffRepresentation { try? NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: sheetPath)) }
+
+            var draft = PuppetDraft()
+            draft.name = name
+            draft.images = images
+            let id = PuppetPackStore.newPackId()
+            let work = FileManager.default.temporaryDirectory.appendingPathComponent("puppet-build-\(UUID().uuidString)")
+            try PuppetPackStore.write(draft, to: work, id: id)
+            try? FileManager.default.removeItem(atPath: out)
+            let zip = Process()
+            zip.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+            zip.arguments = ["-c", "-k", "--norsrc", work.path, out]
+            try zip.run()
+            zip.waitUntilExit()
+            print("ok", id, out)
+        } catch {
+            print("failed", error.localizedDescription)
+        }
+        exit(0)
+
     case "--puppet-make":
         // 开发用：用一组按表情命名的 PNG（idle.png、happy.png…）+ 固定骨架生成 .lianapet
         // 参数：<图片目录> <名字> <输出 .lianapet> [骨架 JSON]
