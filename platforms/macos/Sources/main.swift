@@ -543,6 +543,42 @@ if installArgs.count > 1 {
         NSApplication.shared.run()
         exit(0)
 
+    case "--puppet-make":
+        // 开发用：用一组按表情命名的 PNG（idle.png、happy.png…）+ 固定骨架生成 .lianapet
+        // 参数：<图片目录> <名字> <输出 .lianapet> [骨架 JSON]
+        guard installArgs.count >= 5 else { print("用法：--puppet-make <dir> <name> <out.lianapet> [rig.json]"); exit(1) }
+        let dir = URL(fileURLWithPath: installArgs[2])
+        var rigJSON: [String: Any]?
+        if installArgs.count > 5, let data = try? Data(contentsOf: URL(fileURLWithPath: installArgs[5])) {
+            rigJSON = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        }
+        var draft = PuppetDraft()
+        draft.name = installArgs[3]
+        draft.shareable = true
+        for role in PuppetRole.allCases {
+            let file = dir.appendingPathComponent("\(role.rawValue).png")
+            guard let png = try? Data(contentsOf: file), let rep = NSBitmapImageRep(data: png) else { continue }
+            draft.images.append(PuppetImage(role: role, png: png,
+                                            pixelSize: CGSize(width: rep.pixelsWide, height: rep.pixelsHigh),
+                                            rig: PuppetRig(json: rigJSON)))
+        }
+        let work = FileManager.default.temporaryDirectory.appendingPathComponent("puppet-make-\(UUID().uuidString)")
+        let id = "puppet-" + String(UUID().uuidString.lowercased().prefix(8))
+        do {
+            try PuppetPackStore.write(draft, to: work, id: id)
+            let out = installArgs[4]
+            try? FileManager.default.removeItem(atPath: out)
+            let zip = Process()
+            zip.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+            zip.arguments = ["-c", "-k", "--norsrc", work.path, out]
+            try zip.run()
+            zip.waitUntilExit()
+            print("ok", id, draft.images.map(\.role.rawValue).joined(separator: ","), out)
+        } catch {
+            print("failed", error.localizedDescription)
+        }
+        exit(0)
+
     case "--pet-scenes":
         // 开发用：各场景道具 + 一个示意角色，渲染成一张 PNG（参数：输出路径 [角色图片]）
         let out = installArgs.count > 2 ? installArgs[2] : "/tmp/pet-scenes.png"
@@ -752,6 +788,27 @@ _ = NSApplication.shared
 // 应用代理只处理「打开文件」（双击 .lianapet 导入）；NSApplication.delegate 是弱引用，用全局常量持有
 let appDelegate = LianaAppDelegate()
 NSApplication.shared.delegate = appDelegate
+// 已经有一份松萝在运行（Finder 双击 .lianapet 时系统可能另起一份）：
+// 这份只负责把文件导入并通知正在运行的那份，不启动输入法服务、不显示桌宠，几秒后自行退出
+let ownPID = ProcessInfo.processInfo.processIdentifier
+// 只认「活着且已经跑了一会儿」的那份：安装 / 升级时旧进程正在退出，不能让新进程误以为有人在跑而退出
+if NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "")
+    .contains(where: { $0.processIdentifier != ownPID && !$0.isTerminated
+        && Date().timeIntervalSince($0.launchDate ?? Date()) > 3 }) {
+    appDelegate.forwardOnly = true
+    DispatchQueue.main.asyncAfter(deadline: .now() + 10) { exit(0) }
+    NSApplication.shared.run()
+    exit(0)
+}
+// 别的进程导入了形象包 → 这里换上
+DistributedNotificationCenter.default().addObserver(forName: .lianaPetImported, object: nil, queue: .main) { note in
+    guard let id = note.object as? String,
+          PetWindowController.availablePets().contains(where: { $0.id == id }) else { return }
+    PetWindowController.activePackId = id
+    if !PetWindowController.isEnabled { PetWindowController.setEnabled(true) }
+    let name = PuppetPackStore.load(packId: id)?.name ?? id
+    GlassToast.shared.show("已导入并换上「\(name)」", symbol: "pawprint.fill")
+}
 migrateLegacyBrandData()
 PluginStore.seedBundledPacks()
 _ = EncryptedStore.shared.load()

@@ -223,6 +223,11 @@ else
 fi
 codesign -dv "$BUNDLE" 2>&1 | rg 'TeamIdentifier|Signature' | sed 's/^/    /' || true
 
+# 构建目录里的这份不参与文件关联：双击 .lianapet 只交给 ~/Library/Input Methods 里正式安装的那份
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+"$LSREGISTER" -u "$BUNDLE" >/dev/null 2>&1 || true
+"$LSREGISTER" -u "$INSTALLER_RES/Liana.app" >/dev/null 2>&1 || true
+
 echo
 echo "完成: $BUNDLE"
 echo "安装器: $INSTALLER"

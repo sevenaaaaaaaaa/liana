@@ -1053,7 +1053,20 @@ final class PuppetPetView: PetWebView {
 
 /// 输入法进程的应用代理：Finder 里双击 `.lianapet`（例如从松萝社区购买下载的）直接导入并换上。
 final class LianaAppDelegate: NSObject, NSApplicationDelegate {
+    /// 已有松萝在运行时被系统额外拉起的这一份：只导入、通知正在运行的那份换形象，然后退出（不显示第二个桌宠）
+    var forwardOnly = false
+
     func application(_ application: NSApplication, open urls: [URL]) {
+        if forwardOnly {
+            for url in urls where url.pathExtension.lowercased() == PuppetPackStore.fileExtension {
+                if let id = try? PuppetPackStore.importPack(from: url) {
+                    DistributedNotificationCenter.default().postNotificationName(
+                        .lianaPetImported, object: id, userInfo: nil, deliverImmediately: true)
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { exit(0) }
+            return
+        }
         for url in urls where url.pathExtension.lowercased() == PuppetPackStore.fileExtension {
             do {
                 let id = try PuppetPackStore.importPack(from: url)
@@ -1067,4 +1080,9 @@ final class LianaAppDelegate: NSObject, NSApplicationDelegate {
             }
         }
     }
+}
+
+extension Notification.Name {
+    /// 另一份松萝进程导入了形象包（object = 形象包 id），正在运行的输入法收到后换上
+    static let lianaPetImported = Notification.Name("dev.liana.pet.imported")
 }
