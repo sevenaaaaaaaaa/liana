@@ -65,7 +65,18 @@ class PetWebView: WKWebView, WKScriptMessageHandler, WKNavigationDelegate {
     func greet(_ period: String) { eval("window.petGreet && window.petGreet('\(period)')") }
     func setGaze(dx: Double, dy: Double) { eval("window.petSetGaze && window.petSetGaze(\(dx), \(dy))") }
     /// 通用触发器（milestone / break …），纸偶渲染器支持；其他渲染器没有该函数时静默忽略。
-    func trigger(_ name: String) { eval("window.petTrigger && window.petTrigger('\(Self.jsSafe(name))')") }
+    func trigger(_ name: String, weights: [String: Double] = [:]) {
+        let safe = Dictionary(uniqueKeysWithValues: weights.map { (Self.jsSafe($0.key), $0.value) })
+        let json = (try? JSONSerialization.data(withJSONObject: safe)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        eval("window.petTrigger && window.petTrigger('\(Self.jsSafe(name))', \(json))")
+    }
+
+    /// 点击命中的部位（纸偶渲染器按骨架与透明度判断；其他渲染器没有该函数时返回 body）。
+    func hitRegion(fx: Double, fy: Double, _ completion: @escaping (String) -> Void) {
+        evaluateJavaScript("window.petHitRegion ? window.petHitRegion(\(fx), \(fy)) : 'body'") { value, _ in
+            completion(value as? String ?? "body")
+        }
+    }
     /// 说话口型（纸偶渲染器）：嘴巴开合若干秒。
     func speak(seconds: Double) { eval("window.petSpeak && window.petSpeak(\(seconds))") }
     /// 直接播放某个动作（形象工坊「试试动作」）。
@@ -118,6 +129,11 @@ class PetWebView: WKWebView, WKScriptMessageHandler, WKNavigationDelegate {
         if body["sparks"] as? Bool == true {
             DispatchQueue.main.async {
                 PetWindowController.shared.celebrate(hearts: false)
+            }
+        }
+        if let played = body["played"] as? String, let trigger = body["trigger"] as? String {
+            DispatchQueue.main.async {
+                PetInteraction.shared.played(trigger: trigger, action: played)
             }
         }
         if let emote = body["emote"] as? String {

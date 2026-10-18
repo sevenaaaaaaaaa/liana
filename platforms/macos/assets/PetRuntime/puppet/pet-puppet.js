@@ -147,7 +147,23 @@
     const h = rig.head || DEFAULT_RIG.head;
     rig.head = [clamp01(h[0], 0.22), clamp01(h[1], 0.64), clamp01(h[2], 0.78), clamp01(h[3], 1)];
     rig.ground = clamp01(rig.ground, 0);
+    const f = r && Array.isArray(r.face) && r.face.length === 4 ? r.face : null;
+    rig.face = f ? f.map((x) => clamp01(x, 0)) : null;
     return rig;
+  }
+
+  /// 低分辨率透明度图：点击时判断点没点在角色身上
+  function alphaMap(img) {
+    try {
+      const w = 96, h = Math.max(1, Math.round(96 * img.naturalHeight / Math.max(1, img.naturalWidth)));
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const g = c.getContext('2d');
+      g.drawImage(img, 0, 0, w, h);
+      return { w, h, data: g.getImageData(0, 0, w, h).data };
+    } catch (_) {
+      return null;
+    }
   }
 
   function sanitizeAlign(a) {
@@ -184,6 +200,7 @@
       if (!file || file.includes('..') || file.startsWith('/')) return;
       const img = await loadImage(packBase + file);
       images[role] = {
+        alpha: alphaMap(img),
         tex: uploadTexture(img),
         aspect: img.naturalWidth / Math.max(1, img.naturalHeight),
         rig: sanitizeRig(typeof spec === 'string' ? null : spec.rig),
@@ -310,12 +327,51 @@
     return true;
   }
 
+  const lastPicked = {};
+  /// 触发：weights 来自 Swift 侧学到的偏好（动作 id → 权重）；同一触发器尽量不连着重复同一个动作。
   function trigger(name, opts = {}) {
     const list = library.triggers[name];
     if (!list) return false;
-    const ids = (Array.isArray(list) ? list : [list]).filter((id) => library.actions[id]);
+    let ids = (Array.isArray(list) ? list : [list]).filter((id) => library.actions[id]);
     if (!ids.length) return false;
-    return play(pick(ids), opts);
+    if (ids.length > 1 && lastPicked[name]) ids = ids.filter((id) => id !== lastPicked[name]);
+    const w = opts.weights || {};
+    const weightOf = (id) => Math.max(0.05, typeof w[id] === 'number' ? w[id] : 1);
+    let total = ids.reduce((sum, id) => sum + weightOf(id), 0);
+    let r = Math.random() * total, id = ids[ids.length - 1];
+    for (const cand of ids) { r -= weightOf(cand); if (r <= 0) { id = cand; break; } }
+    lastPicked[name] = id;
+    const ok = play(id, opts);
+    if (ok) post({ played: id, trigger: name });
+    return ok;
+  }
+
+  /// 点击命中的部位：head / face / body / hand / feet / miss（坐标为画布归一化，y 自下而上）
+  function hitRegion(fx, fy) {
+    const entry = images[curRole] || images.idle;
+    if (!entry) return 'body';
+    const { W, H, Wd, Hd, offX, groundY } = layout(entry);
+    const rig = entry.rig;
+    const u = (fx * W - W / 2 - offX) / Wd + 0.5;
+    const v = (fy * H - groundY) / Hd + rig.ground;
+    if (u < 0 || u > 1 || v < 0 || v > 1) return 'miss';
+    const a = entry.alpha;
+    if (a) {
+      const px = Math.min(a.w - 1, Math.max(0, Math.floor(u * a.w)));
+      const py = Math.min(a.h - 1, Math.max(0, Math.floor((1 - v) * a.h)));
+      if (a.data[(py * a.w + px) * 4 + 3] < 40) return 'miss';
+    }
+    const [hx0, hy0, hx1, hy1] = rig.head;
+    if (u >= hx0 && u <= hx1 && v >= hy0) {
+      if (rig.face) {
+        const [fx0, fy0, fx1, fy1] = rig.face;
+        return (u >= fx0 && u <= fx1 && v >= fy0 && v <= fy1 - (fy1 - fy0) * 0.25) ? 'face' : 'head';
+      }
+      return v > hy0 + (hy1 - hy0) * 0.55 ? 'head' : 'face';
+    }
+    if (v < 0.12) return 'feet';
+    if (Math.abs(u - rig.neck[0]) > 0.26 && v < hy0) return 'hand';
+    return 'body';
   }
 
   function activeRole() {
@@ -583,7 +639,8 @@
     gaze.y = Math.max(-1, Math.min(1, y));
   };
   /// 通用触发器（milestone / break …）与直接播放动作（形象工坊预览按钮）
-  window.petTrigger = (name) => trigger(name, { force: true });
+  window.petTrigger = (name, weights) => trigger(name, { force: true, weights: weights || {} });
+  window.petHitRegion = (fx, fy) => (ready ? hitRegion(+fx || 0, +fy || 0) : 'body');
   window.petPlay = (id) => play(id, { force: true });
   /// 播放一个临时动作对象（动作编辑器实时预览，不需要先保存）
   window.petPlayInline = (action) => {

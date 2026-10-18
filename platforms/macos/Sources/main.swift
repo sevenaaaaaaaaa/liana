@@ -543,6 +543,31 @@ if installArgs.count > 1 {
         NSApplication.shared.run()
         exit(0)
 
+    case "--pet-chat-test":
+        // 开发用：模拟在对话气泡里打字（拼音组字 → 选词 → 发送），并检查本机规则回复
+        let composer = ChatComposerView(frame: NSRect(x: 0, y: 0, width: 280, height: 30))
+        var sent: [String] = []
+        composer.onSend = { sent.append($0) }
+        func key(_ chars: String, _ code: UInt16) {
+            if let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+                                            windowNumber: 0, context: nil, characters: chars,
+                                            charactersIgnoringModifiers: chars, isARepeat: false, keyCode: code) {
+                composer.keyDown(with: event)
+            }
+        }
+        for ch in "nihao" { key(String(ch), 0) }
+        print("candidates:", composer.candidateTexts.prefix(3))
+        key(" ", 49); key(",", 43); key("w", 0); key("o", 0); key("3", 20); key("\r", 36)
+        for ch in "ceshi" { key(String(ch), 0) }
+        key("\r", 36); key("\r", 36)
+        print("sent:", sent)
+        for message in ["跳个舞吧", "现在几点了", "今天打了多少字", "你叫什么名字"] {
+            PetChatBrain.reply(to: message, history: [], petName: "小松") { reply in
+                print("reply[\(message)]:", reply.text, reply.action ?? reply.trigger ?? "")
+            }
+        }
+        exit(0)
+
     case "--pet-sketches":
         // 开发用：把形象工坊的 12 张表情示意图渲染成一张 PNG
         let out = installArgs.count > 2 ? installArgs[2] : "/tmp/pet-sketches.png"

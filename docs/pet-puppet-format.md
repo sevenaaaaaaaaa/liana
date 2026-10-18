@@ -123,6 +123,8 @@ happy.png …     其他表情图（可选）
 
 触发器：`click` 摸头、`double_click` 戳一戳、`hover` 悬停、`commit` 上屏、`idle` 闲时随机、`roam` 溜达、
 `greet` 问候、`milestone` 字数里程碑、`wake` 醒来、`drop` 放下、`break` 休息提醒；
+部位类（单击，按骨架与透明度判断点在哪）：`tap_head` 摸头、`tap_face` / `tap_face2` 戳脸（连戳升级）、`tap_body` / `tap_body2` 挠痒（连挠升级）、`tap_hand` 举手等击掌、`highfive` 击掌成功、`highfive_miss` 没接住、`tap_feet` 踩脚、`tap_miss` 点空白处、`invite` 主动邀请互动；
+对话类：`chat` 听你说话、`chat_happy`、`chat_sad`；
 情感类：`love` 连着摸头、`angry` 被连戳、`lonely` 被冷落、`welcome` 离开后回来、`comfort` 删字很多、`dizzy` 被鼠标晃晕、`shy` 一直盯着它、`night` 深夜还在打字、`scared` 受惊。
 值为动作 id 或 id 数组（随机挑一个）。
 

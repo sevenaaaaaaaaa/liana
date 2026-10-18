@@ -138,12 +138,15 @@ final class PetWindowController {
             shared.show()
         } else {
             shared.hide()
+            PetChatController.shared.close()
         }
+        PetChatAutoTrigger.shared.refresh()
     }
 
     static func restoreIfEnabled() {
         guard isEnabled else { return }
         shared.show()
+        PetChatAutoTrigger.shared.refresh()
     }
 
     /// 扫描社区形象包。
@@ -166,6 +169,9 @@ final class PetWindowController {
     private var resetWorkItem: DispatchWorkItem?
     private var modeButton: PetQuickButton?
     private var statsButton: PetQuickButton?
+    private var chatButton: PetQuickButton?
+    /// 形象包名字（聊天时的称呼）
+    private(set) var petName = "小松"
     /// 鼠标追踪：30fps 轮询（无权限需求），只在包声明 follow_cursor 时启动。
     private var mouseTimer: Timer?
     /// 生活节律：1Hz，与渲染器无关（打盹 / 问候 / 休息提醒 / 心情），emoji 与图片形象同样生效。
@@ -315,6 +321,12 @@ final class PetWindowController {
         let dir = PluginStore.pluginsDir.appendingPathComponent(id, isDirectory: true)
         pack = PetPack.load(dir: dir)
         packLines = [:]
+        petName = "小松"
+        if let data = try? Data(contentsOf: dir.appendingPathComponent("plugin.json")),
+           let plugin = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let name = plugin["name"] as? String, !name.isEmpty, name.count <= 12 {
+            petName = name
+        }
         if let data = try? Data(contentsOf: dir.appendingPathComponent("pet.json")),
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let lines = (json["puppet"] as? [String: Any])?["lines"] as? [String: Any] {
@@ -537,6 +549,33 @@ final class PetWindowController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.6, execute: work)
     }
 
+    // MARK: - 聊天时的表现
+
+    var petFrame: NSRect? { panel?.isVisible == true ? panel?.frame : nil }
+
+    func chatOpened() {
+        lastUserTouch = Date()
+        PetEmotion.shared.touched()
+        markActive(typing: false)
+        petView?.trigger("chat")
+    }
+
+    func chatHeard() {
+        PetInteraction.shared.noteInteraction()
+        petView?.trigger("chat")
+    }
+
+    func chatReplied(_ reply: PetChatBrain.Reply) {
+        if let action = reply.action {
+            petView?.play(action)
+        } else if let trigger = reply.trigger {
+            petView?.trigger(trigger)
+        }
+        if petView == nil { pulse(scale: 1.08, duration: 0.2) }
+        petView?.speak(seconds: min(3, max(0.6, Double(reply.text.count) * 0.12)))
+        PetEmotion.shared.reward(0.3)
+    }
+
     /// 删字（InputController 调）：短时间删很多会被安慰。
     func noteDelete() {
         guard panel?.isVisible == true, let event = PetEmotion.shared.deleted() else { return }
@@ -594,6 +633,12 @@ final class PetWindowController {
         }
         greetIfNeeded()
         if let event = PetEmotion.shared.tick(typingRecently: idleFor < 120) { perform(event) }
+        // 人在、醒着、有一阵没跟它玩了 → 偶尔用你最喜欢的方式邀请你
+        if idleFor < 120, !sleepy, Date().timeIntervalSince(lastUserTouch) > 300,
+           let invite = PetInteraction.shared.invite() {
+            performReaction(invite, proactive: true)
+            if invite.trigger == "tap_hand" { scheduleHighFiveCheck(after: 8.2) }
+        }
     }
 
     private func setSleepy(_ on: Bool) {
@@ -905,14 +950,14 @@ final class PetWindowController {
 
         // 角色直接悬浮在桌面上：无托盘、无材质背景，只有角色本体
         let background = PetBackgroundView(frame: NSRect(x: 0, y: 0, width: panelW, height: panelH))
-        background.onClick = { [weak self] in self?.tapBody() }
+        background.onClick = { [weak self] point in self?.tapBody(at: point) }
         background.onHover = { [weak self] hovering in
             self?.hoverBody(hovering)
         }
         background.onRightClick = { [weak self] event in
             self?.presentPetMenu(event)
         }
-        background.onDoubleClick = { [weak self] in self?.pokeBody() }
+        background.onDoubleClick = { [weak self] _ in self?.pokeBody() }
         background.onDragChanged = { [weak self] dragging in
             guard let self else { return }
             self.lastUserTouch = Date()
@@ -1069,7 +1114,10 @@ final class PetWindowController {
         statsBtn.handler = { [weak self] in
             self?.showStatsCard(yesterday: false)
         }
-        let dock = NSStackView(views: [modeBtn, statsBtn])
+        let chatBtn = PetQuickButton(title: "💬")
+        chatBtn.toolTip = "和它聊天"
+        chatBtn.handler = { PetChatController.shared.open() }
+        let dock = NSStackView(views: [modeBtn, statsBtn, chatBtn])
         dock.orientation = .horizontal
         dock.spacing = 6
         dock.translatesAutoresizingMaskIntoConstraints = false
@@ -1081,11 +1129,15 @@ final class PetWindowController {
             modeBtn.heightAnchor.constraint(equalToConstant: 22),
             statsBtn.widthAnchor.constraint(equalToConstant: 22),
             statsBtn.heightAnchor.constraint(equalToConstant: 22),
+            chatBtn.widthAnchor.constraint(equalToConstant: 22),
+            chatBtn.heightAnchor.constraint(equalToConstant: 22),
         ])
         modeBtn.isHidden = true
         statsBtn.isHidden = true
         modeButton = modeBtn
         statsButton = statsBtn
+        chatBtn.isHidden = true
+        chatButton = chatBtn
 
         panel.contentView = background
 
@@ -1103,21 +1155,65 @@ final class PetWindowController {
 
     // MARK: - 互动（悬停 / 点按 / 右键）
 
-    /// 左键点按身体 = 摸头：桌宠开心弹跳 + 台词；中英切换改由快捷圆钮/右键菜单。
-    private func tapBody() {
-        pulse(scale: 1.12, duration: 0.2)
+    /// 左键点按：先判断点在哪个部位（头 / 脸 / 身体 / 手 / 脚 / 空白），再给对应反应。
+    private func tapBody(at point: NSPoint) {
+        pulse(scale: 1.08, duration: 0.18)
         lastUserTouch = Date()
         markActive(typing: false)
-        // 连摸几下 → 心动（替代普通摸头反应）
-        if let event = PetEmotion.shared.petted() {
+        resolveRegion(at: point) { [weak self] region in
+            self?.handleTap(region)
+        }
+    }
+
+    /// 纸偶形象按骨架 + 透明度精确判断；其他形象按画面比例粗分。
+    private func resolveRegion(at point: NSPoint, _ done: @escaping (PetInteraction.Region) -> Void) {
+        guard let host = panel?.contentView else { return done(.body) }
+        let fx = point.x / max(1, host.bounds.width)
+        let fy = point.y / max(1, host.bounds.height)   // 非翻转坐标：y 自下而上，与页面一致
+        if pack?.renderer == "puppet", let petView {
+            petView.hitRegion(fx: fx, fy: fy) { done(PetInteraction.Region(rawValue: $0) ?? .body) }
+            return
+        }
+        let region: PetInteraction.Region
+        if fy > 0.72 { region = .head } else if fy > 0.6 { region = .face } else if fy < 0.12 { region = .feet } else if abs(fx - 0.5) > 0.3 { region = .hand } else { region = .body }
+        done(region)
+    }
+
+    private func handleTap(_ region: PetInteraction.Region) {
+        // 连着摸头 → 心动（情感引擎优先）
+        if region == .head, let event = PetEmotion.shared.petted() {
+            PetInteraction.shared.noteInteraction()
             perform(event)
             return
         }
-        if let petView {
-            petView.petted()
+        let reaction = PetInteraction.shared.tapped(region)
+        performReaction(reaction, proactive: false)
+        if reaction.trigger == "tap_hand" { scheduleHighFiveCheck(after: 3.3) }
+    }
+
+    private func scheduleHighFiveCheck(after seconds: TimeInterval) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in
+            guard let self, let miss = PetInteraction.shared.highFiveMissed() else { return }
+            self.performReaction(miss, proactive: false)
+        }
+    }
+
+    /// 执行部位反应：纸偶播学到偏好加权的动作；其他形象用摸头 / 戳一戳反馈 + 情绪符号。
+    func performReaction(_ reaction: PetInteraction.Reaction, proactive: Bool) {
+        if reaction.affection != 0 { PetEmotion.shared.reward(reaction.affection) }
+        if pack?.renderer == "puppet" {
+            petView?.trigger(reaction.trigger, weights: PetInteraction.shared.weights(for: reaction.trigger))
         } else {
-            emitSparks(hearts: true)
-            showToast(pickPetLine(["嘿嘿～", "好舒服", "再摸一下嘛", "我在呢"]), duration: 2.5)
+            if let petView {
+                reaction.positive ? petView.petted() : petView.poke()
+            } else if reaction.positive {
+                emitSparks(hearts: true)
+            }
+            if let emote = reaction.emote { showEmote(emote) }
+        }
+        if proactive && Self.quietMode { return }
+        if let line = packLines[reaction.trigger]?.randomElement() ?? reaction.line {
+            showToast(line, duration: 2.8)
         }
     }
 
@@ -1126,6 +1222,7 @@ final class PetWindowController {
         pulse(scale: 1.2, duration: 0.26)
         lastUserTouch = Date()
         markActive(typing: false)
+        PetInteraction.shared.noteInteraction()
         // 连戳 → 生气背过身（替代普通戳一戳反应）
         if let event = PetEmotion.shared.poked() {
             perform(event)
@@ -1146,6 +1243,7 @@ final class PetWindowController {
     private func hoverBody(_ hovering: Bool) {
         modeButton?.isHidden = !hovering
         statsButton?.isHidden = !hovering
+        chatButton?.isHidden = !hovering
         statsButton?.toolTip = "今日已输入 \(PetStats.shared.today.chars.formatted()) 字 · 点开看小结"
         petView?.setHover(hovering)
         self.hovering = hovering
@@ -1174,6 +1272,11 @@ final class PetWindowController {
         affection.toolTip = "\(Int(PetEmotion.shared.affection))/100 · 摸头、陪它打字会涨，冷落和连戳会降"
         affection.isEnabled = false
         menu.addItem(affection)
+        if let favorite = PetInteraction.shared.favoriteRegion {
+            let fav = NSMenuItem(title: "它记得你最喜欢：\(favorite.title)", action: nil, keyEquivalent: "")
+            fav.isEnabled = false
+            menu.addItem(fav)
+        }
         menu.addItem(.separator())
         let lang = NSMenuItem(title: "切换 中/英", action: #selector(petMenuToggleLanguage(_:)), keyEquivalent: "")
         lang.target = self
@@ -1223,6 +1326,14 @@ final class PetWindowController {
         )
         workshop.target = self
         menu.addItem(workshop)
+        let chat = NSMenuItem(title: "和它聊天…", action: #selector(petMenuChat(_:)), keyEquivalent: "")
+        chat.target = self
+        menu.addItem(chat)
+        let auto = NSMenuItem(title: "不在输入框时打字就聊天", action: #selector(petMenuToggleChatAuto(_:)), keyEquivalent: "")
+        auto.target = self
+        auto.state = PetChatAutoTrigger.enabled ? .on : .off
+        auto.toolTip = "需要辅助功能权限：只判断当前是不是输入框，不记录任何按键"
+        menu.addItem(auto)
         let community = NSMenuItem(title: "形象源…", action: #selector(petMenuCommunity(_:)), keyEquivalent: "")
         community.target = self
         menu.addItem(community)
@@ -1262,6 +1373,10 @@ final class PetWindowController {
         let stats = NSMenuItem(title: "昨日输入总结", action: #selector(petMenuShowStats(_:)), keyEquivalent: "")
         stats.target = self
         menu.addItem(stats)
+        let forget = NSMenuItem(title: "清空互动记忆", action: #selector(petMenuForgetInteraction(_:)), keyEquivalent: "")
+        forget.target = self
+        forget.toolTip = "忘掉学到的互动偏好（最喜欢的部位、喜欢的反应）；好感度保留"
+        menu.addItem(forget)
         let perms = NSMenuItem(title: "权限与隐私…", action: #selector(petMenuPermissions(_:)), keyEquivalent: "")
         perms.target = self
         menu.addItem(perms)
@@ -1284,6 +1399,24 @@ final class PetWindowController {
     @objc private func petMenuToggleRoam(_ sender: Any) {
         Self.roamEnabled.toggle()
         showToast(Self.roamEnabled ? "我偶尔会出去溜达一下～" : "好，我乖乖待在这", duration: 2.5)
+    }
+
+    @objc private func petMenuChat(_ sender: Any) {
+        PetChatController.shared.open()
+    }
+
+    @objc private func petMenuToggleChatAuto(_ sender: Any) {
+        PetChatAutoTrigger.enabled.toggle()
+        if PetChatAutoTrigger.enabled {
+            showToast(PetChatAutoTrigger.permitted
+                      ? "好！在没有输入框的地方直接打字，我就来陪你聊"
+                      : "请在系统设置 › 隐私与安全性 › 辅助功能 里允许「松萝」，开启后自动生效", duration: 6)
+        }
+    }
+
+    @objc private func petMenuForgetInteraction(_ sender: Any) {
+        PetInteraction.shared.forget()
+        showToast("好，之前的互动习惯我都忘掉了，重新认识一下吧", duration: 3)
     }
 
     @objc private func petMenuZoom(_ sender: NSMenuItem) {
@@ -1711,8 +1844,8 @@ final class PetWindowController {
 /// 桌宠身体：区分「点按」与「拖动」，支持悬停与右键。
 /// 透明无背景，角色直接悬浮在桌面上。
 private final class PetBackgroundView: NSView {
-    var onClick: (() -> Void)?
-    var onDoubleClick: (() -> Void)?
+    var onClick: ((NSPoint) -> Void)?
+    var onDoubleClick: ((NSPoint) -> Void)?
     var onHover: ((Bool) -> Void)?
     var onRightClick: ((NSEvent) -> Void)?
     /// 拖动状态变化（true = 正在被拎起来）
@@ -1782,10 +1915,11 @@ private final class PetBackgroundView: NSView {
             dragging = false
             onDragChanged?(false)
         } else if moved < 3, held < 0.35 {
+            let point = convert(event.locationInWindow, from: nil)
             if event.clickCount >= 2 {
-                onDoubleClick?()
+                onDoubleClick?(point)
             } else {
-                onClick?()
+                onClick?(point)
             }
         }
     }

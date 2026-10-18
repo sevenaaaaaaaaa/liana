@@ -684,6 +684,11 @@ struct PetPage: View {
                     isOn: model.binding({ PetWindowController.quietMode }, { PetWindowController.quietMode = $0 })
                 )
                 ToggleRow(
+                    title: "不在输入框时打字就聊天",
+                    detail: "在桌面等没有输入框的地方连续敲字母，会打开对话气泡。需要辅助功能权限，只用来判断当前是不是输入框，不记录任何按键；聊天内容不保存",
+                    isOn: model.binding({ PetChatAutoTrigger.enabled }, { PetChatAutoTrigger.enabled = $0 })
+                )
+                ToggleRow(
                     title: "休息提醒",
                     detail: "连续打字 \(PetWindowController.breakMinutes) 分钟后提醒你起身活动",
                     isOn: model.binding({ PetWindowController.breakReminder }, { PetWindowController.breakReminder = $0 })

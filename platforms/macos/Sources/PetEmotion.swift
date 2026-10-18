@@ -145,6 +145,11 @@ final class PetEmotion {
         adjust(+0.05)
     }
 
+    /// 外部互动（部位反应、击掌成功……）带来的好感变化。
+    func reward(_ delta: Double) {
+        adjust(delta)
+    }
+
     // MARK: - 内部
 
     private func recent(_ list: [Date], within seconds: TimeInterval) -> [Date] {
