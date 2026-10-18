@@ -37,8 +37,12 @@ final class PetWorkshopWindowController: NSWindowController, NSWindowDelegate {
     }
 
     /// 开发用：直接载入图片（`--pet-workshop <图片…>`）。
-    func debugAdd(_ urls: [URL]) {
+    func debugAdd(_ urls: [URL], actionsTab: Bool = false) {
         model.add(urls)
+        if actionsTab {
+            model.tab = 1
+            model.copyPreset("happy_bounce")
+        }
     }
 
     /// 直接导入 .lianapet（设置中心入口），成功后在工坊里打开。
@@ -59,17 +63,131 @@ final class WorkshopModel: ObservableObject {
     weak var previewView: PuppetPetView?
     private var previewWork: DispatchWorkItem?
 
-    /// 预置动作（试动作按钮）：读随包的 actions.json
-    let actions: [(id: String, name: String)] = {
+    /// 随包的预置动作库（actions.json）：动作与默认触发
+    private static let library: [String: Any] = {
         guard let url = Bundle.main.resourceURL?.appendingPathComponent("PetRuntime/puppet/actions.json"),
               let data = try? Data(contentsOf: url),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let actions = json["actions"] as? [String: [String: Any]] else { return [] }
-        return actions
-            .filter { $0.value["loop"] as? Bool != true }
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [:] }
+        return json
+    }()
+
+    let presetActions: [String: [String: Any]] = (library["actions"] as? [String: [String: Any]] ?? [:])
+        .filter { $0.value["loop"] as? Bool != true }
+
+    let presetTriggers: [String: [String]] = (library["triggers"] as? [String: Any] ?? [:]).compactMapValues {
+        ($0 as? [String]) ?? (($0 as? String).map { [$0] })
+    }
+
+    /// 预置动作（试动作按钮），按名字排序
+    var actions: [(id: String, name: String)] {
+        presetActions
             .map { (id: $0.key, name: $0.value["name"] as? String ?? $0.key) }
             .sorted { $0.name < $1.name }
-    }()
+    }
+
+    /// 动作 id → 显示名（自定义优先）
+    func actionName(_ id: String) -> String {
+        draft.actions.first { $0.id == id }?.name ?? presetActions[id]?["name"] as? String ?? id
+    }
+
+    // MARK: 自定义动作
+
+    @Published var selectedAction: String?
+    @Published var tab = 0
+    private var actionPreviewWork: DispatchWorkItem?
+
+    var selectedActionIndex: Int? {
+        draft.actions.firstIndex { $0.id == selectedAction }
+    }
+
+    private func nextActionId() -> String {
+        var n = 1
+        while draft.actions.contains(where: { $0.id == "my-\(n)" }) { n += 1 }
+        return "my-\(n)"
+    }
+
+    func newAction() {
+        let id = nextActionId()
+        var action = PuppetActionDraft(id: id, name: "我的动作 \(id.dropFirst(3))")
+        action.keyframes = [
+            PuppetKeyframe(t: 0),
+            PuppetKeyframe(t: 0.3, values: ["root.ty": 0.06, "root.sy": 0.05]),
+            PuppetKeyframe(t: 0.6),
+        ]
+        draft.actions.append(action)
+        selectedAction = id
+        actionEdited()
+    }
+
+    /// 以预置动作为起点复制一份（只支持关键帧动作）。
+    func copyPreset(_ presetId: String) {
+        guard let json = presetActions[presetId],
+              var action = PuppetActionDraft(id: nextActionId(), json: json) else {
+            status = "这个预置动作含波形，不能在编辑器里改"
+            return
+        }
+        action.name = "\(action.name)（改）"
+        draft.actions.append(action)
+        selectedAction = action.id
+        actionEdited()
+    }
+
+    var copyablePresets: [(id: String, name: String)] {
+        actions.filter { PuppetActionDraft(id: $0.id, json: presetActions[$0.id] ?? [:]) != nil }
+    }
+
+    func deleteAction(_ id: String) {
+        draft.actions.removeAll { $0.id == id }
+        for key in draft.triggers.keys {
+            draft.triggers[key]?.removeAll { $0 == id }
+            if draft.triggers[key]?.isEmpty == true { draft.triggers.removeValue(forKey: key) }
+        }
+        selectedAction = draft.actions.first?.id
+    }
+
+    /// 编辑后 0.35 秒在预览里播一遍（拖滑杆时不会连播）。
+    func actionEdited() {
+        actionPreviewWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.previewSelectedAction() }
+        actionPreviewWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
+    }
+
+    func previewSelectedAction() {
+        guard let index = selectedActionIndex else { return }
+        previewView?.playInline(draft.actions[index].json)
+    }
+
+    func playCustom(_ id: String) {
+        guard let action = draft.actions.first(where: { $0.id == id }) else { return }
+        previewView?.playInline(action.json)
+    }
+
+    // MARK: 触发与台词
+
+    /// 某个触发器当前生效的动作（自定义覆盖 > 预置）
+    func triggerActions(_ key: String) -> [String] {
+        draft.triggers[key] ?? presetTriggers[key] ?? []
+    }
+
+    func toggleTrigger(_ key: String, action id: String) {
+        var list = triggerActions(key)
+        if let i = list.firstIndex(of: id) { list.remove(at: i) } else { list.append(id) }
+        draft.triggers[key] = list
+    }
+
+    func resetTrigger(_ key: String) {
+        draft.triggers.removeValue(forKey: key)
+    }
+
+    func linesText(_ key: String) -> String {
+        (draft.lines[key] ?? []).joined(separator: " / ")
+    }
+
+    func setLines(_ key: String, _ text: String) {
+        let list = text.split(separator: "/").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        if list.isEmpty { draft.lines.removeValue(forKey: key) } else { draft.lines[key] = list }
+    }
 
     var selectedIndex: Int? {
         draft.images.firstIndex { $0.id == selected }
@@ -78,6 +196,7 @@ final class WorkshopModel: ObservableObject {
     func load(_ draft: PuppetDraft) {
         self.draft = draft
         selected = draft.images.first { $0.role == .idle }?.id ?? draft.images.first?.id
+        selectedAction = draft.actions.first?.id
         status = draft.packId == nil
             ? "拖入 1 张或多张图片开始。全身、单人、背景简单的图效果最好。"
             : "正在编辑「\(draft.name)」"
@@ -288,6 +407,12 @@ struct WorkshopView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 78), spacing: 6)], spacing: 6) {
+                    ForEach(model.draft.actions) { action in
+                        Button(action.name) { model.playCustom(action.id) }
+                            .controlSize(.small)
+                            .lianaGlassButton()
+                            .tint(.orange)
+                    }
                     ForEach(model.actions, id: \.id) { action in
                         Button(action.name) { model.play(action.id) }
                             .controlSize(.small)
@@ -304,6 +429,18 @@ struct WorkshopView: View {
     // 右：名字 / 图片与表情 / 骨架点 / 分享声明 / 操作
     private var editorColumn: some View {
         VStack(spacing: 0) {
+            Picker("", selection: $model.tab) {
+                Text("形象").tag(0)
+                Text("动作与互动").tag(1)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 260)
+            .padding(.top, 34)
+            .padding(.bottom, 4)
+            if model.tab == 1 {
+                ActionsTab(model: model)
+            } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {
@@ -327,7 +464,7 @@ struct WorkshopView: View {
                     promptSection
                 }
                 .padding(20)
-                .padding(.top, 16)
+            }
             }
             Divider()
             HStack(spacing: 8) {
@@ -340,6 +477,13 @@ struct WorkshopView: View {
                 Button("导入 .lianapet…") { model.importPack() }
                 Button("导出…") { model.exportPack() }
                     .disabled(model.draft.images.isEmpty)
+                Button("投稿…") {
+                    if let id = model.save() {
+                        PetCommunityWindowController.shared.showSubmit(packId: id)
+                    }
+                }
+                .disabled(!model.draft.shareable || model.draft.images.isEmpty)
+                .help("先勾选「可以分享」并保存")
                 Button("保存并使用") { model.save() }
                     .keyboardShortcut(.defaultAction)
                     .disabled(!model.draft.images.contains { $0.role == .idle } || model.busy)
@@ -447,7 +591,7 @@ struct WorkshopView: View {
                 model.updateRig(rig, final: final)
             }
             .id(image.id)
-            .frame(height: 260)
+            .frame(height: 290)
         }
     }
 
@@ -548,6 +692,32 @@ private struct RigEditor: View {
     }
 
     var body: some View {
+        VStack(spacing: 6) {
+            canvas
+            HStack(spacing: 8) {
+                if rig.eyes.isEmpty && rig.mouth == nil {
+                    Button("标出眼睛和嘴巴") {
+                        rig.addDefaultFeatures()
+                        onChange(rig, true)
+                    }
+                    .help("用来自动生成眨眼和说话口型；照片一般会自动识别")
+                } else {
+                    Text("绿框 = 眼睛，橙框 = 嘴巴：拖中心移动，拖右上角调大小")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Button("清除") {
+                        rig.eyes = []
+                        rig.mouth = nil
+                        onChange(rig, true)
+                    }
+                }
+                Spacer()
+            }
+            .controlSize(.small)
+        }
+    }
+
+    private var canvas: some View {
         GeometryReader { geo in
             let h = geo.size.height
             let w = min(geo.size.width, h * aspect)
@@ -568,6 +738,16 @@ private struct RigEditor: View {
                 handle(color: .blue, size: 14)
                     .offset(x: head.maxX * w - 7, y: (1 - head.maxY) * fitH - 7)
                     .gesture(drag(w: w, h: fitH) { p in resizeHead(to: p) })
+                ForEach(rig.eyes.indices, id: \.self) { i in
+                    featureBox(rig.eyes[i], color: .green, w: w, h: fitH,
+                               move: { p in rig.eyes[i] = centered(rig.eyes[i], at: p) },
+                               resize: { p in rig.eyes[i] = resized(rig.eyes[i], to: p) })
+                }
+                if let mouth = rig.mouth {
+                    featureBox(mouth, color: .orange, w: w, h: fitH,
+                               move: { p in rig.mouth = centered(mouth, at: p) },
+                               resize: { p in rig.mouth = resized(mouth, to: p) })
+                }
                 handle(color: .red, size: 16)
                     .offset(x: rig.neck.x * w - 8, y: (1 - rig.neck.y) * fitH - 8)
                     .gesture(drag(w: w, h: fitH) { p in moveNeck(to: p) })
@@ -576,6 +756,32 @@ private struct RigEditor: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .coordinateSpace(name: "rig")
         }
+    }
+
+    /// 眼睛 / 嘴巴框：中心点拖动移动，右上角拖动调大小。
+    @ViewBuilder
+    private func featureBox(_ r: CGRect, color: Color, w: CGFloat, h: CGFloat,
+                            move: @escaping (CGPoint) -> Void, resize: @escaping (CGPoint) -> Void) -> some View {
+        RoundedRectangle(cornerRadius: 3)
+            .stroke(color, lineWidth: 1.5)
+            .background(color.opacity(0.12))
+            .frame(width: r.width * w, height: r.height * h)
+            .offset(x: r.minX * w, y: (1 - r.maxY) * h)
+            .allowsHitTesting(false)
+        handle(color: color, size: 10)
+            .offset(x: r.midX * w - 5, y: (1 - r.midY) * h - 5)
+            .gesture(drag(w: w, h: h, apply: move))
+        handle(color: color, size: 9)
+            .offset(x: r.maxX * w - 4.5, y: (1 - r.maxY) * h - 4.5)
+            .gesture(drag(w: w, h: h, apply: resize))
+    }
+
+    private func centered(_ r: CGRect, at p: CGPoint) -> CGRect {
+        CGRect(x: p.x - r.width / 2, y: p.y - r.height / 2, width: r.width, height: r.height)
+    }
+
+    private func resized(_ r: CGRect, to p: CGPoint) -> CGRect {
+        CGRect(x: r.minX, y: r.minY, width: max(0.01, p.x - r.minX), height: max(0.008, p.y - r.minY))
     }
 
     private func handle(color: Color, size: CGFloat) -> some View {
@@ -605,6 +811,8 @@ private struct RigEditor: View {
         let dx = p.x - rig.neck.x, dy = p.y - rig.neck.y
         rig.neck = p
         rig.head = rig.head.offsetBy(dx: dx, dy: dy)
+        rig.eyes = rig.eyes.map { $0.offsetBy(dx: dx, dy: dy) }
+        rig.mouth = rig.mouth?.offsetBy(dx: dx, dy: dy)
     }
 
     private func resizeHead(to p: CGPoint) {
@@ -629,5 +837,268 @@ private struct CheckerBackground: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - 动作与互动
+
+private let triggerTitles: [(key: String, title: String)] = [
+    ("click", "点一下"), ("double_click", "双击"), ("hover", "鼠标悬停"), ("commit", "打字上屏"),
+    ("idle", "闲着时（随机）"), ("greet", "打招呼"), ("milestone", "字数里程碑"), ("wake", "睡醒"),
+    ("drop", "被放下"), ("break", "休息提醒"), ("roam", "溜达"),
+]
+
+private let lineTitles: [(key: String, title: String)] = [
+    ("click", "被摸头"), ("double_click", "被戳"), ("idle", "闲聊"), ("sleep", "犯困"), ("wake", "睡醒"),
+    ("morning", "早上问候"), ("afternoon", "下午问候"), ("evening", "晚上问候"), ("level", "打字很多时"),
+]
+
+/// 动作编辑器（关键帧 + 滑杆，改完自动在左边预览）+ 触发器与台词。
+private struct ActionsTab: View {
+    @ObservedObject var model: WorkshopModel
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                actionsBar
+                if let index = model.selectedActionIndex {
+                    ActionEditor(model: model, index: index)
+                        .id(model.draft.actions[index].id)
+                } else {
+                    Text("新建一个动作，或从预置动作复制一份来改。改动会在左边预览里自动播放。")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
+                Divider()
+                triggersSection
+                Divider()
+                linesSection
+            }
+            .padding(20)
+        }
+    }
+
+    private var actionsBar: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("我的动作").font(.system(size: 13, weight: .semibold))
+                Spacer()
+                Menu("从预置复制") {
+                    ForEach(model.copyablePresets, id: \.id) { preset in
+                        Button(preset.name) { model.copyPreset(preset.id) }
+                    }
+                }
+                .fixedSize()
+                .controlSize(.small)
+                Button("新建动作") { model.newAction() }
+                    .controlSize(.small)
+            }
+            if !model.draft.actions.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(model.draft.actions) { action in
+                            let on = model.selectedAction == action.id
+                            Button(action.name) { model.selectedAction = action.id }
+                                .controlSize(.small)
+                                .buttonStyle(.bordered)
+                                .tint(on ? .accentColor : nil)
+                        }
+                    }
+                }
+            }
+            if !model.draft.extraActions.isEmpty {
+                Text("另有 \(model.draft.extraActions.count) 个带波形的动作（来自形象包），保存时原样保留。")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var triggersSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("什么时候做什么动作").font(.system(size: 13, weight: .semibold))
+            Text("每种时机可以选多个动作，触发时随机挑一个。")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            ForEach(triggerTitles, id: \.key) { trigger in
+                HStack(alignment: .firstTextBaseline) {
+                    Text(trigger.title)
+                        .frame(width: 104, alignment: .leading)
+                    let chosen = model.triggerActions(trigger.key)
+                    Text(chosen.isEmpty ? "（无）" : chosen.map(model.actionName).joined(separator: "、"))
+                        .font(.system(size: 12))
+                        .foregroundStyle(model.draft.triggers[trigger.key] == nil ? .secondary : .primary)
+                        .lineLimit(2)
+                    Spacer()
+                    Menu("选择") {
+                        ForEach(model.draft.actions) { action in
+                            Toggle(action.name, isOn: Binding(
+                                get: { model.triggerActions(trigger.key).contains(action.id) },
+                                set: { _ in model.toggleTrigger(trigger.key, action: action.id) }
+                            ))
+                        }
+                        if !model.draft.actions.isEmpty { Divider() }
+                        ForEach(model.actions, id: \.id) { action in
+                            Toggle(action.name, isOn: Binding(
+                                get: { model.triggerActions(trigger.key).contains(action.id) },
+                                set: { _ in model.toggleTrigger(trigger.key, action: action.id) }
+                            ))
+                        }
+                        if model.draft.triggers[trigger.key] != nil {
+                            Divider()
+                            Button("恢复默认") { model.resetTrigger(trigger.key) }
+                        }
+                    }
+                    .fixedSize()
+                    .controlSize(.small)
+                }
+            }
+        }
+    }
+
+    private var linesSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("台词").font(.system(size: 13, weight: .semibold))
+            Text("多句用 / 分隔，随机说一句；留空用默认台词。")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            ForEach(lineTitles, id: \.key) { line in
+                HStack {
+                    Text(line.title).frame(width: 104, alignment: .leading)
+                    TextField("默认", text: Binding(
+                        get: { model.linesText(line.key) },
+                        set: { model.setLines(line.key, $0) }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                }
+            }
+        }
+    }
+}
+
+/// 单个动作：名字 / 表情 / 特效 / 台词 + 关键帧（每帧一组姿势滑杆）。
+private struct ActionEditor: View {
+    @ObservedObject var model: WorkshopModel
+    let index: Int
+
+    private var action: Binding<PuppetActionDraft> {
+        Binding(
+            get: { model.draft.actions.indices.contains(index) ? model.draft.actions[index] : PuppetActionDraft(id: "", name: "") },
+            set: {
+                guard model.draft.actions.indices.contains(index) else { return }
+                model.draft.actions[index] = $0
+                model.actionEdited()
+            }
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                TextField("动作名", text: action.name)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 180)
+                Picker("表情", selection: action.image) {
+                    Text("不换").tag("")
+                    ForEach(PuppetRole.allCases) { role in
+                        Text(role.title).tag(role.rawValue)
+                    }
+                }
+                .frame(width: 170)
+                Picker("特效", selection: action.effect) {
+                    Text("无").tag("")
+                    Text("爱心").tag("hearts")
+                    Text("光点").tag("sparks")
+                }
+                .frame(width: 120)
+                Spacer()
+            }
+            HStack {
+                TextField("台词（可选，多句用 / 分隔）", text: action.say)
+                    .textFieldStyle(.roundedBorder)
+                Toggle("结束回到原位", isOn: action.returnToRest)
+                    .toggleStyle(.checkbox)
+            }
+            ForEach(Array(action.wrappedValue.keyframes.enumerated()), id: \.element.id) { k, frame in
+                keyframeBox(k, frame)
+            }
+            HStack {
+                Button("＋ 关键帧") { addKeyframe() }
+                Button("▶︎ 播放") { model.previewSelectedAction() }
+                Spacer()
+                Button("删除这个动作", role: .destructive) {
+                    model.deleteAction(action.wrappedValue.id)
+                }
+            }
+            .controlSize(.small)
+        }
+    }
+
+    private func keyframeBox(_ k: Int, _ frame: PuppetKeyframe) -> some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("第 \(k + 1) 帧").font(.system(size: 12, weight: .semibold))
+                    Slider(value: keyframeTime(frame.id), in: 0...4, step: 0.05)
+                        .frame(maxWidth: 220)
+                    Text(String(format: "%.2f 秒", frame.t))
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    if action.wrappedValue.keyframes.count > 1 {
+                        Button {
+                            action.wrappedValue.keyframes.removeAll { $0.id == frame.id }
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                }
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible())], spacing: 2) {
+                    ForEach(PuppetChannel.all, id: \.key) { channel in
+                        HStack(spacing: 6) {
+                            Text(channel.title)
+                                .font(.system(size: 11))
+                                .frame(width: 92, alignment: .leading)
+                            Slider(value: channelValue(frame.id, channel), in: channel.range)
+                                .controlSize(.mini)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func keyframeTime(_ id: UUID) -> Binding<Double> {
+        Binding(
+            get: { action.wrappedValue.keyframes.first { $0.id == id }?.t ?? 0 },
+            set: { value in
+                if let i = action.wrappedValue.keyframes.firstIndex(where: { $0.id == id }) {
+                    action.wrappedValue.keyframes[i].t = value
+                }
+            }
+        )
+    }
+
+    private func channelValue(_ id: UUID, _ channel: PuppetChannel) -> Binding<Double> {
+        Binding(
+            get: { action.wrappedValue.keyframes.first { $0.id == id }?.values[channel.key] ?? 0 },
+            set: { value in
+                if let i = action.wrappedValue.keyframes.firstIndex(where: { $0.id == id }) {
+                    // 靠近 0 时吸附到 0，方便回到原位
+                    action.wrappedValue.keyframes[i].values[channel.key] =
+                        abs(value) < (channel.range.upperBound - channel.range.lowerBound) * 0.02 ? 0 : value
+                }
+            }
+        )
+    }
+
+    private func addKeyframe() {
+        var frames = action.wrappedValue.keyframes
+        let last = frames.max { $0.t < $1.t }
+        var next = PuppetKeyframe(t: min(4, (last?.t ?? 0) + 0.3))
+        next.values = last?.values ?? [:]
+        frames.append(next)
+        action.wrappedValue.keyframes = frames
     }
 }

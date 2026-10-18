@@ -58,10 +58,13 @@ happy.png …     其他表情图（可选）
 |---|---|
 | `faces` | `front` / `left` / `right`：侧身形象溜达时按方向镜像 |
 | `rights` | `shareable`（作者声明原创或已获授权）/ `personal`（仅个人使用，工坊不允许导出） |
-| `images.<表情>` | 表情：`idle`（必需）`happy` `typing` `sleep` `surprised` `blink`（闭眼，用于眨眼）`shy` `sad`；也可以自定义表情名供自己的动作引用 |
+| `images.<表情>` | 表情：`idle`（必需）`happy` `typing` `sleep` `surprised` `blink`（闭眼，用于眨眼）`talk`（张嘴，说话口型）`shy` `sad`；也可以自定义表情名供自己的动作引用 |
+| `images.<表情>.generated` | `true` 表示由形象工坊按「平时」图自动生成（目前是 `blink` / `talk`），只和平时图对齐，编辑时会重新生成 |
 | `rig.neck` | 脖子转轴（图片归一化坐标，**y 自下而上**） |
 | `rig.head` | 头部范围 `[x0, y0, x1, y1]`：范围内随头部转动，范围外平滑衰减 |
 | `rig.ground` | 脚底线（裁切到主体时为 0） |
+| `rig.eyes` | 可选，眼睛范围 `[[x0, y0, x1, y1], …]`（最多 2 个）：没有 `blink` 图时据此自动生成闭眼图 |
+| `rig.mouth` | 可选，嘴巴范围 `[x0, y0, x1, y1]`：没有 `talk` 图时据此自动生成张嘴图，说话时嘴巴开合 |
 
 同一组图（如同一次 AI 生成）应构图一致：形象工坊会把尺寸相同、主体位置高度重合的图按同一裁切框处理，切换表情和眨眼时不跳动。
 
@@ -123,6 +126,33 @@ happy.png …     其他表情图（可选）
 状态：`idle` / `typing` / `sleep` / `drag` → 循环动作 id。
 
 台词键：上面的触发器名，以及 `morning` `afternoon` `evening` `sleep` `wake` `level`。
+
+## 社区目录
+
+社区目录是 GitHub 仓库 [`sevenaaaaaaaaa/liana-pets`](https://github.com/sevenaaaaaaaaa/liana-pets) 里的一份 `index.json`，没有服务器：
+
+```json
+{
+  "format": 1,
+  "packs": [
+    {
+      "id": "puppet-maple-fox",
+      "name": "枫叶狐狸",
+      "author": "作者名",
+      "license": "CC-BY-4.0",
+      "description": "一只会打盹的狐狸",
+      "url": "https://raw.githubusercontent.com/sevenaaaaaaaaa/liana-pets/main/packs/puppet-maple-fox.lianapet",
+      "preview": "https://raw.githubusercontent.com/sevenaaaaaaaaa/liana-pets/main/packs/puppet-maple-fox.png",
+      "sha256": "…64 位十六进制…",
+      "bytes": 812345,
+      "tags": ["动物", "原创"]
+    }
+  ]
+}
+```
+
+客户端只收 `https` 地址、`puppet-` 前缀、带 sha256 的条目；下载后 sha256 不符直接丢弃。
+投稿：形象工坊或社区窗口里点「投稿」，会在「下载/松萝投稿」生成 `.lianapet`、预览图和目录条目，并打开 GitHub 投稿页，由作者自己上传提交。
 
 ## 版权
 

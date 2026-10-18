@@ -524,8 +524,10 @@ if installArgs.count > 1 {
         // 开发用：打开形象工坊，可附带图片路径直接载入（不改桌宠设置，除非点「保存并使用」）
         PetWorkshopWindowController.shared.show()
         let paths = installArgs.dropFirst(2)
-        let images = paths.filter { !$0.hasSuffix(".snapshot.png") }.map { URL(fileURLWithPath: $0) }
-        if !images.isEmpty { PetWorkshopWindowController.shared.debugAdd(Array(images)) }
+        let images = paths.filter { !$0.hasSuffix(".snapshot.png") && $0 != "actions" }.map { URL(fileURLWithPath: $0) }
+        if !images.isEmpty {
+            PetWorkshopWindowController.shared.debugAdd(Array(images), actionsTab: paths.contains("actions"))
+        }
         // 以 .snapshot.png 结尾的参数：6 秒后把窗口内容存成 PNG 并退出（WebGL 预览区会是空白）
         if let out = paths.first(where: { $0.hasSuffix(".snapshot.png") }) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 6) {

@@ -170,6 +170,8 @@
         tex: uploadTexture(img),
         aspect: img.naturalWidth / Math.max(1, img.naturalHeight),
         rig: sanitizeRig(typeof spec === 'string' ? null : spec.rig),
+        // 工坊按「平时」图自动生成的闭眼 / 张嘴图：只和平时图对齐
+        generated: typeof spec === 'object' && spec.generated === true,
       };
     }));
     if (!images.idle) {
@@ -245,6 +247,7 @@
   let curRole = 'idle', prevRole = null, fadeStart = -1;
   const FADE = 0.16;
   let blinkUntil = 0, nextBlinkAt = 2.5;
+  let talkUntil = 0, mouthOpen = false, nextMouthAt = 0;
 
   const pick = (list) => list[Math.floor(Math.random() * list.length)];
   function say(key, force = false) {
@@ -430,6 +433,24 @@
     gl.viewport(0, 0, canvas.width, canvas.height);
   }
 
+  /// 该叠加图（闭眼 / 张嘴）能否用在当前表情上：自动生成的只对齐「平时」图
+  function overlayFits(entry) {
+    return entry && (curRole === 'idle' || (!entry.generated && curRole === 'typing'));
+  }
+
+  /// 说话口型：气泡显示期间嘴巴随机开合
+  function updateTalk() {
+    if (!images.talk || now >= talkUntil || sleepy || !overlayFits(images.talk)) {
+      mouthOpen = false;
+      return false;
+    }
+    if (now >= nextMouthAt) {
+      mouthOpen = !mouthOpen;
+      nextMouthAt = now + (mouthOpen ? 0.08 + Math.random() * 0.1 : 0.06 + Math.random() * 0.12);
+    }
+    return mouthOpen;
+  }
+
   function updateBlink() {
     const loopAction = library.actions[loop.id];
     if (!images.blink || sleepy || (loopAction && loopAction.noBlink)) return false;
@@ -467,12 +488,14 @@
       curRole = role;
       fadeStart = now;
     }
-    const blinking = updateBlink() && (curRole === 'idle' || curRole === 'typing');
+    const blinking = updateBlink() && overlayFits(images.blink);
+    const talking = !blinking && updateTalk();
     const alpha = Math.max(0, Math.min(1, 1 + p.alpha));
     const k = fadeStart < 0 ? 1 : Math.min(1, (now - fadeStart) / FADE);
     if (k < 1 && prevRole) drawEntry(images[prevRole], p, alpha * (1 - k));
     else prevRole = null;
-    drawEntry(blinking ? images.blink : images[curRole], p, alpha * (prevRole ? k : 1));
+    const face = blinking ? images.blink : (talking ? images.talk : images[curRole]);
+    drawEntry(face, p, alpha * (prevRole ? k : 1));
   }
   // 省电：平时 30fps，打盹 12fps；WebKit 遮挡时会节流 rAF，用定时器兜底
   function frameInterval() { return sleepy && !dragging && !hovered ? 1000 / 12 : 1000 / 30; }
@@ -533,8 +556,16 @@
   /// 通用触发器（milestone / break …）与直接播放动作（形象工坊预览按钮）
   window.petTrigger = (name) => trigger(name, { force: true });
   window.petPlay = (id) => play(id, { force: true });
+  /// 播放一个临时动作对象（动作编辑器实时预览，不需要先保存）
+  window.petPlayInline = (action) => {
+    if (!action || typeof action !== 'object' || action.loop) return false;
+    library.actions.__inline = action;
+    return play('__inline', { force: true });
+  };
   window.petActions = () => JSON.stringify(Object.entries(library.actions)
     .filter(([, a]) => !a.loop).map(([id, a]) => ({ id, name: a.name || id })));
+  /// 说话（Swift 弹气泡时调用）：嘴巴开合若干秒
+  window.petSpeak = (seconds) => { talkUntil = now + Math.max(0.3, Math.min(4, +seconds || 1)); };
   window.petSetZoom = () => {};
   window.petInfo = () => JSON.stringify({
     ready: !!window.__petReady, renderer: 'puppet', images: Object.keys(images),

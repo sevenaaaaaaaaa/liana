@@ -66,8 +66,20 @@ class PetWebView: WKWebView, WKScriptMessageHandler, WKNavigationDelegate {
     func setGaze(dx: Double, dy: Double) { eval("window.petSetGaze && window.petSetGaze(\(dx), \(dy))") }
     /// 通用触发器（milestone / break …），纸偶渲染器支持；其他渲染器没有该函数时静默忽略。
     func trigger(_ name: String) { eval("window.petTrigger && window.petTrigger('\(Self.jsSafe(name))')") }
+    /// 说话口型（纸偶渲染器）：嘴巴开合若干秒。
+    func speak(seconds: Double) { eval("window.petSpeak && window.petSpeak(\(seconds))") }
     /// 直接播放某个动作（形象工坊「试试动作」）。
     func play(_ actionId: String) { eval("window.petPlay && window.petPlay('\(Self.jsSafe(actionId))')") }
+
+    /// 播放一个临时动作（动作编辑器预览）。参数是 JSON 对象，本身就是合法的 JS 字面量。
+    func playInline(_ action: [String: Any]) {
+        guard let data = try? JSONSerialization.data(withJSONObject: action),
+              var json = String(data: data, encoding: .utf8) else { return }
+        // JSON 合法但 JS 字符串里不允许的两个行分隔符
+        json = json.replacingOccurrences(of: "\u{2028}", with: "\\u2028")
+            .replacingOccurrences(of: "\u{2029}", with: "\\u2029")
+        eval("window.petPlayInline && window.petPlayInline(\(json))")
+    }
 
     /// 动作 id / 触发器名只允许字母数字下划线连字符，杜绝拼进 JS 的注入。
     private static func jsSafe(_ value: String) -> String {

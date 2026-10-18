@@ -11,18 +11,45 @@ import Vision
 
 // MARK: - 数据模型
 
-/// 骨架点（图片归一化坐标，y 自下而上）：脖子转轴、头部范围 [x0, y0, x1, y1]、脚底线。
+/// 骨架点（图片归一化坐标，y 自下而上）：脖子转轴、头部范围 [x0, y0, x1, y1]、脚底线，
+/// 以及可选的眼睛 / 嘴巴范围（用来自动生成闭眼图与张嘴图）。
 struct PuppetRig: Equatable {
     var neck = CGPoint(x: 0.5, y: 0.66)
     var head = CGRect(x: 0.22, y: 0.64, width: 0.56, height: 0.36)
     var ground: CGFloat = 0
+    var eyes: [CGRect] = []
+    var mouth: CGRect?
 
     var json: [String: Any] {
-        [
+        var out: [String: Any] = [
             "neck": [round3(neck.x), round3(neck.y)],
-            "head": [round3(head.minX), round3(head.minY), round3(head.maxX), round3(head.maxY)],
+            "head": box(head),
             "ground": round3(ground),
         ]
+        if !eyes.isEmpty { out["eyes"] = eyes.map(box) }
+        if let mouth { out["mouth"] = box(mouth) }
+        return out
+    }
+
+    /// 按头部范围给出眼睛 / 嘴巴的默认位置（识别不到脸时，工坊里手动拖到位）。
+    mutating func addDefaultFeatures() {
+        let w = head.width, h = head.height
+        let eyeW = w * 0.16, eyeH = h * 0.08
+        let eyeY = head.minY + h * 0.42
+        eyes = [
+            CGRect(x: head.minX + w * 0.3 - eyeW / 2, y: eyeY, width: eyeW, height: eyeH),
+            CGRect(x: head.minX + w * 0.7 - eyeW / 2, y: eyeY, width: eyeW, height: eyeH),
+        ]
+        mouth = CGRect(x: head.midX - w * 0.1, y: head.minY + h * 0.2, width: w * 0.2, height: h * 0.07)
+    }
+
+    private func box(_ r: CGRect) -> [Double] {
+        [round3(r.minX), round3(r.minY), round3(r.maxX), round3(r.maxY)]
+    }
+
+    private static func rect(_ any: Any?) -> CGRect? {
+        guard let v = any as? [Double], v.count == 4, v[2] > v[0], v[3] > v[1] else { return nil }
+        return CGRect(x: v[0], y: v[1], width: v[2] - v[0], height: v[3] - v[1])
     }
 
     init() {}
@@ -36,6 +63,8 @@ struct PuppetRig: Equatable {
             head = CGRect(x: h[0], y: h[1], width: max(0.05, h[2] - h[0]), height: max(0.05, h[3] - h[1]))
         }
         if let g = json["ground"] as? Double { ground = g }
+        eyes = ((json["eyes"] as? [Any]) ?? []).compactMap(Self.rect).prefix(2).map { $0 }
+        mouth = Self.rect(json["mouth"])
     }
 
     private func round3(_ v: CGFloat) -> Double { (Double(v) * 1000).rounded() / 1000 }
@@ -43,7 +72,7 @@ struct PuppetRig: Equatable {
 
 /// 角色状态（图片的用途）。顺序即添加图片时自动分配的顺序。
 enum PuppetRole: String, CaseIterable, Identifiable {
-    case idle, happy, typing, sleep, surprised, blink, shy, sad
+    case idle, happy, typing, sleep, surprised, blink, talk, shy, sad
 
     var id: String { rawValue }
 
@@ -55,6 +84,7 @@ enum PuppetRole: String, CaseIterable, Identifiable {
         case .sleep: return "睡觉"
         case .surprised: return "惊讶"
         case .blink: return "闭眼（用于眨眼）"
+        case .talk: return "张嘴（说话用）"
         case .shy: return "害羞"
         case .sad: return "委屈"
         }
@@ -65,6 +95,7 @@ enum PuppetRole: String, CaseIterable, Identifiable {
         let name = filename.lowercased()
         let hints: [(PuppetRole, [String])] = [
             (.blink, ["blink", "闭眼", "eyes_closed", "closed"]),
+            (.talk, ["talk", "speak", "mouth_open", "张嘴", "说话"]),
             (.sleep, ["sleep", "睡", "困"]),
             (.happy, ["happy", "smile", "开心", "笑"]),
             (.typing, ["typing", "type", "打字", "work"]),
@@ -87,6 +118,115 @@ struct PuppetImage: Identifiable {
     var aspect: CGFloat { pixelSize.width / max(1, pixelSize.height) }
 }
 
+/// 动作编辑器的通道：标题、pet.json 通道名、滑杆范围。
+struct PuppetChannel {
+    let key: String
+    let title: String
+    let range: ClosedRange<Double>
+
+    static let all: [PuppetChannel] = [
+        PuppetChannel(key: "head.rot", title: "头部转动", range: -0.4...0.4),
+        PuppetChannel(key: "head.ty", title: "头部上下", range: -0.05...0.05),
+        PuppetChannel(key: "head.tx", title: "头部左右", range: -0.05...0.05),
+        PuppetChannel(key: "lean", title: "身体倾斜", range: -0.2...0.2),
+        PuppetChannel(key: "root.ty", title: "跳起高度", range: -0.05...0.25),
+        PuppetChannel(key: "root.tx", title: "左右移动", range: -0.3...0.3),
+        PuppetChannel(key: "root.rot", title: "整体旋转", range: -0.35...0.35),
+        PuppetChannel(key: "root.sy", title: "纵向伸缩", range: -0.3...0.3),
+        PuppetChannel(key: "root.sx", title: "横向（-2 翻面）", range: -2...0.3),
+        PuppetChannel(key: "alpha", title: "透明度", range: -1...0),
+    ]
+}
+
+struct PuppetKeyframe: Identifiable {
+    let id = UUID()
+    var t: Double
+    var values: [String: Double] = [:]
+}
+
+/// 用户自定义的动作（关键帧姿势序列）。只有关键帧轨道的动作能在编辑器里改，
+/// 带波形 / 循环 / 溜达的动作原样保留在 `PuppetDraft.extraActions`。
+struct PuppetActionDraft: Identifiable {
+    var id: String
+    var name: String
+    var image = ""                // 动作期间的表情（"" = 不换）
+    var effect = ""               // "" / hearts / sparks
+    var say = ""                  // 台词，用 / 分隔
+    var keyframes: [PuppetKeyframe] = [PuppetKeyframe(t: 0)]
+    var returnToRest = true
+
+    /// 写进 pet.json 的动作对象。
+    var json: [String: Any] {
+        var frames = keyframes.sorted { $0.t < $1.t }
+        if frames.first.map({ $0.t > 0.001 }) ?? true {
+            frames.insert(PuppetKeyframe(t: 0), at: 0)          // 从原位开始
+        }
+        let used = PuppetChannel.all.map(\.key).filter { key in
+            frames.contains { abs($0.values[key] ?? 0) > 0.0005 }
+        }
+        if returnToRest, let last = frames.last, used.contains(where: { abs(last.values[$0] ?? 0) > 0.0005 }) {
+            frames.append(PuppetKeyframe(t: last.t + 0.25))   // 结束时回到原位
+        }
+        var tracks: [String: Any] = [:]
+        for key in used {
+            tracks[key] = frames.map { [round3($0.t), round3($0.values[key] ?? 0)] }
+        }
+        var out: [String: Any] = [
+            "name": name.isEmpty ? id : name,
+            "duration": round3(max(0.1, frames.last?.t ?? 0.5)),
+            "tracks": tracks,
+        ]
+        if !image.isEmpty { out["image"] = image }
+        if !effect.isEmpty { out["effect"] = effect }
+        let lines = say.split(separator: "/").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        if !lines.isEmpty { out["say"] = lines }
+        return out
+    }
+
+    /// 从 pet.json 动作对象读回；含波形 / 循环 / 溜达的返回 nil（编辑器表达不了）。
+    init?(id: String, json: [String: Any]) {
+        guard json["loop"] as? Bool != true, json["walk"] == nil,
+              let tracks = json["tracks"] as? [String: Any] else { return nil }
+        var parsed: [String: [(Double, Double)]] = [:]
+        for (key, value) in tracks {
+            guard PuppetChannel.all.contains(where: { $0.key == key }),
+                  let frames = value as? [[Double]] else { return nil }
+            parsed[key] = frames.compactMap { $0.count == 2 ? ($0[0], $0[1]) : nil }
+        }
+        // 各通道关键帧时间的并集上取值（线性插值），合成整体姿势帧
+        let times = Set(parsed.values.flatMap { $0.map(\.0) }).sorted()
+        self.id = id
+        self.name = json["name"] as? String ?? id
+        self.image = json["image"] as? String ?? ""
+        self.effect = json["effect"] as? String ?? ""
+        self.say = (json["say"] as? [String] ?? []).joined(separator: " / ")
+        self.returnToRest = false
+        self.keyframes = times.map { t in
+            var values: [String: Double] = [:]
+            for (key, frames) in parsed { values[key] = Self.sample(frames, at: t) }
+            return PuppetKeyframe(t: t, values: values)
+        }
+        if keyframes.isEmpty { keyframes = [PuppetKeyframe(t: 0)] }
+    }
+
+    init(id: String, name: String) {
+        self.id = id
+        self.name = name
+    }
+
+    private static func sample(_ frames: [(Double, Double)], at t: Double) -> Double {
+        guard let first = frames.first else { return 0 }
+        if t <= first.0 { return first.1 }
+        for i in 1..<frames.count where t <= frames[i].0 {
+            let (t0, v0) = frames[i - 1], (t1, v1) = frames[i]
+            return t1 > t0 ? v0 + (v1 - v0) * (t - t0) / (t1 - t0) : v1
+        }
+        return frames[frames.count - 1].1
+    }
+
+    private func round3(_ v: Double) -> Double { (v * 1000).rounded() / 1000 }
+}
+
 /// 形象工坊里编辑中的形象包。
 struct PuppetDraft {
     var packId: String?
@@ -94,6 +234,13 @@ struct PuppetDraft {
     var faces = "front"           // front | left | right
     var shareable = false         // 用户声明「原创或已获授权，可分享」
     var images: [PuppetImage] = []
+    var actions: [PuppetActionDraft] = []
+    /// 编辑器表达不了的包内动作（波形 / 循环 / 溜达），保存时原样写回
+    var extraActions: [String: Any] = [:]
+    /// 触发器覆盖：触发器名 → 动作 id 列表（没写的用预置）
+    var triggers: [String: [String]] = [:]
+    /// 台词覆盖：触发器名 → 台词
+    var lines: [String: [String]] = [:]
 }
 
 enum PuppetError: LocalizedError {
@@ -279,10 +426,11 @@ enum PuppetBuilder {
     /// 骨架点：真人照片用人脸框推算头部与脖子；识别不到脸（卡通/动物）按常见比例给默认值，工坊里可拖动修正。
     static func detectRig(_ image: CGImage) -> PuppetRig {
         var rig = PuppetRig()
-        let request = VNDetectFaceRectanglesRequest()
+        // 面部特征点请求同时给出人脸框，一次拿到头部、眼睛、嘴巴
+        let request = VNDetectFaceLandmarksRequest()
         let handler = VNImageRequestHandler(cgImage: image, options: [:])
         guard (try? handler.perform([request])) != nil,
-              let face = request.results?.max(by: { $0.boundingBox.area < $1.boundingBox.area })?.boundingBox
+              let observation = request.results?.max(by: { $0.boundingBox.area < $1.boundingBox.area })
         else {
             // 头身比较大的卡通形象：头部约占上 1/3
             let aspect = CGFloat(image.width) / CGFloat(max(1, image.height))
@@ -292,13 +440,154 @@ enum PuppetBuilder {
             return rig
         }
         // Vision 的 boundingBox 本来就是归一化、原点左下
+        let face = observation.boundingBox
         let x0 = max(0, face.minX - face.width * 0.35)
         let x1 = min(1, face.maxX + face.width * 0.35)
         let y0 = max(0, face.minY - face.height * 0.12)
         let y1 = min(1, face.maxY + face.height * 0.55)
         rig.head = CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
         rig.neck = CGPoint(x: face.midX, y: max(0.05, face.minY - face.height * 0.1))
+
+        // 特征点坐标相对人脸框归一化 → 换算到整张图
+        func region(_ r: VNFaceLandmarkRegion2D?, padX: CGFloat, padY: CGFloat) -> CGRect? {
+            guard let r, r.pointCount > 2 else { return nil }
+            let pts = r.normalizedPoints.map {
+                CGPoint(x: face.minX + CGFloat($0.x) * face.width, y: face.minY + CGFloat($0.y) * face.height)
+            }
+            let xs = pts.map(\.x), ys = pts.map(\.y)
+            guard let minX = xs.min(), let maxX = xs.max(), let minY = ys.min(), let maxY = ys.max() else { return nil }
+            let w = maxX - minX, h = max(maxY - minY, w * 0.25)
+            return CGRect(x: minX - w * padX, y: (minY + maxY) / 2 - h / 2 - h * padY,
+                          width: w * (1 + padX * 2), height: h * (1 + padY * 2))
+        }
+        let landmarks = observation.landmarks
+        rig.eyes = [region(landmarks?.leftEye, padX: 0.15, padY: 0.35),
+                    region(landmarks?.rightEye, padX: 0.15, padY: 0.35)].compactMap { $0 }
+            .sorted { $0.minX < $1.minX }
+        rig.mouth = region(landmarks?.outerLips, padX: 0.05, padY: 0.1)
         return rig
+    }
+
+    // MARK: 自动生成闭眼 / 张嘴图
+
+    /// 闭眼：用眼睛上方的眼皮颜色盖住眼睛（羽化边缘），再画一道向下弯的睫毛线。
+    static func synthesizeBlink(_ png: Data, rig: PuppetRig) -> Data? {
+        guard !rig.eyes.isEmpty else { return nil }
+        return paint(png) { ctx, px, size in
+            for eye in rig.eyes {
+                let r = CGRect(x: eye.minX * size.width, y: eye.minY * size.height,
+                               width: eye.width * size.width, height: eye.height * size.height)
+                // 眼皮色：眼睛正上方一条带的平均色；睫毛色：眼睛范围内最暗的一批像素
+                let lid = averageColor(px, size: size, in: CGRect(x: r.minX + r.width * 0.15, y: r.maxY + r.height * 0.15,
+                                                                  width: r.width * 0.7, height: r.height * 0.45))
+                let lash = darkColor(px, size: size, in: r)
+                // 径向渐变羽化：中心实色、边缘渐隐，和周围皮肤自然过渡
+                let clear = lid.copy(alpha: 0) ?? lid
+                if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                             colors: [lid, lid, clear] as CFArray, locations: [0, 0.72, 1]) {
+                    ctx.saveGState()
+                    ctx.translateBy(x: r.midX, y: r.midY)
+                    ctx.scaleBy(x: r.width * 0.62, y: r.height * 0.8)
+                    ctx.drawRadialGradient(gradient, startCenter: .zero, startRadius: 0,
+                                           endCenter: .zero, endRadius: 1, options: [])
+                    ctx.restoreGState()
+                }
+                let path = CGMutablePath()
+                let y = r.midY - r.height * 0.05
+                path.move(to: CGPoint(x: r.minX + r.width * 0.08, y: y + r.height * 0.08))
+                path.addQuadCurve(to: CGPoint(x: r.maxX - r.width * 0.08, y: y + r.height * 0.08),
+                                  control: CGPoint(x: r.midX, y: y - r.height * 0.32))
+                ctx.addPath(path)
+                ctx.setStrokeColor(lash)
+                ctx.setLineWidth(max(1.5, r.height * 0.13))
+                ctx.setLineCap(.round)
+                ctx.strokePath()
+            }
+        }
+    }
+
+    /// 张嘴：在嘴巴中央画一个深色口腔（下半带一点舌头色），边缘轻微羽化。
+    static func synthesizeTalk(_ png: Data, rig: PuppetRig) -> Data? {
+        guard let mouth = rig.mouth else { return nil }
+        return paint(png) { ctx, _, size in
+            let m = CGRect(x: mouth.minX * size.width, y: mouth.minY * size.height,
+                           width: mouth.width * size.width, height: mouth.height * size.height)
+            let w = m.width * 0.56, h = max(m.height * 0.62, w * 0.32)
+            let open = CGRect(x: m.midX - w / 2, y: m.midY - h * 0.62, width: w, height: h)
+            let inside = CGColor(red: 0.28, green: 0.07, blue: 0.09, alpha: 1)
+            ctx.saveGState()
+            ctx.setShadow(offset: .zero, blur: h * 0.18, color: inside)
+            ctx.setFillColor(inside)
+            ctx.fillEllipse(in: open)
+            ctx.restoreGState()
+            ctx.saveGState()
+            ctx.addEllipse(in: open)
+            ctx.clip()
+            ctx.setFillColor(CGColor(red: 0.78, green: 0.36, blue: 0.4, alpha: 1))
+            ctx.fillEllipse(in: CGRect(x: open.minX + w * 0.18, y: open.minY - h * 0.25, width: w * 0.64, height: h * 0.55))
+            ctx.restoreGState()
+        }
+    }
+
+    /// 在图片上作画（坐标原点左下，与骨架坐标一致），返回新 PNG。
+    private static func paint(_ png: Data, draw: (CGContext, [UInt8], CGSize) -> Void) -> Data? {
+        guard let rep = NSBitmapImageRep(data: png), let image = rep.cgImage, let px = rgba(image) else { return nil }
+        let size = CGSize(width: image.width, height: image.height)
+        guard let ctx = CGContext(
+            data: nil, width: image.width, height: image.height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        ctx.draw(image, in: CGRect(origin: .zero, size: size))
+        // 只画在角色身上（source-atop：透明背景处不落色）
+        ctx.setBlendMode(.sourceAtop)
+        draw(ctx, px.data, size)
+        guard let result = ctx.makeImage() else { return nil }
+        return NSBitmapImageRep(cgImage: result).representation(using: .png, properties: [:])
+    }
+
+    /// 区域平均色（rect 为左下原点像素坐标；像素数组行自上而下、预乘）。
+    private static func averageColor(_ px: [UInt8], size: CGSize, in rect: CGRect) -> CGColor {
+        var r = 0.0, g = 0.0, b = 0.0, n = 0.0
+        forEachPixel(px, size: size, in: rect) { pr, pg, pb, pa in
+            guard pa > 200 else { return }
+            r += pr; g += pg; b += pb; n += 1
+        }
+        guard n > 0 else { return CGColor(red: 0.95, green: 0.82, blue: 0.75, alpha: 1) }
+        return CGColor(red: r / n, green: g / n, blue: b / n, alpha: 1)
+    }
+
+    /// 区域内最暗 15% 像素的平均色（睫毛 / 眼线）。
+    private static func darkColor(_ px: [UInt8], size: CGSize, in rect: CGRect) -> CGColor {
+        var samples: [(l: Double, r: Double, g: Double, b: Double)] = []
+        forEachPixel(px, size: size, in: rect) { pr, pg, pb, pa in
+            guard pa > 200 else { return }
+            samples.append((0.3 * pr + 0.59 * pg + 0.11 * pb, pr, pg, pb))
+        }
+        guard !samples.isEmpty else { return CGColor(red: 0.2, green: 0.13, blue: 0.12, alpha: 1) }
+        let dark = samples.sorted { $0.l < $1.l }.prefix(max(1, samples.count * 15 / 100))
+        let n = Double(dark.count)
+        // 再压暗一点，线条更清楚
+        return CGColor(red: dark.map(\.r).reduce(0, +) / n * 0.8,
+                       green: dark.map(\.g).reduce(0, +) / n * 0.8,
+                       blue: dark.map(\.b).reduce(0, +) / n * 0.8, alpha: 1)
+    }
+
+    private static func forEachPixel(_ px: [UInt8], size: CGSize, in rect: CGRect,
+                                     _ body: (Double, Double, Double, Double) -> Void) {
+        let w = Int(size.width), h = Int(size.height)
+        let x0 = max(0, Int(rect.minX)), x1 = min(w - 1, Int(rect.maxX))
+        let y0 = max(0, Int(rect.minY)), y1 = min(h - 1, Int(rect.maxY))
+        guard x1 >= x0, y1 >= y0 else { return }
+        for y in y0...y1 {
+            let row = (h - 1 - y) * w * 4          // 左下原点 → 行自上而下
+            for x in x0...x1 {
+                let i = row + x * 4
+                let a = Double(px[i + 3])
+                guard a > 0 else { continue }
+                // 反预乘
+                body(Double(px[i]) / a, Double(px[i + 1]) / a, Double(px[i + 2]) / a, a)
+            }
+        }
     }
 }
 
@@ -343,6 +632,17 @@ enum PuppetPackStore {
             try image.png.write(to: dir.appendingPathComponent(file))
             imageSpecs[image.role.rawValue] = ["src": file, "rig": image.rig.json]
         }
+        // 没有自备闭眼 / 张嘴图时，按「平时」图的眼睛、嘴巴位置自动生成（标记 generated，编辑时重新生成）
+        let roles = Set(draft.images.map(\.role))
+        let generated: [(PuppetRole, (Data, PuppetRig) -> Data?)] = [
+            (.blink, PuppetBuilder.synthesizeBlink), (.talk, PuppetBuilder.synthesizeTalk),
+        ]
+        for (role, make) in generated where !roles.contains(role) {
+            guard let png = make(idle.png, idle.rig) else { continue }
+            let file = "\(role.rawValue).png"
+            try png.write(to: dir.appendingPathComponent(file))
+            imageSpecs[role.rawValue] = ["src": file, "rig": idle.rig.json, "generated": true]
+        }
 
         // 已有 pet.json 的 puppet 段（社区包可能带自定义 actions / triggers / lines）原样保留
         var puppet: [String: Any] = [:]
@@ -355,6 +655,15 @@ enum PuppetPackStore {
         puppet["faces"] = draft.faces
         puppet["rights"] = draft.shareable ? "shareable" : "personal"
         puppet["images"] = imageSpecs
+        var actions = draft.extraActions
+        for action in draft.actions { actions[action.id] = action.json }
+        // 空的就删掉键（不写 null）
+        let sections: [(String, [String: Any])] = [
+            ("actions", actions), ("triggers", draft.triggers), ("lines", draft.lines),
+        ]
+        for (key, value) in sections {
+            if value.isEmpty { puppet.removeValue(forKey: key) } else { puppet[key] = value }
+        }
 
         // 窗口：高 300，宽按「平时」图比例（留出左右摇摆的余量）
         let height = 300.0
@@ -404,6 +713,23 @@ enum PuppetPackStore {
               let puppet = pet["puppet"] as? [String: Any],
               let specs = puppet["images"] as? [String: Any] else { return nil }
         var draft = PuppetDraft(packId: packId)
+        for (id, value) in (puppet["actions"] as? [String: Any] ?? [:]).sorted(by: { $0.key < $1.key }) {
+            if let json = value as? [String: Any], let action = PuppetActionDraft(id: id, json: json) {
+                draft.actions.append(action)
+            } else {
+                draft.extraActions[id] = value
+            }
+        }
+        // 触发器 / 台词的值可以是单个字符串或数组
+        func stringLists(_ any: Any?) -> [String: [String]] {
+            var out: [String: [String]] = [:]
+            for (key, value) in any as? [String: Any] ?? [:] {
+                if let list = value as? [String] { out[key] = list } else if let one = value as? String { out[key] = [one] }
+            }
+            return out
+        }
+        draft.triggers = stringLists(puppet["triggers"])
+        draft.lines = stringLists(puppet["lines"])
         draft.faces = puppet["faces"] as? String ?? "front"
         draft.shareable = puppet["rights"] as? String == "shareable"
         if let pluginData = try? Data(contentsOf: dir.appendingPathComponent("plugin.json")),
@@ -412,7 +738,8 @@ enum PuppetPackStore {
             draft.name = name
         }
         for role in PuppetRole.allCases {
-            guard let spec = specs[role.rawValue] else { continue }
+            guard let spec = specs[role.rawValue],
+                  (spec as? [String: Any])?["generated"] as? Bool != true else { continue }
             let file = (spec as? String) ?? ((spec as? [String: Any])?["src"] as? String) ?? ""
             guard !file.isEmpty, !file.contains(".."),
                   let png = try? Data(contentsOf: dir.appendingPathComponent(file)),

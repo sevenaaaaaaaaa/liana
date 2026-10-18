@@ -1071,6 +1071,9 @@ final class PetWindowController {
         )
         workshop.target = self
         menu.addItem(workshop)
+        let community = NSMenuItem(title: "纸偶社区…", action: #selector(petMenuCommunity(_:)), keyEquivalent: "")
+        community.target = self
+        menu.addItem(community)
         if isPuppet {
             let roam = NSMenuItem(title: "允许四处溜达", action: #selector(petMenuToggleRoam(_:)), keyEquivalent: "")
             roam.target = self
@@ -1120,6 +1123,10 @@ final class PetWindowController {
     @objc private func petMenuWorkshop(_ sender: Any) {
         let active = Self.activePackId
         PetWorkshopWindowController.shared.show(editing: PuppetPackStore.isPuppet(packId: active) ? active : nil)
+    }
+
+    @objc private func petMenuCommunity(_ sender: Any) {
+        PetCommunityWindowController.shared.show()
     }
 
     @objc private func petMenuToggleRoam(_ sender: Any) {
@@ -1221,6 +1228,8 @@ final class PetWindowController {
         }
         let panel = ensureToastPanel()
         toastLabel.stringValue = text
+        // 纸偶：边说边动嘴（约每字 0.12 秒，最多 3 秒）
+        petView?.speak(seconds: min(3, max(0.6, Double(text.count) * 0.12)))
         toastLabel.preferredMaxLayoutWidth = 200
         let size = toastLabel.intrinsicContentSize
         let width = min(230, max(120, size.width + 24))
