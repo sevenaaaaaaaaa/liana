@@ -543,6 +543,47 @@ if installArgs.count > 1 {
         NSApplication.shared.run()
         exit(0)
 
+    case "--pet-scenes":
+        // 开发用：各场景道具 + 一个示意角色，渲染成一张 PNG（参数：输出路径 [角色图片]）
+        let out = installArgs.count > 2 ? installArgs[2] : "/tmp/pet-scenes.png"
+        let figure = installArgs.count > 3 ? NSImage(contentsOfFile: installArgs[3]) : nil
+        let scenes: [(PetScene, Bool)] = [(.office, false), (.coding, false), (.game, false), (.music, false), (.video, false),
+                                          (.chat, false), (.design, false), (.reading, false), (.meeting, false), (.browse, false),
+                                          (.office, true), (.none, true)]
+        let cell = NSSize(width: 220, height: 300)
+        let sheet = NSImage(size: NSSize(width: cell.width * 6, height: (cell.height + 24) * 2))
+        sheet.lockFocus()
+        NSColor(white: 0.93, alpha: 1).setFill()
+        NSRect(origin: .zero, size: sheet.size).fill()
+        for (i, item) in scenes.enumerated() {
+            let host = NSView(frame: NSRect(origin: .zero, size: cell))
+            let back = PetSceneView(frame: host.bounds, layer: .back)
+            let front = PetSceneView(frame: host.bounds, layer: .front)
+            back.show(item.0, night: item.1, animated: false)
+            front.show(item.0, night: item.1, animated: false)
+            host.addSubview(back)
+            if let figure {
+                let iv = NSImageView(frame: NSRect(x: 30, y: 15, width: 160, height: 258))
+                iv.image = figure
+                iv.imageScaling = .scaleProportionallyUpOrDown
+                host.addSubview(iv)
+            }
+            host.addSubview(front)
+            guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { continue }
+            host.cacheDisplay(in: host.bounds, to: rep)
+            let col = CGFloat(i % 6), row = CGFloat(1 - i / 6)
+            let origin = NSPoint(x: col * cell.width, y: row * (cell.height + 24) + 24)
+            NSImage(cgImage: rep.cgImage!, size: cell).draw(in: NSRect(origin: origin, size: cell))
+            let label = item.0.rawValue + (item.1 ? " · 夜" : "")
+            NSAttributedString(string: label, attributes: [.font: NSFont.systemFont(ofSize: 13)])
+                .draw(at: NSPoint(x: origin.x + 8, y: origin.y - 20))
+        }
+        sheet.unlockFocus()
+        if let tiff = sheet.tiffRepresentation, let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
+            try? png.write(to: URL(fileURLWithPath: out))
+        }
+        exit(0)
+
     case "--clip-test":
         // 开发用：命令 / 链接识别 + 危险检测；带 --ego 时用 ego lite 实跑一次 example.com
         let samples = [

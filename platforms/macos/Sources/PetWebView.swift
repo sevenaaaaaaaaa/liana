@@ -63,7 +63,13 @@ class PetWebView: WKWebView, WKScriptMessageHandler, WKNavigationDelegate {
     func setSleepy(_ on: Bool) { eval("window.petSetSleepy && window.petSetSleepy(\(on))") }
     func setMood(_ level: Int) { eval("window.petSetMood && window.petSetMood(\(level))") }
     func greet(_ period: String) { eval("window.petGreet && window.petGreet('\(period)')") }
-    func setGaze(dx: Double, dy: Double) { eval("window.petSetGaze && window.petSetGaze(\(dx), \(dy))") }
+    func setGaze(dx: Double, dy: Double, near: Double = 0) {
+        eval("window.petSetGaze && window.petSetGaze(\(dx), \(dy), \(near))")
+    }
+    /// 场景姿态：game / music / watch / ""（纸偶渲染器）
+    func setScene(_ pose: String) { eval("window.petSetScene && window.petSetScene('\(Self.jsSafe(pose))')") }
+    /// 侧身形象的朝向：-1 往左 / 1 往右
+    func face(_ dir: Int) { eval("window.petFace && window.petFace(\(dir))") }
     /// 通用触发器（milestone / break …），纸偶渲染器支持；其他渲染器没有该函数时静默忽略。
     func trigger(_ name: String, weights: [String: Double] = [:]) {
         let safe = Dictionary(uniqueKeysWithValues: weights.map { (Self.jsSafe($0.key), $0.value) })

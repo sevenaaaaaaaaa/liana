@@ -275,6 +275,11 @@
   let dragging = false;
   /// 持续姿态：cover（输入密码时捂眼）/ listen（语音输入时倾听），优先于打字和待机
   let hold = '';
+  /// 场景姿态：game（打游戏）/ music（听歌）/ watch（看视频）；优先级低于 hold 和拖动
+  let scene = '';
+  /// 平滑后的注视（每帧向目标靠近），near = 鼠标离得多近（0…1）
+  let gazeNow = { x: 0, y: 0, near: 0 };
+  let gazeTarget = { x: 0, y: 0, near: 0 };
   let typingUntil = 0;
   let lastCommitShot = 0;
   let lastHoverShot = 0;
@@ -418,10 +423,20 @@
       }
       return true;
     });
-    // 注视：头朝鼠标方向轻微偏转
-    p['head.rot'] += -gaze.x * 0.035;
-    p['head.tx'] += gaze.x * 0.01;
-    p['head.ty'] += gaze.y * 0.005;
+    // 注视：平滑跟随鼠标；离得越近转得越多，身体也跟着倾一点，鼠标在头顶上方就抬头
+    const lerp = 0.18;
+    gazeNow.x += (gazeTarget.x - gazeNow.x) * lerp;
+    gazeNow.y += (gazeTarget.y - gazeNow.y) * lerp;
+    gazeNow.near += (gazeTarget.near - gazeNow.near) * lerp;
+    const gk = 0.6 + gazeNow.near * 0.9;
+    p['head.rot'] += -gazeNow.x * 0.045 * gk;
+    p['head.tx'] += gazeNow.x * 0.012 * gk;
+    p['head.ty'] += gazeNow.y * 0.008 * gk;
+    p.lean += gazeNow.x * 0.018 * gk;
+    if (gazeNow.near > 0.5 && gazeNow.y > 0.25) {
+      p['head.rot'] += -0.04 * (gazeNow.near - 0.5) * Math.sign(gazeNow.x || 1);
+      p['root.sy'] += 0.015 * (gazeNow.near - 0.5);   // 踮脚看
+    }
     for (const ch of CHANNELS) {
       const lim = LIMITS[ch];
       p[ch] = Math.max(-lim, Math.min(lim, p[ch]));
@@ -602,6 +617,7 @@
     if (dragging) return 'drag';
     if (hold) return hold;
     if (sleepy) return 'sleep';
+    if (scene) return scene;
     return now < typingUntil ? 'typing' : 'idle';
   }
 
@@ -613,7 +629,7 @@
       lastCommitShot = now;
       trigger('commit');
     }
-    if (!dragging && !sleepy && !hold) setState(value === 'idle' ? 'idle' : 'typing');
+    if (!dragging && !sleepy && !hold && !scene) setState(value === 'idle' ? 'idle' : 'typing');
   };
   window.petPetted = () => { trigger('click', { force: true }); say('click', true); };
   window.petPoke = () => { trigger('double_click', { force: true }); say('double_click', true); };
@@ -642,9 +658,26 @@
   };
   window.petSetMood = (level) => { moodLevel = Math.max(0, Math.min(3, level | 0)); };
   window.petGreet = (period) => { trigger('greet'); say(period); };
-  window.petSetGaze = (x, y) => {
-    gaze.x = Math.max(-1, Math.min(1, x));
-    gaze.y = Math.max(-1, Math.min(1, y));
+  window.petSetGaze = (x, y, near) => {
+    gaze.x = gazeTarget.x = Math.max(-1, Math.min(1, x));
+    gaze.y = gazeTarget.y = Math.max(-1, Math.min(1, y));
+    gazeTarget.near = Math.max(0, Math.min(1, +near || 0));
+    // 侧身形象：鼠标跑到背后就转过身（带一点回差，避免来回抖）
+    if (faces !== 'front' && !dragging) {
+      const want = faces === 'right' ? (gaze.x < -0.35 ? -1 : (gaze.x > 0.15 ? 1 : facing))
+                                     : (gaze.x > 0.35 ? -1 : (gaze.x < -0.15 ? 1 : facing));
+      facing = want;
+    }
+  };
+  /// 朝向：dir = -1 往左 / 1 往右（侧身形象溜达、跟着鼠标走时用）
+  window.petFace = (dir) => {
+    if (faces === 'front') return;
+    const d = dir < 0 ? -1 : 1;
+    facing = faces === 'right' ? d : -d;
+  };
+  window.petSetScene = (name) => {
+    scene = ['game', 'music', 'watch'].includes(name) ? name : '';
+    setState(baseState());
   };
   /// 通用触发器（milestone / break …）与直接播放动作（形象工坊预览按钮）
   window.petTrigger = (name, weights) => trigger(name, { force: true, weights: weights || {} });

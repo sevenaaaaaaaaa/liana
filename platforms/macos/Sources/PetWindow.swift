@@ -70,6 +70,28 @@ final class PetWindowController {
 
     static let breakMinutes = 50
 
+    private static let scenesKey = "LianaPetScenes"
+    private static let entranceKey = "LianaPetEntrance"
+    private static let followMouseKey = "LianaPetFollowMouse"
+
+    /// 场景跟随应用（打游戏 / 写代码 / 听歌 … 摆上对应道具），默认开
+    static var scenesEnabled: Bool {
+        get { UserDefaults.standard.object(forKey: scenesKey) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: scenesKey); shared.updateScene(animated: true, force: true) }
+    }
+
+    /// 入场 / 离场动画，默认开
+    static var entranceEnabled: Bool {
+        get { UserDefaults.standard.object(forKey: entranceKey) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: entranceKey) }
+    }
+
+    /// 鼠标停在远处时走过去，默认关（会移动桌宠）
+    static var followMouse: Bool {
+        get { UserDefaults.standard.bool(forKey: followMouseKey) }
+        set { UserDefaults.standard.set(newValue, forKey: followMouseKey) }
+    }
+
     private static let roamKey = "LianaPetRoam"
     /// 允许纸偶形象偶尔在屏幕底边溜达（会移动窗口，默认关）。
     static var roamEnabled: Bool {
@@ -207,6 +229,18 @@ final class PetWindowController {
     private var dragStarted = Date()
     private var dragWork: DispatchWorkItem?
     private var lastModeChinese: Bool?
+    private var sceneBack: PetSceneView?
+    private var sceneFront: PetSceneView?
+    private(set) var currentScene: PetScene = .none
+    private var sceneLineAt: [PetScene: Date] = [:]
+    private var lastTypedAt = Date.distantPast
+    private var entranceReason = "launch"
+    private var greetedThisLaunch = false
+    private var lastMouse = NSPoint.zero
+    private var mouseStillSince = Date()
+    private var walkingUntil = Date.distantPast
+    /// 主动台词要不要闭嘴：安静模式，或者正在开会
+    private var quietNow: Bool { Self.quietMode || currentScene == .meeting }
 
     private struct PetPack {
         var size: CGFloat = 84
@@ -353,7 +387,12 @@ final class PetWindowController {
     func rebuild() {
         stopMouseTracking()
         stopAnimTimer()
+        if panel?.isVisible == true { entranceReason = "switch" }
         panel?.orderOut(nil)
+        emoteLabel = nil
+        sceneBack = nil
+        sceneFront = nil
+        currentScene = .none
         self.panel = nil
         imageView = nil
         emojiLabel = nil
@@ -371,10 +410,30 @@ final class PetWindowController {
     }
 
     func show() {
+        let wasVisible = panel?.isVisible == true
         if panel == nil {
             loadPack()
             panel = makePanel()
             restoreOrigin()
+        }
+        if !wasVisible, let panel {
+            // WebKit 形象等页面准备好再入场，避免空窗口在飞
+            if let petView, Self.entranceEnabled {
+                panel.alphaValue = 0
+                var started = false
+                let go = { [weak self] in
+                    guard let self, !started else { return }
+                    started = true
+                    self.playEntrance()
+                }
+                petView.onReady = { DispatchQueue.main.async { go() } }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { go() }
+            } else {
+                panel.alphaValue = 1
+                DispatchQueue.main.async { [weak self] in self?.playEntrance() }
+            }
+            PetSceneDetector.shared.start { [weak self] in self?.updateScene(animated: true) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in self?.updateScene(animated: true, force: true) }
         }
         panel?.orderFrontRegardless()
         startMouseTrackingIfNeeded()
@@ -398,7 +457,180 @@ final class PetWindowController {
         shakeTimer?.invalidate()
         shakeTimer = nil
         hideToast()
-        panel?.orderOut(nil)
+        guard let panel, panel.isVisible, Self.entranceEnabled else {
+            self.panel?.orderOut(nil)
+            return
+        }
+        // 离场：跳一下再消失
+        petView?.trigger("exit")
+        let origin = panel.frame.origin
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 0.32
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            panel.animator().alphaValue = 0
+            panel.animator().setFrameOrigin(NSPoint(x: origin.x, y: origin.y - 24))
+        }, completionHandler: { [weak self] in
+            guard let self, !Self.isEnabled else { return }
+            panel.orderOut(nil)
+            panel.setFrameOrigin(origin)
+            panel.alphaValue = 1
+            _ = self
+        })
+    }
+
+    // MARK: - 入场动画
+
+    /// 入场：从天而降 / 从屏幕底冒出来 / 从边上走进来 / 啵地弹出来（换形象时固定用「啵」）。
+    private func playEntrance() {
+        guard let panel else { return }
+        let reason = entranceReason
+        entranceReason = "show"
+        guard Self.entranceEnabled else {
+            panel.alphaValue = 1
+            return
+        }
+        let target = panel.frame.origin
+        let size = panel.frame.size
+        let visible = (panel.screen ?? NSScreen.main)?.visibleFrame ?? panel.frame
+        let kinds = ["drop", "rise", "walk", "pop"]
+        let kind = reason == "switch" ? "pop" : (kinds.randomElement() ?? "pop")
+        var start = target
+        var duration = 0.5
+        var timing = CAMediaTimingFunction(name: .easeOut)
+        switch kind {
+        case "drop":
+            start = NSPoint(x: target.x, y: visible.maxY)
+            duration = 0.55
+            timing = CAMediaTimingFunction(name: .easeIn)
+        case "rise":
+            start = NSPoint(x: target.x, y: visible.minY - size.height)
+        case "walk":
+            let fromLeft = target.x - visible.minX < visible.maxX - target.x
+            start = NSPoint(x: fromLeft ? visible.minX - size.width : visible.maxX, y: target.y)
+            duration = min(2.2, max(0.9, abs(target.x - start.x) / 500))
+            timing = CAMediaTimingFunction(name: .linear)
+            petView?.face(fromLeft ? 1 : -1)
+            petView?.trigger("entrance_walk")
+        default:
+            break
+        }
+        panel.alphaValue = 1
+        if kind == "pop" {
+            petView?.trigger("entrance_pop")
+            if petView == nil { pulse(scale: 1.25, duration: 0.4) }
+            emitSparks(hearts: true)
+            entranceGreeting(reason)
+            return
+        }
+        panel.setFrameOrigin(start)
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = duration
+            ctx.timingFunction = timing
+            panel.animator().setFrameOrigin(target)
+        }, completionHandler: { [weak self] in
+            guard let self else { return }
+            self.saveOrigin()
+            switch kind {
+            case "drop":
+                self.petView?.trigger("entrance_land")
+                self.emitSparks(hearts: false)
+            case "rise":
+                self.petView?.trigger("hop")
+            default:
+                self.petView?.trigger("greet")
+            }
+            if self.petView == nil { self.pulse(scale: 1.15, duration: 0.3) }
+            self.entranceGreeting(reason)
+        })
+    }
+
+    private func entranceGreeting(_ reason: String) {
+        showEmote(reason == "switch" ? "✨" : "👋")
+        guard !quietNow else { return }
+        if reason == "switch" {
+            showToast(["换好啦，好看吗？", "新造型登场！", "噔噔～"].randomElement()!, duration: 2.5)
+        } else if !greetedThisLaunch {
+            greetedThisLaunch = true
+            showToast(["我来啦～", "来陪你啦！", "嗨，又见面了"].randomElement()!, duration: 2.5)
+        }
+    }
+
+    // MARK: - 场景
+
+    /// 算出当前场景：打游戏 / 开会 / 看视频 / 听歌优先；最近在打字就是办公桌（写代码的应用里是程序员桌）；其余按应用。
+    func updateScene(animated: Bool, force: Bool = false) {
+        guard panel?.isVisible == true else { return }
+        let app = PetSceneDetector.shared.appScene
+        var scene: PetScene
+        if !Self.scenesEnabled {
+            scene = .none
+        } else if [.game, .meeting, .video, .music].contains(app) {
+            scene = app
+        } else if Date().timeIntervalSince(lastTypedAt) < 25 {
+            scene = app == .coding ? .coding : (app == .design ? .design : .office)
+        } else {
+            scene = app
+        }
+        let hour = Calendar.current.component(.hour, from: Date())
+        let night = Self.scenesEnabled && (hour >= 22 || hour < 6)
+        guard force || scene != currentScene || night != sceneBack?.night else { return }
+        let changed = scene != currentScene
+        currentScene = scene
+        sceneBack?.show(scene, night: night, animated: animated)
+        sceneFront?.show(scene, night: night, animated: animated)
+        // 有桌子的场景不要地面投影（桌子挡着）
+        groundShadow?.isHidden = [.office, .coding].contains(scene)
+        petView?.setScene(scene.pose)
+        if scene.keepsAwake, sleepy { setSleepy(false) }
+        guard changed, scene != .none else { return }
+        petView?.trigger("scene_\(scene.rawValue)")
+        if let emote = scene.emote { showEmote(emote) }
+        // 同一个场景 30 分钟内只说一次
+        if !quietNow, let line = scene.lines.randomElement(),
+           Date().timeIntervalSince(sceneLineAt[scene] ?? .distantPast) > 1800 {
+            sceneLineAt[scene] = Date()
+            showToast(line, duration: 2.8)
+        }
+    }
+
+    // MARK: - 鼠标跟随
+
+    /// 30Hz 里每两帧更新一次注视（页面里再平滑）；鼠标停在远处一会儿 →（可选）走过去。
+    private func followTick(_ panel: NSPanel) {
+        let mouse = NSEvent.mouseLocation
+        if pollTick % 2 == 0, let petView {
+            let center = NSPoint(x: panel.frame.midX, y: panel.frame.minY + panel.frame.height * 0.7)
+            let dx = (mouse.x - center.x) / max(120, panel.frame.width)
+            let dy = (mouse.y - center.y) / max(120, panel.frame.height)
+            let dist = hypot(mouse.x - center.x, mouse.y - center.y)
+            let near = max(0, min(1, 1 - (dist - 60) / 260))
+            petView.setGaze(dx: Double(dx), dy: Double(dy), near: Double(near))
+        }
+        if hypot(mouse.x - lastMouse.x, mouse.y - lastMouse.y) > 3 {
+            lastMouse = mouse
+            mouseStillSince = Date()
+            return
+        }
+        guard Self.followMouse, Date() > walkingUntil, Date().timeIntervalSince(mouseStillSince) > 1.5,
+              Date().timeIntervalSince(lastTypedAt) > 5, !sleepy,
+              let screen = panel.screen, screen.frame.contains(mouse) else { return }
+        let visible = screen.visibleFrame
+        let gap = mouse.x - panel.frame.midX
+        guard abs(gap) > 220 else { return }
+        var x = mouse.x - panel.frame.width / 2 - (gap > 0 ? 60 : -60)
+        x = min(max(x, visible.minX), visible.maxX - panel.frame.width)
+        let distance = abs(x - panel.frame.minX)
+        guard distance > 40 else { return }
+        let duration = min(4, max(0.6, Double(distance) / 240))
+        walkingUntil = Date().addingTimeInterval(duration + 3)
+        mouseStillSince = Date()
+        petView?.face(gap > 0 ? 1 : -1)
+        petView?.trigger("follow_walk")
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = duration
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            panel.animator().setFrameOrigin(NSPoint(x: x, y: panel.frame.minY))
+        }
     }
 
     /// 开发用：把当前桌宠渲染为 PNG（离屏快照，便于检查形象与排版）。
@@ -516,7 +748,7 @@ final class PetWindowController {
             showEmote(emote)
             if event.trigger == "love" { emitSparks(hearts: true) }
         }
-        guard !(event.proactive && Self.quietMode) else { return }
+        guard !(event.proactive && quietNow) else { return }
         if let line = packLines[event.trigger]?.randomElement() ?? event.line {
             showToast(line, duration: 3.5)
         }
@@ -747,6 +979,7 @@ final class PetWindowController {
         pollTick += 1
         if pollTick % 15 == 0 { pollSecureInput() }
         pollVoice()
+        followTick(panel)
         let mouse = NSEvent.mouseLocation
         let now = CACurrentMediaTime()
         guard panel.frame.insetBy(dx: -160, dy: -160).contains(mouse) else {
@@ -780,7 +1013,8 @@ final class PetWindowController {
         guard panel?.isVisible == true else { return }
         let idleFor = Date().timeIntervalSince(lastActivity)
         // 90 秒无输入 → 发呆打盹；有输入或被摸时 wake()
-        if !sleepy, idleFor > 90 { setSleepy(true) }
+        if !sleepy, idleFor > 90, !currentScene.keepsAwake { setSleepy(true) }
+        updateScene(animated: true)
         // 休息 5 分钟以上视为新的一段打字
         if idleFor > 300 {
             sessionStart = nil
@@ -849,6 +1083,11 @@ final class PetWindowController {
     /// 有输入或被互动：记活跃、唤醒、累计连续打字段。
     private func markActive(typing: Bool) {
         lastActivity = Date()
+        if typing {
+            let wasTyping = Date().timeIntervalSince(lastTypedAt) < 25
+            lastTypedAt = Date()
+            if !wasTyping { updateScene(animated: true) }
+        }
         if typing, sessionStart == nil { sessionStart = Date() }
         setSleepy(false)
     }
@@ -967,15 +1206,8 @@ final class PetWindowController {
     private func tick() {
         guard panel?.isVisible == true else { return }
         // VRM：状态给 JS 处理；这里只按鼠标更新注视（约 20fps 节流）
-        if let petView {
-            gazeTick += 1
-            if gazeTick % 3 == 0, let panel {
-                let mouse = NSEvent.mouseLocation
-                let dx = (mouse.x - panel.frame.midX) / max(120, panel.frame.width)
-                let dy = (mouse.y - panel.frame.midY) / max(120, panel.frame.height)
-                petView.setGaze(dx: Double(dx), dy: Double(dy))
-            }
-            return
+        if petView != nil {
+            return   // 注视改由 30Hz 的 followTick 更新
         }
         // emoji 角色包：轻微上下浮动（idle 慢、打字快），不换帧
         if let emojiLabel, let pack, pack.emoji != nil {
@@ -1272,6 +1504,14 @@ final class PetWindowController {
             ])
         }
 
+        // 场景道具：背景层垫在最底下，前景层盖在角色上面（但在小圆钮下面）
+        let back = PetSceneView(frame: background.bounds, layer: .back)
+        background.addSubview(back, positioned: .below, relativeTo: background.subviews.first)
+        let front = PetSceneView(frame: background.bounds, layer: .front)
+        background.addSubview(front)
+        sceneBack = back
+        sceneFront = front
+
         // 悬停时才出现的小圆钮，吸附在角色下沿
         let modeBtn = PetQuickButton(title: "中")
         modeBtn.toolTip = "切换中 / 英（左 Shift 同效）"
@@ -1380,7 +1620,7 @@ final class PetWindowController {
             }
             if let emote = reaction.emote { showEmote(emote) }
         }
-        if proactive && Self.quietMode { return }
+        if proactive && quietNow { return }
         if let line = packLines[reaction.trigger]?.randomElement() ?? reaction.line {
             showToast(line, duration: 2.8)
         }
@@ -1498,6 +1738,16 @@ final class PetWindowController {
         let chat = NSMenuItem(title: "和它聊天…", action: #selector(petMenuChat(_:)), keyEquivalent: "")
         chat.target = self
         menu.addItem(chat)
+        for (title, on, action) in [
+            ("场景跟随应用（打游戏 / 写代码 / 听歌…）", Self.scenesEnabled, #selector(petMenuToggleScenes(_:))),
+            ("跟着鼠标走", Self.followMouse, #selector(petMenuToggleFollow(_:))),
+            ("入场 / 离场动画", Self.entranceEnabled, #selector(petMenuToggleEntrance(_:))),
+        ] as [(String, Bool, Selector)] {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+            item.target = self
+            item.state = on ? .on : .off
+            menu.addItem(item)
+        }
         let auto = NSMenuItem(title: "不在输入框时打字就聊天", action: #selector(petMenuToggleChatAuto(_:)), keyEquivalent: "")
         auto.target = self
         auto.state = PetChatAutoTrigger.enabled ? .on : .off
@@ -1568,6 +1818,19 @@ final class PetWindowController {
     @objc private func petMenuToggleRoam(_ sender: Any) {
         Self.roamEnabled.toggle()
         showToast(Self.roamEnabled ? "我偶尔会出去溜达一下～" : "好，我乖乖待在这", duration: 2.5)
+    }
+
+    @objc private func petMenuToggleScenes(_ sender: Any) {
+        Self.scenesEnabled.toggle()
+    }
+
+    @objc private func petMenuToggleFollow(_ sender: Any) {
+        Self.followMouse.toggle()
+        showToast(Self.followMouse ? "鼠标停在远处，我就走过去～" : "好，我待在原地看着你", duration: 2.5)
+    }
+
+    @objc private func petMenuToggleEntrance(_ sender: Any) {
+        Self.entranceEnabled.toggle()
     }
 
     @objc private func petMenuChat(_ sender: Any) {

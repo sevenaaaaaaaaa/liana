@@ -126,6 +126,7 @@ happy.png …     其他表情图（可选）
 部位类（单击，按骨架与透明度判断点在哪）：`tap_head` 摸头、`tap_face` / `tap_face2` 戳脸（连戳升级）、`tap_body` / `tap_body2` 挠痒（连挠升级）、`tap_hand` 举手等击掌、`highfive` 击掌成功、`highfive_miss` 没接住、`tap_feet` 踩脚、`tap_miss` 点空白处、`invite` 主动邀请互动；
 打字类：`deleting` 连续删除、`noisy` 狂敲同一个键、`enter` `tab` `esc` `arrow_left|right|up|down`、`undo` `save` `copy` `paste`（⌘Z/S/C/V）、`mode` 中英切换、`typing_fast` 手速快、`confused` 反复出错；
 持续姿态（states）：`cover` 输入密码时捂眼、`listen` 语音输入时倾听，结束时触发 `cover_end` / `voice_done`，语音中触发 `voice_heard`；拖动类：`fling` 被甩出去、`drag_dizzy` 拎着晃晕；
+场景类：进入场景时触发 `scene_<场景>`（office / coding / game / music / video / chat / design / reading / meeting / browse），场景姿态（states）`game` `music` `watch`；入场 `entrance_land` `entrance_pop` `entrance_walk`、离场 `exit`、跟着鼠标走 `follow_walk`；
 对话类：`chat` 听你说话、`chat_happy`、`chat_sad`；
 情感类：`love` 连着摸头、`angry` 被连戳、`lonely` 被冷落、`welcome` 离开后回来、`comfort` 删字很多、`dizzy` 被鼠标晃晕、`shy` 一直盯着它、`night` 深夜还在打字、`scared` 受惊。
 值为动作 id 或 id 数组（随机挑一个）。

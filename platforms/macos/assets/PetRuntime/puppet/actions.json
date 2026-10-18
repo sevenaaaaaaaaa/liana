@@ -3418,6 +3418,264 @@
           ]
         ]
       }
+    },
+    "gaming_loop": {
+      "name": "打游戏",
+      "loop": true,
+      "image": "typing",
+      "tracks": {
+        "lean": {
+          "base": 0.03,
+          "sin": [
+            0.012,
+            0.6
+          ]
+        },
+        "root.ty": {
+          "bob": [
+            0.008,
+            3.2
+          ]
+        },
+        "head.rot": {
+          "base": 0.02,
+          "sin": [
+            0.03,
+            0.45,
+            1.0
+          ]
+        },
+        "root.rot": {
+          "sin": [
+            0.015,
+            0.9
+          ]
+        }
+      }
+    },
+    "groove_loop": {
+      "name": "跟着节奏摇",
+      "loop": true,
+      "image": "happy",
+      "tracks": {
+        "root.ty": {
+          "bob": [
+            0.015,
+            1.0
+          ]
+        },
+        "root.rot": {
+          "sin": [
+            0.04,
+            0.5
+          ]
+        },
+        "head.rot": {
+          "sin": [
+            0.07,
+            0.5,
+            3.14
+          ]
+        },
+        "lean": {
+          "sin": [
+            0.02,
+            0.25
+          ]
+        }
+      }
+    },
+    "watch_loop": {
+      "name": "看视频",
+      "loop": true,
+      "tracks": {
+        "lean": {
+          "base": -0.025
+        },
+        "breathe": {
+          "sin": [
+            0.01,
+            0.25
+          ]
+        },
+        "head.rot": {
+          "base": -0.02,
+          "sin": [
+            0.015,
+            0.12
+          ]
+        }
+      }
+    },
+    "follow_walk": {
+      "name": "跟着鼠标走",
+      "duration": 1.6,
+      "tracks": {
+        "root.ty": {
+          "bob": [
+            0.022,
+            2.6
+          ]
+        },
+        "root.rot": {
+          "sin": [
+            0.035,
+            1.3
+          ]
+        }
+      }
+    },
+    "entrance_land": {
+      "name": "落地",
+      "duration": 0.9,
+      "image": "happy",
+      "effect": "sparks",
+      "tracks": {
+        "root.sy": [
+          [
+            0,
+            0
+          ],
+          [
+            0.08,
+            -0.18
+          ],
+          [
+            0.22,
+            0.08
+          ],
+          [
+            0.36,
+            -0.05
+          ],
+          [
+            0.5,
+            0.02
+          ],
+          [
+            0.9,
+            0
+          ]
+        ],
+        "root.sx": [
+          [
+            0,
+            0
+          ],
+          [
+            0.08,
+            0.1
+          ],
+          [
+            0.22,
+            -0.04
+          ],
+          [
+            0.36,
+            0.02
+          ],
+          [
+            0.9,
+            0
+          ]
+        ]
+      }
+    },
+    "entrance_pop": {
+      "name": "啵",
+      "duration": 0.8,
+      "image": "happy",
+      "effect": "hearts",
+      "tracks": {
+        "root.sy": [
+          [
+            0,
+            -0.6
+          ],
+          [
+            0.18,
+            0.12
+          ],
+          [
+            0.32,
+            -0.06
+          ],
+          [
+            0.46,
+            0.03
+          ],
+          [
+            0.8,
+            0
+          ]
+        ],
+        "root.sx": [
+          [
+            0,
+            -0.6
+          ],
+          [
+            0.18,
+            0.1
+          ],
+          [
+            0.32,
+            -0.05
+          ],
+          [
+            0.8,
+            0
+          ]
+        ],
+        "alpha": [
+          [
+            0,
+            -1
+          ],
+          [
+            0.12,
+            0
+          ],
+          [
+            0.8,
+            0
+          ]
+        ]
+      }
+    },
+    "exit_hop": {
+      "name": "离开",
+      "duration": 0.35,
+      "tracks": {
+        "root.ty": [
+          [
+            0,
+            0
+          ],
+          [
+            0.12,
+            0.06
+          ],
+          [
+            0.35,
+            -0.4
+          ]
+        ],
+        "alpha": [
+          [
+            0,
+            0
+          ],
+          [
+            0.2,
+            0
+          ],
+          [
+            0.35,
+            -1
+          ]
+        ]
+      }
     }
   },
   "triggers": {
@@ -3617,6 +3875,54 @@
     "voice_done": [
       "happy_bounce",
       "nod"
+    ],
+    "entrance_land": [
+      "entrance_land"
+    ],
+    "entrance_pop": [
+      "entrance_pop"
+    ],
+    "entrance_walk": [
+      "follow_walk"
+    ],
+    "exit": [
+      "exit_hop"
+    ],
+    "follow_walk": [
+      "follow_walk"
+    ],
+    "scene_game": [
+      "cheer_small",
+      "hop"
+    ],
+    "scene_coding": [
+      "nod",
+      "stretch"
+    ],
+    "scene_office": [
+      "stretch",
+      "nod"
+    ],
+    "scene_music": [
+      "dance"
+    ],
+    "scene_video": [
+      "look_up"
+    ],
+    "scene_chat": [
+      "look_down"
+    ],
+    "scene_design": [
+      "peek"
+    ],
+    "scene_reading": [
+      "nod"
+    ],
+    "scene_meeting": [
+      "nod_small"
+    ],
+    "scene_browse": [
+      "look_around"
     ]
   },
   "states": {
@@ -3625,6 +3931,9 @@
     "sleep": "sleep_loop",
     "drag": "drag_loop",
     "cover": "cover_loop",
-    "listen": "listen_loop"
+    "listen": "listen_loop",
+    "game": "gaming_loop",
+    "music": "groove_loop",
+    "watch": "watch_loop"
   }
 }

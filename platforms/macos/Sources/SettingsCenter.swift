@@ -684,6 +684,21 @@ struct PetPage: View {
                     isOn: model.binding({ PetWindowController.quietMode }, { PetWindowController.quietMode = $0 })
                 )
                 ToggleRow(
+                    title: "场景跟随应用",
+                    detail: "打游戏拿手柄、写代码有桌子键盘、听歌摇摆、看视频吃爆米花……只看前台应用是哪个，不看窗口内容",
+                    isOn: model.binding({ PetWindowController.scenesEnabled }, { PetWindowController.scenesEnabled = $0 })
+                )
+                ToggleRow(
+                    title: "跟着鼠标走",
+                    detail: "鼠标停在远处一会儿，它会沿着屏幕走过去",
+                    isOn: model.binding({ PetWindowController.followMouse }, { PetWindowController.followMouse = $0 })
+                )
+                ToggleRow(
+                    title: "入场 / 离场动画",
+                    detail: "出现时从天而降、从底下冒出来、从边上走进来或弹出来；隐藏时跳着离开",
+                    isOn: model.binding({ PetWindowController.entranceEnabled }, { PetWindowController.entranceEnabled = $0 })
+                )
+                ToggleRow(
                     title: "不在输入框时打字就聊天",
                     detail: "在桌面等没有输入框的地方连续敲字母，会打开对话气泡。需要辅助功能权限，只用来判断当前是不是输入框，不记录任何按键；聊天内容不保存",
                     isOn: model.binding({ PetChatAutoTrigger.enabled }, { PetChatAutoTrigger.enabled = $0 })
