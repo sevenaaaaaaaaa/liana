@@ -150,6 +150,23 @@
     return rig;
   }
 
+  function sanitizeAlign(a) {
+    const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
+    if (!a || typeof a !== 'object') return { s: 1, dx: 0, dy: 0 };
+    return { s: Math.max(0.3, Math.min(3, num(a.s, 1))), dx: Math.max(-1, Math.min(1, num(a.dx, 0))), dy: Math.max(-1, Math.min(1, num(a.dy, 0))) };
+  }
+
+  // 没提供的表情图按近似表情兜底（再没有就用平时图）
+  const FALLBACK = {
+    angry: ['sad'], love: ['shy', 'happy'], tired: ['sleep'], shy: ['happy'],
+  };
+  function resolveRole(role) {
+    if (!role) return null;
+    if (images[role]) return role;
+    for (const r of FALLBACK[role] || []) if (images[r]) return r;
+    return null;
+  }
+
   async function loadPack() {
     library = await loadJSON('./actions.json');
     const pet = await loadJSON(packBase + 'pet.json');
@@ -172,6 +189,8 @@
         rig: sanitizeRig(typeof spec === 'string' ? null : spec.rig),
         // 工坊按「平时」图自动生成的闭眼 / 张嘴图：只和平时图对齐
         generated: typeof spec === 'object' && spec.generated === true,
+        // 相对平时图的对齐（缩放 + 平移，单位 = 平时图显示高度）
+        align: sanitizeAlign(typeof spec === 'object' ? spec.align : null),
       };
     }));
     if (!images.idle) {
@@ -245,7 +264,7 @@
 
   // 图片（角色状态）：当前与淡出中的上一张
   let curRole = 'idle', prevRole = null, fadeStart = -1;
-  const FADE = 0.16;
+  const FADE = 0.2;
   let blinkUntil = 0, nextBlinkAt = 2.5;
   let talkUntil = 0, mouthOpen = false, nextMouthAt = 0;
 
@@ -276,6 +295,7 @@
     shots.push({ id, action, start: now });
     if (action.effect === 'hearts') post({ hearts: true });
     else if (action.effect === 'sparks') post({ sparks: true });
+    if (typeof action.emote === 'string' && action.emote && !preview) post({ emote: action.emote.slice(0, 4) });
     if (Array.isArray(action.say) && action.say.length && !preview) {
       if (opts.force || now >= nextSayAt) {
         nextSayAt = now + 22 + Math.random() * 25;
@@ -301,11 +321,12 @@
   function activeRole() {
     // 一次性动作的图优先，其次当前循环的图，最后 idle
     for (let i = shots.length - 1; i >= 0; i--) {
-      const r = shots[i].action.image;
-      if (r && images[r]) return r;
+      const r = resolveRole(shots[i].action.image);
+      if (r) return r;
     }
     const loopAction = library.actions[loop.id];
-    if (loopAction && loopAction.image && images[loopAction.image]) return loopAction.image;
+    const lr = loopAction && resolveRole(loopAction.image);
+    if (lr) return lr;
     if (moodLevel >= 3 && images.happy && state === 'idle') return 'happy';
     return 'idle';
   }
@@ -354,13 +375,15 @@
   function layout(entry) {
     const W = canvas.width, H = canvas.height;
     const base = images.idle || entry;
-    // 以 idle 图的比例定显示高度，所有表情图同高，切换时不忽大忽小
-    const Hd = Math.min(H * 0.86, (W * 0.92) / Math.max(0.2, base.aspect)) * extraZoom;
-    return { W, H, Hd, Wd: Hd * entry.aspect, groundY: H * 0.05 };
+    // 以 idle 图的比例定显示高度；表情图再按工坊里的对齐参数缩放 / 平移，和平时图重合
+    const Hb = Math.min(H * 0.86, (W * 0.92) / Math.max(0.2, base.aspect)) * extraZoom;
+    const a = entry === base ? { s: 1, dx: 0, dy: 0 } : (entry.align || { s: 1, dx: 0, dy: 0 });
+    const Hd = Hb * a.s;
+    return { W, H, Hb, Hd, Wd: Hd * entry.aspect, offX: a.dx * Hb, groundY: H * 0.05 + a.dy * Hb };
   }
 
   function deform(entry, p) {
-    const { W, H, Hd, Wd, groundY } = layout(entry);
+    const { W, H, Hb, Hd, Wd, offX, groundY } = layout(entry);
     const rig = entry.rig;
     const neckX = (rig.neck[0] - 0.5) * Wd, neckY = (rig.neck[1] - rig.ground) * Hd;
     const [hx0, , hx1] = rig.head;
@@ -398,8 +421,8 @@
         const px = rx, py = ry - topY;
         rx = px * swc - py * sws;
         ry = px * sws + py * swc + topY;
-        const X = W / 2 + rx + p['root.tx'] * Hd;
-        const Y = groundY + ry + p['root.ty'] * Hd;
+        const X = W / 2 + offX + rx + p['root.tx'] * Hb;
+        const Y = groundY + ry + p['root.ty'] * Hb;
         const k = (j * (GX + 1) + i) * 2;
         posData[k] = (X / W) * 2 - 1;
         posData[k + 1] = (Y / H) * 2 - 1;
@@ -492,6 +515,12 @@
     const talking = !blinking && updateTalk();
     const alpha = Math.max(0, Math.min(1, 1 + p.alpha));
     const k = fadeStart < 0 ? 1 : Math.min(1, (now - fadeStart) / FADE);
+    // 换表情时「压一下再弹回」：交叉淡入的同时轻微挤压，盖住两张图之间的细小差异
+    if (k < 1) {
+      const pop = Math.sin(Math.PI * k);
+      p['root.sy'] -= 0.06 * pop;
+      p['root.sx'] += 0.035 * pop;
+    }
     if (k < 1 && prevRole) drawEntry(images[prevRole], p, alpha * (1 - k));
     else prevRole = null;
     const face = blinking ? images.blink : (talking ? images.talk : images[curRole]);

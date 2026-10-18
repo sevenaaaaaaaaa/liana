@@ -1179,6 +1179,7 @@ final class LianaInputController: IMKInputController {
         let keyCode = event.keyCode
         if keyCode == 51 {
             stats.recordDelete()  // 删除键：含组合态外的原编辑
+            PetWindowController.shared.noteDelete()
         }
         if keyCode == 36 || keyCode == 76 {
             stats.recordEnter()  // 回车键：同上

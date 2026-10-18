@@ -205,9 +205,11 @@ final class WorkshopModel: ObservableObject {
 
     // MARK: 图片
 
-    func add(_ urls: [URL]) {
+    /// 加图片。`role` 非空 = 拖到某个格子上：第一张放进这个格子（替换原图），其余按顺序补空格子。
+    func add(_ urls: [URL], role: PuppetRole? = nil) {
         let images = urls.filter { ["png", "jpg", "jpeg", "heic", "webp", "tiff", "gif", "bmp"].contains($0.pathExtension.lowercased()) }
         guard !images.isEmpty, !busy else { return }
+        var target = role
         busy = true
         status = "正在本机抠图与定位（\(images.count) 张）…"
         DispatchQueue.global(qos: .userInitiated).async {
@@ -218,17 +220,28 @@ final class WorkshopModel: ObservableObject {
                 case .success(let processed):
                     var skipped = 0
                     for (name, var image) in processed {
-                        guard let role = self.nextRole(hint: name) else {
+                        let slot: PuppetRole?
+                        if let t = target {
+                            slot = t
+                            target = nil
+                            self.draft.images.removeAll { $0.role == t }   // 拖到已有图片的格子 = 替换
+                        } else {
+                            slot = self.nextRole(hint: name)
+                        }
+                        guard let role = slot else {
                             skipped += 1
                             continue
                         }
                         image.role = role
+                        self.manuallyAligned.remove(image.id)
                         self.draft.images.append(image)
                         self.selected = image.id
                     }
+                    self.realign()
+                    let warn = self.draft.images.compactMap { self.mismatch(of: $0) }.first
                     self.status = skipped > 0
                         ? "已添加；\(skipped) 张没有空位（每种表情一张，可删掉旧的再加）"
-                        : "已添加。拖动右侧的点对准脖子和头顶，再给每张图选好表情。"
+                        : (warn != nil ? "已添加。有图片和「平时」差别较大，看格子上的 ⚠️ 提示" : "已添加并自动对齐。可以继续往格子里补图。")
                     self.refreshPreview(immediately: true)
                 case .failure(let error):
                     self.status = error.localizedDescription
@@ -245,12 +258,75 @@ final class WorkshopModel: ObservableObject {
     }
 
     func remove(_ id: UUID) {
+        let wasIdle = draft.images.first { $0.id == id }?.role == .idle
         draft.images.removeAll { $0.id == id }
         if !draft.images.contains(where: { $0.role == .idle }), !draft.images.isEmpty {
             draft.images[0].role = .idle
         }
+        if wasIdle { realign() }
         if selected == id { selected = draft.images.first?.id }
         refreshPreview(immediately: true)
+    }
+
+    func image(for role: PuppetRole) -> PuppetImage? {
+        draft.images.first { $0.role == role }
+    }
+
+    // MARK: 对齐（表情图 ↔ 平时图）
+
+    /// 手动调过对齐的图：自动对齐不再覆盖它
+    var manuallyAligned: Set<UUID> = []
+
+    /// 所有表情图重新对齐到「平时」图（换了平时图、加了新图时调用）。
+    func realign() {
+        guard let idle = image(for: .idle) else { return }
+        for i in draft.images.indices where draft.images[i].role != .idle {
+            if manuallyAligned.contains(draft.images[i].id) { continue }
+            draft.images[i].align = PuppetImage.autoAlign(draft.images[i], to: idle)
+        }
+        if let i = draft.images.firstIndex(where: { $0.role == .idle }) { draft.images[i].align = .identity }
+    }
+
+    func mismatch(of image: PuppetImage) -> String? {
+        guard image.role != .idle, let idle = self.image(for: .idle) else { return nil }
+        return PuppetImage.mismatch(image, idle: idle)
+    }
+
+    func setAlign(_ align: PuppetAlign, final: Bool) {
+        guard let index = selectedIndex, draft.images[index].role != .idle else { return }
+        draft.images[index].align = align
+        manuallyAligned.insert(draft.images[index].id)
+        if final { refreshPreview(immediately: false) }
+    }
+
+    func autoAlignSelected() {
+        guard let index = selectedIndex, let idle = image(for: .idle) else { return }
+        manuallyAligned.remove(draft.images[index].id)
+        draft.images[index].align = PuppetImage.autoAlign(draft.images[index], to: idle)
+        refreshPreview(immediately: true)
+    }
+
+    // MARK: 提示词
+
+    /// 角色描述（拼进每个格子的生成提示词）
+    @Published var characterDesc = ""
+
+    func prompt(for role: PuppetRole) -> String {
+        let who = characterDesc.trimmingCharacters(in: .whitespaces).isEmpty
+            ? "【在这里描述你的角色：性别/年龄感、发型发色、服装、配饰、画风】"
+            : characterDesc.trimmingCharacters(in: .whitespaces)
+        let ref = role == .idle ? "" : "以我上传的「平时」图为参考，保持同一个角色、同样的服装发型、同样的构图大小和站位。"
+        return "桌宠立绘：\(who)。全身、正面、居中、单人、纯白或纯色背景、无文字无水印。\(ref)这一张：\(role.promptPhrase)。"
+    }
+
+    var fullPrompt: String {
+        var lines = ["同一个角色的一组桌宠立绘，每张单独输出，构图、大小、站位、服装发型完全一致，只改变表情和手势：",
+                     "角色：" + (characterDesc.isEmpty ? "【在这里描述你的角色】" : characterDesc),
+                     "统一要求：全身、正面、居中、单人、纯白或纯色背景、无文字无水印。"]
+        for (i, role) in PuppetRole.allCases.enumerated() {
+            lines.append("\(i + 1). \(role.shortTitle)（文件名 \(role.rawValue)）：\(role.promptPhrase)")
+        }
+        return lines.joined(separator: "\n")
     }
 
     /// 改表情：目标表情已被占用就和它互换。
@@ -261,6 +337,7 @@ final class WorkshopModel: ObservableObject {
             draft.images[other].role = old
         }
         draft.images[index].role = role
+        if role == .idle || old == .idle { realign() }
         refreshPreview(immediately: true)
     }
 
@@ -370,22 +447,8 @@ final class WorkshopModel: ObservableObject {
 
 // MARK: - 视图
 
-private let promptTemplate = """
-同一个角色的一组桌宠立绘，共 6 张，每张单独输出：
-角色：【在这里描述你的角色：性别/年龄感、发型发色、服装、配饰、画风（如 Q 版、日系赛璐璐、3D 卡通）】
-统一要求：全身、正面站立、居中、单人、纯白或纯色背景、无文字无水印、同样的构图和大小、服装发型完全一致。
-1. 平时：自然站立，微笑
-2. 开心：眯眼大笑
-3. 打字：低头专注，双手在身前
-4. 睡觉：闭眼打瞌睡，头微微歪
-5. 惊讶：睁大眼睛，嘴巴张开
-6. 闭眼：和第 1 张完全一样，只是眼睛闭上（用来眨眼）
-"""
-
 struct WorkshopView: View {
     @ObservedObject var model: WorkshopModel
-    @State private var dropTargeted = false
-    @State private var showPrompt = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -478,7 +541,6 @@ struct WorkshopView: View {
                         rigSection(index)
                     }
                     shareSection
-                    promptSection
                 }
                 .padding(20)
             }
@@ -505,92 +567,77 @@ struct WorkshopView: View {
         }
     }
 
+    /// 按格子上传：每种表情一个格子，空格子显示示意图（姿势 + 表情 + 构图），照着找图或生成。
     private var imagesSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("图片与表情").font(.system(size: 13, weight: .semibold))
                 Spacer()
                 if !model.draft.images.isEmpty {
                     Button("重新开始") { model.startOver() }.controlSize(.small)
                 }
-                Button("添加图片…") { pickImages() }
+                Button("批量添加…") { pickImages(role: nil) }
                     .controlSize(.small)
                     .disabled(model.busy)
+                    .help("一次选多张：文件名带 happy / sleep / blink 等会自动放进对应格子")
             }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(model.draft.images) { image in
-                        imageCard(image)
-                    }
-                    dropCard
-                }
-                .padding(2)
-            }
-        }
-    }
-
-    private func imageCard(_ image: PuppetImage) -> some View {
-        let isSelected = model.selected == image.id
-        return VStack(spacing: 6) {
-            ZStack(alignment: .topTrailing) {
-                Image(nsImage: NSImage(data: image.png) ?? NSImage())
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 92, height: 110)
-                    .background(CheckerBackground().clipShape(RoundedRectangle(cornerRadius: 10)))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(isSelected ? Color.accentColor : Color.secondary.opacity(0.25), lineWidth: isSelected ? 2 : 1)
-                    )
-                    .onTapGesture { model.selected = image.id }
-                Button {
-                    model.remove(image.id)
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.white, .black.opacity(0.55))
-                }
-                .buttonStyle(.plain)
-                .padding(4)
-            }
-            Picker("", selection: Binding(
-                get: { image.role },
-                set: { model.setRole($0, for: image.id) }
-            )) {
+            guideBox
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 148), spacing: 10)], spacing: 12) {
                 ForEach(PuppetRole.allCases) { role in
-                    Text(role.title).tag(role)
+                    RoleSlot(model: model, role: role, pick: { pickImages(role: role) })
                 }
             }
-            .labelsHidden()
-            .controlSize(.small)
-            .frame(width: 96)
         }
     }
 
-    private var dropCard: some View {
-        VStack(spacing: 6) {
-            Image(systemName: "plus")
-                .font(.system(size: 20, weight: .medium))
-            Text("拖入图片")
-                .font(.system(size: 11))
+    /// 一套图要「像同一次拍的」：示意图里人物的位置和大小都一样，照片也要这样。
+    private var guideBox: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "lightbulb.fill").foregroundStyle(.yellow)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("让一套图「像同一次拍的」，切换表情才不会跳").font(.system(size: 12, weight: .semibold))
+                    Text("① 同一个人 / 角色，同样的衣服发型　② 同样的距离和构图（都全身或都半身），人物在画面里的位置和大小一致　③ 正面、居中、背景简单　④ 只改变表情和手势。\n示意图里小人的位置和大小在每个格子都一样——照着它找图、拍照或生成。连拍、同一次 AI 生成的一组图效果最好。")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            HStack(spacing: 6) {
+                TextField("用 AI 生成时，先描述你的角色（发型、衣服、画风…）", text: $model.characterDesc)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11))
+                Button("复制整套提示词") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(model.fullPrompt, forType: .string)
+                    model.status = "整套提示词已复制：先生成「平时」，再拿它当参考图生成其他表情，一致性最好"
+                }
+                .controlSize(.small)
+            }
         }
-        .foregroundStyle(.secondary)
-        .frame(width: 92, height: 110)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(style: StrokeStyle(lineWidth: 1.2, dash: [5]))
-                .foregroundStyle(dropTargeted ? Color.accentColor : Color.secondary.opacity(0.4))
-        )
-        .contentShape(Rectangle())
-        .onTapGesture { pickImages() }
-        .onDrop(of: [.fileURL], isTargeted: $dropTargeted) { providers in
-            loadURLs(providers)
-            return true
-        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.08)))
     }
 
     private func rigSection(_ index: Int) -> some View {
         let image = model.draft.images[index]
         return VStack(alignment: .leading, spacing: 8) {
+            if image.role != .idle, let idle = model.image(for: .idle) {
+                Text("和「平时」对齐：\(image.role.shortTitle)").font(.system(size: 13, weight: .semibold))
+                Text("半透明的是「平时」图。拖滑杆让两张重合（尤其是脸），切换表情时就不会跳。")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                if let warn = model.mismatch(of: image) {
+                    Label(warn, systemImage: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.orange)
+                }
+                AlignEditor(idle: idle, image: image, align: image.align,
+                            onChange: { model.setAlign($0, final: $1) },
+                            onAuto: { model.autoAlignSelected() })
+                    .id("\(image.id)-\(image.align.scale)-\(model.manuallyAligned.contains(image.id))")
+                Divider().padding(.vertical, 4)
+            }
             Text("骨架点").font(.system(size: 13, weight: .semibold))
             Text("红点放在脖子上（头绕它转动），蓝框盖住整个头，拖右上角的角调大小。识别不到脸的卡通形象需要手动对一下。")
                 .font(.system(size: 11))
@@ -618,63 +665,17 @@ struct WorkshopView: View {
         }
     }
 
-    private var promptSection: some View {
-        DisclosureGroup("用 AI 生成一组图片（提示词模板）", isExpanded: $showPrompt) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(promptTemplate)
-                    .font(.system(size: 11, design: .monospaced))
-                    .textSelection(.enabled)
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.08)))
-                HStack {
-                    Text("在任意 AI 绘图工具里生成后，把整组图拖进来；文件名带 happy / sleep / blink 等会自动对上表情。")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Button("复制") {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(promptTemplate, forType: .string)
-                        model.status = "提示词已复制"
-                    }
-                    .controlSize(.small)
-                }
-            }
-            .padding(.top, 6)
-        }
-        .font(.system(size: 13, weight: .semibold))
-    }
-
-    private func pickImages() {
+    private func pickImages(role: PuppetRole?) {
         let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = true
+        panel.allowsMultipleSelection = role == nil
         panel.canChooseDirectories = false
         panel.allowedContentTypes = [.image]
         panel.message = "选择 1 张或多张图片（全身、单人、背景简单效果最好）"
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK else { return }
-        model.add(panel.urls)
+        model.add(panel.urls, role: role)
     }
 
-    private func loadURLs(_ providers: [NSItemProvider]) {
-        let group = DispatchGroup()
-        var urls: [URL] = []
-        let lock = NSLock()
-        for provider in providers {
-            group.enter()
-            _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                if let url {
-                    lock.lock()
-                    urls.append(url)
-                    lock.unlock()
-                }
-                group.leave()
-            }
-        }
-        group.notify(queue: .main) {
-            model.add(urls.sorted { $0.lastPathComponent < $1.lastPathComponent })
-        }
-    }
 }
 
 /// 预览：形象工坊专用的纸偶视图（不转发台词/特效到桌面桌宠）。
@@ -859,11 +860,15 @@ private let triggerTitles: [(key: String, title: String)] = [
     ("click", "点一下"), ("double_click", "双击"), ("hover", "鼠标悬停"), ("commit", "打字上屏"),
     ("idle", "闲着时（随机）"), ("greet", "打招呼"), ("milestone", "字数里程碑"), ("wake", "睡醒"),
     ("drop", "被放下"), ("break", "休息提醒"), ("roam", "溜达"),
+    ("love", "连着摸头（心动）"), ("angry", "被连戳（生气）"), ("lonely", "被冷落"), ("welcome", "你回来时"),
+    ("comfort", "删字很多时（安慰）"), ("dizzy", "被鼠标晃晕"), ("shy", "一直盯着它"), ("night", "深夜还在打字"),
 ]
 
 private let lineTitles: [(key: String, title: String)] = [
     ("click", "被摸头"), ("double_click", "被戳"), ("idle", "闲聊"), ("sleep", "犯困"), ("wake", "睡醒"),
     ("morning", "早上问候"), ("afternoon", "下午问候"), ("evening", "晚上问候"), ("level", "打字很多时"),
+    ("love", "心动"), ("angry", "生气"), ("lonely", "被冷落"), ("welcome", "欢迎回来"),
+    ("comfort", "安慰你"), ("dizzy", "晕了"), ("shy", "害羞"), ("night", "深夜提醒"),
 ]
 
 /// 动作编辑器（关键帧 + 滑杆，改完自动在左边预览）+ 触发器与台词。
@@ -1113,5 +1118,364 @@ private struct ActionEditor: View {
         next.values = last?.values ?? [:]
         frames.append(next)
         action.wrappedValue.keyframes = frames
+    }
+}
+
+// MARK: - 表情格子 + 示意图 + 对齐
+
+/// 拖进来的文件 → URL（按文件名排序，方便一组图按 1、2、3 顺序进格子）
+private func loadDroppedURLs(_ providers: [NSItemProvider], completion: @escaping ([URL]) -> Void) {
+    let group = DispatchGroup()
+    var urls: [URL] = []
+    let lock = NSLock()
+    for provider in providers {
+        group.enter()
+        _ = provider.loadObject(ofClass: URL.self) { url, _ in
+            if let url {
+                lock.lock()
+                urls.append(url)
+                lock.unlock()
+            }
+            group.leave()
+        }
+    }
+    group.notify(queue: .main) {
+        completion(urls.sorted { $0.lastPathComponent < $1.lastPathComponent })
+    }
+}
+
+/// 一个表情格子：空的时候显示示意图和要点，有图时显示图片（和平时差别大时打 ⚠️）。
+private struct RoleSlot: View {
+    @ObservedObject var model: WorkshopModel
+    let role: PuppetRole
+    let pick: () -> Void
+    @State private var targeted = false
+
+    var body: some View {
+        let image = model.image(for: role)
+        let isSelected = image != nil && model.selected == image?.id
+        let warn = image.flatMap { model.mismatch(of: $0) }
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 4) {
+                Text(role.shortTitle).font(.system(size: 12, weight: .semibold))
+                Text(role.tier.rawValue)
+                    .font(.system(size: 9, weight: .medium))
+                    .padding(.horizontal, 5).padding(.vertical, 1)
+                    .background(Capsule().fill(tierColor.opacity(0.15)))
+                    .foregroundStyle(tierColor)
+                Spacer()
+                if role == .blink || role == .talk, image == nil {
+                    Text("可自动生成").font(.system(size: 9)).foregroundStyle(.secondary)
+                        .help("没有这张图时，会按「平时」图的眼睛 / 嘴巴位置自动生成")
+                }
+            }
+            ZStack(alignment: .topTrailing) {
+                Group {
+                    if let image, let ns = NSImage(data: image.png) {
+                        Image(nsImage: ns).resizable().aspectRatio(contentMode: .fit).padding(4)
+                    } else {
+                        RoleSketch(role: role).padding(6)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 150)
+                .background(
+                    Group {
+                        if image != nil { CheckerBackground() } else { Color.secondary.opacity(0.05) }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .strokeBorder(
+                            targeted || isSelected ? Color.accentColor : Color.secondary.opacity(image == nil ? 0.35 : 0.25),
+                            style: StrokeStyle(lineWidth: targeted || isSelected ? 2 : 1, dash: image == nil ? [5] : [])
+                        )
+                )
+                .contentShape(Rectangle())
+                .onTapGesture { if let image { model.selected = image.id } else { pick() } }
+                .onDrop(of: [.fileURL], isTargeted: $targeted) { providers in
+                    loadDroppedURLs(providers) { model.add($0, role: role) }
+                    return true
+                }
+                if let image {
+                    HStack(spacing: 2) {
+                        if let warn {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                                .help(warn)
+                        }
+                        Button { model.remove(image.id) } label: {
+                            Image(systemName: "xmark.circle.fill").foregroundStyle(.white, .black.opacity(0.55))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(5)
+                }
+            }
+            Text(image == nil ? role.hint : role.usage)
+                .font(.system(size: 10.5))
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(height: 40, alignment: .top)
+            HStack(spacing: 4) {
+                Button(image == nil ? "选择…" : "替换…", action: pick)
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(model.prompt(for: role), forType: .string)
+                    model.status = "「\(role.shortTitle)」的提示词已复制" + (role == .idle ? "" : "（生成时把「平时」图一起作为参考图）")
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                }
+                .help("复制这张图的 AI 生成提示词")
+            }
+            .controlSize(.small)
+        }
+    }
+
+    private var tierColor: Color {
+        switch role.tier {
+        case .required: return .red
+        case .recommended: return .orange
+        case .optional: return .secondary
+        }
+    }
+}
+
+/// 表情示意图：同一个位置和大小的小人，只换表情和手势（提示「一套图要构图一致」）。
+struct RoleSketch: View {
+    let role: PuppetRole
+
+    var body: some View {
+        Canvas { ctx, size in
+            // 100 × 130 的设计稿等比放进格子
+            let k = min(size.width / 100, size.height / 130)
+            let ox = (size.width - 100 * k) / 2, oy = (size.height - 130 * k) / 2
+            func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: ox + x * k, y: oy + y * k) }
+            let ink = GraphicsContext.Shading.color(.primary.opacity(0.7))
+            let soft = GraphicsContext.Shading.color(.secondary.opacity(0.35))
+            let line = StrokeStyle(lineWidth: 2 * k, lineCap: .round, lineJoin: .round)
+            func stroke(_ pts: [CGPoint], _ shading: GraphicsContext.Shading = ink) {
+                var path = Path()
+                path.addLines(pts)
+                ctx.stroke(path, with: shading, style: line)
+            }
+            func arc(_ c: CGPoint, _ r: CGFloat, _ a0: Double, _ a1: Double) {
+                var path = Path()
+                path.addArc(center: c, radius: r * k, startAngle: .degrees(a0), endAngle: .degrees(a1), clockwise: false)
+                ctx.stroke(path, with: ink, style: StrokeStyle(lineWidth: 1.6 * k, lineCap: .round))
+            }
+            func text(_ s: String, _ at: CGPoint, _ size: CGFloat, _ color: Color = .primary.opacity(0.7)) {
+                ctx.draw(Text(s).font(.system(size: size * k)).foregroundColor(color), at: at)
+            }
+
+            // 构图参考：取景框 + 地面线（每个格子都一样）
+            var frame = Path(roundedRect: CGRect(origin: p(10, 4), size: CGSize(width: 80 * k, height: 120 * k)), cornerRadius: 4 * k)
+            ctx.stroke(frame, with: soft, style: StrokeStyle(lineWidth: 1 * k, dash: [3 * k, 3 * k]))
+            frame = Path()
+            stroke([p(18, 122), p(82, 122)], soft)
+
+            // 姿态：头的位置 / 身体倾斜 / 手臂
+            var head = CGPoint(x: 50, y: 34)
+            var lean: CGFloat = 0
+            switch role {
+            case .sleep: head = CGPoint(x: 55, y: 37)
+            case .typing, .sad: head = CGPoint(x: 50, y: 37)
+            case .tired: head = CGPoint(x: 52, y: 39); lean = 4
+            default: break
+            }
+            let neck = p(50 + lean / 2, 54), hip = p(50, 92)
+            // 身体
+            var body = Path()
+            body.addRoundedRect(in: CGRect(x: ox + (37 + lean / 2) * k, y: oy + 54 * k, width: 26 * k, height: 40 * k), cornerSize: CGSize(width: 9 * k, height: 9 * k))
+            ctx.stroke(body, with: ink, style: line)
+            _ = neck; _ = hip
+            // 腿
+            stroke([p(44, 94), p(43, 120)])
+            stroke([p(56, 94), p(57, 120)])
+            // 手臂（左肩 39,60 / 右肩 61,60）
+            switch role {
+            case .happy:
+                stroke([p(39, 60), p(27, 48), p(24, 38)]); stroke([p(61, 60), p(73, 48), p(76, 38)])
+            case .surprised:
+                stroke([p(39, 60), p(24, 56), p(18, 46)]); stroke([p(61, 60), p(76, 56), p(82, 46)])
+            case .typing:
+                stroke([p(39, 62), p(36, 76), p(44, 80)]); stroke([p(61, 62), p(64, 76), p(56, 80)])
+                var laptop = Path(roundedRect: CGRect(origin: p(32, 80), size: CGSize(width: 36 * k, height: 5 * k)), cornerRadius: 1.5 * k)
+                ctx.fill(laptop, with: soft)
+                laptop = Path()
+            case .shy:
+                stroke([p(39, 60), p(34, 50), p(40, 42)]); stroke([p(61, 60), p(66, 50), p(60, 42)])
+            case .angry:
+                stroke([p(39, 60), p(28, 70), p(38, 80)]); stroke([p(61, 60), p(72, 70), p(62, 80)])
+            case .love:
+                stroke([p(39, 60), p(42, 70), p(48, 66)]); stroke([p(61, 60), p(58, 70), p(52, 66)])
+                text("♥", p(50, 64), 9, .pink)
+            case .sleep:
+                stroke([p(39, 60), p(36, 76), p(38, 88)]); stroke([p(61, 60), p(64, 50), p(60, 42)])
+            case .tired:
+                stroke([p(41, 60), p(36, 80), p(37, 92)]); stroke([p(63, 60), p(68, 80), p(67, 92)])
+            default:
+                stroke([p(39, 60), p(32, 76), p(31, 88)]); stroke([p(61, 60), p(68, 76), p(69, 88)])
+            }
+            // 头
+            let hc = p(head.x, head.y)
+            ctx.stroke(Path(ellipseIn: CGRect(x: hc.x - 18 * k, y: hc.y - 18 * k, width: 36 * k, height: 36 * k)), with: ink, style: line)
+            let le = p(head.x - 7, head.y - 1), re = p(head.x + 7, head.y - 1), mouth = p(head.x, head.y + 8)
+            // 眼睛
+            func dot(_ c: CGPoint, _ r: CGFloat) {
+                ctx.fill(Path(ellipseIn: CGRect(x: c.x - r * k, y: c.y - r * k, width: 2 * r * k, height: 2 * r * k)), with: ink)
+            }
+            switch role {
+            case .blink, .sleep:
+                arc(le, 3.2, 20, 160); arc(re, 3.2, 20, 160)
+            case .happy, .love:
+                arc(CGPoint(x: le.x, y: le.y + 2 * k), 3.2, 200, 340); arc(CGPoint(x: re.x, y: re.y + 2 * k), 3.2, 200, 340)
+                if role == .love { text("♥", CGPoint(x: le.x, y: le.y - 6 * k), 6, .pink); text("♥", CGPoint(x: re.x, y: re.y - 6 * k), 6, .pink) }
+            case .surprised:
+                ctx.stroke(Path(ellipseIn: CGRect(x: le.x - 3 * k, y: le.y - 3 * k, width: 6 * k, height: 6 * k)), with: ink, style: StrokeStyle(lineWidth: 1.5 * k))
+                ctx.stroke(Path(ellipseIn: CGRect(x: re.x - 3 * k, y: re.y - 3 * k, width: 6 * k, height: 6 * k)), with: ink, style: StrokeStyle(lineWidth: 1.5 * k))
+            case .tired:
+                dot(CGPoint(x: le.x, y: le.y + 1 * k), 1.6); dot(CGPoint(x: re.x, y: re.y + 1 * k), 1.6)
+                stroke([CGPoint(x: le.x - 3.5 * k, y: le.y), CGPoint(x: le.x + 3.5 * k, y: le.y)])
+                stroke([CGPoint(x: re.x - 3.5 * k, y: re.y), CGPoint(x: re.x + 3.5 * k, y: re.y)])
+            default:
+                dot(le, 2); dot(re, 2)
+            }
+            // 眉毛
+            switch role {
+            case .angry:
+                stroke([CGPoint(x: le.x - 4 * k, y: le.y - 6 * k), CGPoint(x: le.x + 3 * k, y: le.y - 4 * k)])
+                stroke([CGPoint(x: re.x + 4 * k, y: re.y - 6 * k), CGPoint(x: re.x - 3 * k, y: re.y - 4 * k)])
+            case .sad:
+                stroke([CGPoint(x: le.x - 3 * k, y: le.y - 4 * k), CGPoint(x: le.x + 3 * k, y: le.y - 6.5 * k)])
+                stroke([CGPoint(x: re.x + 3 * k, y: re.y - 4 * k), CGPoint(x: re.x - 3 * k, y: re.y - 6.5 * k)])
+            default: break
+            }
+            // 嘴
+            switch role {
+            case .talk, .surprised:
+                ctx.stroke(Path(ellipseIn: CGRect(x: mouth.x - 3 * k, y: mouth.y - 2.5 * k, width: 6 * k, height: 5 * k)), with: ink, style: StrokeStyle(lineWidth: 1.5 * k))
+            case .happy, .love:
+                var m = Path()
+                m.move(to: CGPoint(x: mouth.x - 5 * k, y: mouth.y - 1.5 * k))
+                m.addQuadCurve(to: CGPoint(x: mouth.x + 5 * k, y: mouth.y - 1.5 * k), control: CGPoint(x: mouth.x, y: mouth.y + 6 * k))
+                m.closeSubpath()
+                ctx.fill(m, with: soft); ctx.stroke(m, with: ink, style: StrokeStyle(lineWidth: 1.4 * k))
+            case .sad:
+                arc(CGPoint(x: mouth.x, y: mouth.y + 4 * k), 4, 210, 330)
+            case .angry:
+                stroke([CGPoint(x: mouth.x - 4 * k, y: mouth.y + 1 * k), CGPoint(x: mouth.x - 1.5 * k, y: mouth.y - 0.5 * k),
+                        CGPoint(x: mouth.x + 1.5 * k, y: mouth.y + 1 * k), CGPoint(x: mouth.x + 4 * k, y: mouth.y - 0.5 * k)])
+            case .typing, .sleep:
+                stroke([CGPoint(x: mouth.x - 3 * k, y: mouth.y), CGPoint(x: mouth.x + 3 * k, y: mouth.y)])
+            case .tired:
+                ctx.stroke(Path(ellipseIn: CGRect(x: mouth.x - 2.5 * k, y: mouth.y - 3 * k, width: 5 * k, height: 7 * k)), with: ink, style: StrokeStyle(lineWidth: 1.4 * k))
+            case .shy:
+                stroke([CGPoint(x: mouth.x - 3 * k, y: mouth.y), CGPoint(x: mouth.x - 1 * k, y: mouth.y + 1.5 * k),
+                        CGPoint(x: mouth.x + 1 * k, y: mouth.y), CGPoint(x: mouth.x + 3 * k, y: mouth.y + 1.5 * k)])
+            default:
+                arc(CGPoint(x: mouth.x, y: mouth.y - 3 * k), 4.5, 30, 150)
+            }
+            // 腮红
+            if role == .shy || role == .love {
+                for c in [CGPoint(x: le.x - 3 * k, y: le.y + 6 * k), CGPoint(x: re.x + 3 * k, y: re.y + 6 * k)] {
+                    ctx.fill(Path(ellipseIn: CGRect(x: c.x - 3.5 * k, y: c.y - 2 * k, width: 7 * k, height: 4 * k)), with: .color(.pink.opacity(0.55)))
+                }
+            }
+            // 情绪符号
+            switch role {
+            case .sleep: text("z Z", p(78, 14), 9)
+            case .surprised: text("!", p(76, 14), 13)
+            case .angry: text("💢", p(74, 16), 10)
+            case .sad, .tired: text("💧", p(73, 24), 8)
+            case .love: text("♥", p(76, 14), 11, .pink)
+            default: break
+            }
+        }
+    }
+}
+
+/// 对齐编辑：半透明「平时」图 + 当前表情图叠在一起，滑杆调缩放 / 位置。
+private struct AlignEditor: View {
+    let idle: PuppetImage
+    let image: PuppetImage
+    @State var align: PuppetAlign
+    let onChange: (PuppetAlign, Bool) -> Void
+    let onAuto: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            GeometryReader { geo in
+                // 与渲染器同一套坐标：平时图高 h、底边对齐脚底线、水平居中
+                let h = geo.size.height * 0.86
+                let ground = geo.size.height * 0.96
+                ZStack(alignment: .topLeading) {
+                    if let ns = NSImage(data: idle.png) {
+                        Image(nsImage: ns).resizable()
+                            .frame(width: h * idle.aspect, height: h)
+                            .position(x: geo.size.width / 2, y: ground - h / 2)
+                            .opacity(0.35)
+                    }
+                    if let ns = NSImage(data: image.png) {
+                        let ih = h * align.scale
+                        Image(nsImage: ns).resizable()
+                            .frame(width: ih * image.aspect, height: ih)
+                            .position(x: geo.size.width / 2 + align.dx * h, y: ground - ih / 2 - align.dy * h)
+                            .opacity(0.75)
+                    }
+                }
+                .frame(width: geo.size.width, height: geo.size.height)
+                .clipped()
+            }
+            .frame(width: 190, height: 230)
+            .background(CheckerBackground().clipShape(RoundedRectangle(cornerRadius: 10)))
+            VStack(alignment: .leading, spacing: 8) {
+                slider("大小", value: $align.scale, range: 0.4...2.5)
+                slider("左右", value: $align.dx, range: -0.6...0.6)
+                slider("上下", value: $align.dy, range: -0.6...0.6)
+                HStack {
+                    Button("自动对齐", action: onAuto)
+                    Button("不对齐") {
+                        align = .identity
+                        onChange(align, true)
+                    }
+                }
+                .controlSize(.small)
+            }
+        }
+    }
+
+    private func slider(_ title: String, value: Binding<CGFloat>, range: ClosedRange<CGFloat>) -> some View {
+        HStack {
+            Text(title).font(.system(size: 11)).frame(width: 30, alignment: .leading)
+            Slider(value: value, in: range) { editing in
+                onChange(align, !editing)
+            }
+            .onChange(of: value.wrappedValue) { _ in onChange(align, false) }
+        }
+    }
+}
+
+/// 开发用：把 12 张表情示意图渲染成一张 PNG（`--pet-sketches`）。
+@MainActor
+func renderRoleSketches(to path: String) {
+    let grid = LazyVGrid(columns: Array(repeating: GridItem(.fixed(130)), count: 6), spacing: 8) {
+        ForEach(PuppetRole.allCases) { role in
+            VStack(spacing: 2) {
+                RoleSketch(role: role).frame(width: 120, height: 150)
+                Text(role.shortTitle).font(.system(size: 12))
+            }
+        }
+    }
+    .padding(12)
+    .background(Color.white)
+    .environment(\.colorScheme, .light)
+    let renderer = ImageRenderer(content: grid)
+    renderer.scale = 2
+    if let image = renderer.cgImage,
+       let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
+        try? png.write(to: URL(fileURLWithPath: path))
     }
 }

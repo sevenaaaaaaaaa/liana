@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import Carbon
 import InputMethodKit
 
@@ -538,6 +539,16 @@ if installArgs.count > 1 {
                 }
                 exit(0)
             }
+        }
+        NSApplication.shared.run()
+        exit(0)
+
+    case "--pet-sketches":
+        // 开发用：把形象工坊的 12 张表情示意图渲染成一张 PNG
+        let out = installArgs.count > 2 ? installArgs[2] : "/tmp/pet-sketches.png"
+        Task { @MainActor in
+            renderRoleSketches(to: out)
+            exit(0)
         }
         NSApplication.shared.run()
         exit(0)

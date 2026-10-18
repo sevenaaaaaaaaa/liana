@@ -120,6 +120,11 @@ class PetWebView: WKWebView, WKScriptMessageHandler, WKNavigationDelegate {
                 PetWindowController.shared.celebrate(hearts: false)
             }
         }
+        if let emote = body["emote"] as? String {
+            DispatchQueue.main.async {
+                PetWindowController.shared.showEmote(emote)
+            }
+        }
         if let widths = body["walk"] as? Double {
             let duration = body["duration"] as? Double ?? 2
             DispatchQueue.main.async {

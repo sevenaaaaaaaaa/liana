@@ -58,12 +58,14 @@ happy.png …     其他表情图（可选）
 |---|---|
 | `faces` | `front` / `left` / `right`：侧身形象溜达时按方向镜像 |
 | `rights` | `shareable`（作者声明原创或已获授权，可申请发布到松萝社区）/ `personal`（个人使用；本地使用与导出不受限） |
-| `images.<表情>` | 表情：`idle`（必需）`happy` `typing` `sleep` `surprised` `blink`（闭眼，用于眨眼）`talk`（张嘴，说话口型）`shy` `sad`；也可以自定义表情名供自己的动作引用 |
+| `images.<表情>` | 表情：`idle`（必需）`blink`（闭眼，用于眨眼）`talk`（张嘴，说话口型）`happy` `typing` `sleep` `surprised` `shy` `sad` `angry` `love` `tired`；缺的表情按近似表情兜底（angry→sad，love→shy→happy，tired→sleep，shy→happy，最后用 idle）；也可以自定义表情名供自己的动作引用 |
+| `images.<表情>.align` | 可选，相对平时图的对齐 `{"s": 缩放, "dx": 左右, "dy": 上下}`（单位 = 平时图显示高度，dy 向上为正）；形象工坊按人脸自动计算，可手动微调 |
 | `images.<表情>.generated` | `true` 表示由形象工坊按「平时」图自动生成（目前是 `blink` / `talk`），只和平时图对齐，编辑时会重新生成 |
 | `rig.neck` | 脖子转轴（图片归一化坐标，**y 自下而上**） |
 | `rig.head` | 头部范围 `[x0, y0, x1, y1]`：范围内随头部转动，范围外平滑衰减 |
 | `rig.ground` | 脚底线（裁切到主体时为 0） |
 | `rig.eyes` | 可选，眼睛范围 `[[x0, y0, x1, y1], …]`（最多 2 个）：没有 `blink` 图时据此自动生成闭眼图 |
+| `rig.face` | 可选，识别到的人脸框，只用于表情图之间的自动对齐 |
 | `rig.mouth` | 可选，嘴巴范围 `[x0, y0, x1, y1]`：没有 `talk` 图时据此自动生成张嘴图，说话时嘴巴开合 |
 
 同一组图（如同一次 AI 生成）应构图一致：形象工坊会把尺寸相同、主体位置高度重合的图按同一裁切框处理，切换表情和眨眼时不跳动。
@@ -101,7 +103,7 @@ happy.png …     其他表情图（可选）
 
 - 关键帧：`[[时间秒, 值], …]`，默认平滑插值；`"ease": "linear"` 改为线性。
 - 波形：`{"base": b, "sin": [振幅, 频率Hz, 相位], "bob": [振幅, 频率Hz]}`（`bob` 是 |sin|，适合跳跃/走路）。
-- `image`：动作期间切换到的表情图；`say`：随机说一句；`effect`：`hearts` / `sparks`。
+- `image`：动作期间切换到的表情图；`say`：随机说一句；`effect`：`hearts` / `sparks`；`emote`：头顶冒的情绪符号（如 `💢` `❤️`）。
 - `loop: true`：循环动作，用作状态底色（见 `states`）。
 - `walk: 1.4`：溜达若干个身位（用户开启「允许四处溜达」时才移动窗口）。
 
@@ -120,7 +122,8 @@ happy.png …     其他表情图（可选）
 ```
 
 触发器：`click` 摸头、`double_click` 戳一戳、`hover` 悬停、`commit` 上屏、`idle` 闲时随机、`roam` 溜达、
-`greet` 问候、`milestone` 字数里程碑、`wake` 醒来、`drop` 放下、`break` 休息提醒。
+`greet` 问候、`milestone` 字数里程碑、`wake` 醒来、`drop` 放下、`break` 休息提醒；
+情感类：`love` 连着摸头、`angry` 被连戳、`lonely` 被冷落、`welcome` 离开后回来、`comfort` 删字很多、`dizzy` 被鼠标晃晕、`shy` 一直盯着它、`night` 深夜还在打字、`scared` 受惊。
 值为动作 id 或 id 数组（随机挑一个）。
 
 状态：`idle` / `typing` / `sleep` / `drag` → 循环动作 id。

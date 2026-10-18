@@ -180,6 +180,14 @@ final class PetWindowController {
     private var lastUserTouch = Date.distantPast
     private var lastMilestone = 0
     private var lastMood = -1
+    /// 形象包自定义的台词（纸偶 pet.json 的 puppet.lines），情绪事件优先用它
+    private var packLines: [String: [String]] = [:]
+    private var emoteLabel: NSTextField?
+    private var emoteWork: DispatchWorkItem?
+    private var shakeTimer: Timer?
+    private var shakeSamples: [(t: CFTimeInterval, x: CGFloat)] = []
+    private var hovering = false
+    private var stareWork: DispatchWorkItem?
 
     private struct PetPack {
         var size: CGFloat = 84
@@ -304,7 +312,16 @@ final class PetWindowController {
             pack = nil
             return
         }
-        pack = PetPack.load(dir: PluginStore.pluginsDir.appendingPathComponent(id, isDirectory: true))
+        let dir = PluginStore.pluginsDir.appendingPathComponent(id, isDirectory: true)
+        pack = PetPack.load(dir: dir)
+        packLines = [:]
+        if let data = try? Data(contentsOf: dir.appendingPathComponent("pet.json")),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let lines = (json["puppet"] as? [String: Any])?["lines"] as? [String: Any] {
+            for (key, value) in lines {
+                if let list = value as? [String], !list.isEmpty { packLines[key] = list }
+            }
+        }
     }
 
     /// 形象包切换 / 数据目录变化时重建窗口内容。
@@ -353,6 +370,8 @@ final class PetWindowController {
         stopAnimTimer()
         lifeTimer?.invalidate()
         lifeTimer = nil
+        shakeTimer?.invalidate()
+        shakeTimer = nil
         hideToast()
         panel?.orderOut(nil)
     }
@@ -449,12 +468,111 @@ final class PetWindowController {
     // MARK: - 生活节律（打盹 / 问候 / 休息提醒）
 
     private func startLifeTimer() {
+        if shakeTimer == nil {
+            // 30Hz 只读鼠标坐标（不需要任何权限），光标不在桌宠附近时几乎不做事
+            let shake = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in self?.shakeTick() }
+            RunLoop.main.add(shake, forMode: .common)
+            shakeTimer = shake
+        }
         guard lifeTimer == nil else { return }
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             self?.lifeTick()
         }
         RunLoop.main.add(timer, forMode: .common)
         lifeTimer = timer
+    }
+
+    // MARK: - 情感互动（PetEmotion 判断情绪，这里负责表现）
+
+    /// 执行一个情绪事件：纸偶播对应动作（动作自己带情绪符号），其他形象由这里冒情绪符号；再说一句话。
+    func perform(_ event: PetEmotion.Event) {
+        petView?.trigger(event.trigger)
+        if pack?.renderer != "puppet", let emote = event.emote {
+            showEmote(emote)
+            if event.trigger == "love" { emitSparks(hearts: true) }
+        }
+        guard !(event.proactive && Self.quietMode) else { return }
+        if let line = packLines[event.trigger]?.randomElement() ?? event.line {
+            showToast(line, duration: 3.5)
+        }
+    }
+
+    /// 头顶冒一个情绪符号（💢 ❤️ 💧 ✨ …）：弹出、上浮、淡出。
+    func showEmote(_ emote: String) {
+        guard let host = panel?.contentView else { return }
+        let label = emoteLabel ?? {
+            let l = NSTextField(labelWithString: "")
+            l.font = .systemFont(ofSize: max(18, host.bounds.width * 0.14))
+            l.alignment = .center
+            l.translatesAutoresizingMaskIntoConstraints = false
+            host.addSubview(l)
+            NSLayoutConstraint.activate([
+                l.centerXAnchor.constraint(equalTo: host.centerXAnchor, constant: host.bounds.width * 0.22),
+                l.topAnchor.constraint(equalTo: host.topAnchor, constant: 4),
+            ])
+            emoteLabel = l
+            return l
+        }()
+        label.stringValue = String(emote.prefix(4))
+        label.isHidden = false
+        label.alphaValue = 1
+        label.wantsLayer = true
+        if let layer = label.layer {
+            let pop = CAKeyframeAnimation(keyPath: "transform.scale")
+            pop.values = [0.2, 1.3, 0.95, 1.0]
+            pop.duration = 0.35
+            let rise = CABasicAnimation(keyPath: "transform.translation.y")
+            rise.fromValue = 0
+            rise.toValue = 8
+            rise.duration = 1.6
+            layer.add(pop, forKey: "pop")
+            layer.add(rise, forKey: "rise")
+        }
+        emoteWork?.cancel()
+        let work = DispatchWorkItem { [weak label] in
+            NSAnimationContext.runAnimationGroup({ $0.duration = 0.3; label?.animator().alphaValue = 0 },
+                                                completionHandler: { label?.isHidden = true })
+        }
+        emoteWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6, execute: work)
+    }
+
+    /// 删字（InputController 调）：短时间删很多会被安慰。
+    func noteDelete() {
+        guard panel?.isVisible == true, let event = PetEmotion.shared.deleted() else { return }
+        perform(event)
+    }
+
+    /// 鼠标在桌宠附近左右猛晃 → 晕。统计 1.2 秒内幅度超过 30pt 的折返次数。
+    private func shakeTick() {
+        guard let panel, panel.isVisible else { return }
+        let mouse = NSEvent.mouseLocation
+        let now = CACurrentMediaTime()
+        guard panel.frame.insetBy(dx: -160, dy: -160).contains(mouse) else {
+            if !shakeSamples.isEmpty { shakeSamples.removeAll() }
+            return
+        }
+        shakeSamples.append((now, mouse.x))
+        shakeSamples.removeAll { now - $0.t > 1.2 }
+        guard shakeSamples.count > 6, let first = shakeSamples.first else { return }
+        var reversals = 0, dir = 0
+        var extreme = first.x
+        for sample in shakeSamples.dropFirst() {
+            let x = sample.x
+            switch dir {
+            case 0:
+                if x - extreme > 30 { dir = 1; extreme = x } else if extreme - x > 30 { dir = -1; extreme = x }
+            case 1:
+                if x > extreme { extreme = x } else if extreme - x > 30 { reversals += 1; dir = -1; extreme = x }
+            default:
+                if x < extreme { extreme = x } else if x - extreme > 30 { reversals += 1; dir = 1; extreme = x }
+            }
+        }
+        if reversals >= 4, let event = PetEmotion.shared.shaken() {
+            shakeSamples.removeAll()
+            markActive(typing: false)
+            perform(event)
+        }
     }
 
     private func lifeTick() {
@@ -475,6 +593,7 @@ final class PetWindowController {
             showToast("已经连续打字 \(Self.breakMinutes) 分钟了，起来伸个懒腰、喝口水吧 ☕️", duration: 8)
         }
         greetIfNeeded()
+        if let event = PetEmotion.shared.tick(typingRecently: idleFor < 120) { perform(event) }
     }
 
     private func setSleepy(_ on: Bool) {
@@ -687,11 +806,18 @@ final class PetWindowController {
     func react(_ state: State) {
         guard let panel, panel.isVisible else { return }
         resetWorkItem?.cancel()
+        var welcome: PetEmotion.Event?
         if state == .composing || state == .commit {
+            // 离开很久后回来打字：先醒，再欢迎
+            welcome = PetEmotion.shared.resumed(afterIdle: Date().timeIntervalSince(lastActivity))
             markActive(typing: true)
         }
         if state == .commit {
             checkMilestone()
+            PetEmotion.shared.committed()
+        }
+        if let welcome {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.perform(welcome) }
         }
         // 形象包：切状态、帧归零、按状态换帧率
         if let pack, let imageView {
@@ -790,6 +916,7 @@ final class PetWindowController {
         background.onDragChanged = { [weak self] dragging in
             guard let self else { return }
             self.lastUserTouch = Date()
+            PetEmotion.shared.touched()
             self.markActive(typing: false)
             self.petView?.setDragging(dragging)
             if !dragging { self.clampToScreen(animated: true) }
@@ -981,6 +1108,11 @@ final class PetWindowController {
         pulse(scale: 1.12, duration: 0.2)
         lastUserTouch = Date()
         markActive(typing: false)
+        // 连摸几下 → 心动（替代普通摸头反应）
+        if let event = PetEmotion.shared.petted() {
+            perform(event)
+            return
+        }
         if let petView {
             petView.petted()
         } else {
@@ -994,6 +1126,11 @@ final class PetWindowController {
         pulse(scale: 1.2, duration: 0.26)
         lastUserTouch = Date()
         markActive(typing: false)
+        // 连戳 → 生气背过身（替代普通戳一戳反应）
+        if let event = PetEmotion.shared.poked() {
+            perform(event)
+            return
+        }
         if let petView {
             petView.poke()
         } else {
@@ -1011,7 +1148,16 @@ final class PetWindowController {
         statsButton?.isHidden = !hovering
         statsButton?.toolTip = "今日已输入 \(PetStats.shared.today.chars.formatted()) 字 · 点开看小结"
         petView?.setHover(hovering)
+        self.hovering = hovering
+        stareWork?.cancel()
         guard hovering else { return }
+        // 鼠标一直停在身上 → 害羞
+        let stare = DispatchWorkItem { [weak self] in
+            guard let self, self.hovering, let event = PetEmotion.shared.stared() else { return }
+            self.perform(event)
+        }
+        stareWork = stare
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.5, execute: stare)
         pulse(scale: 1.06, duration: 0.16)
         let shown = UserDefaults.standard.integer(forKey: Self.hintCountKey)
         guard shown < 3 else { return }
@@ -1022,7 +1168,13 @@ final class PetWindowController {
     /// 右键菜单：模式、标点、统计、桌宠设置、隐私。
     private func presentPetMenu(_ event: NSEvent?) {
         lastUserTouch = Date()
+        PetEmotion.shared.touched()
         let menu = NSMenu()
+        let affection = NSMenuItem(title: "好感度 \(PetEmotion.shared.hearts)", action: nil, keyEquivalent: "")
+        affection.toolTip = "\(Int(PetEmotion.shared.affection))/100 · 摸头、陪它打字会涨，冷落和连戳会降"
+        affection.isEnabled = false
+        menu.addItem(affection)
+        menu.addItem(.separator())
         let lang = NSMenuItem(title: "切换 中/英", action: #selector(petMenuToggleLanguage(_:)), keyEquivalent: "")
         lang.target = self
         menu.addItem(lang)
@@ -1354,7 +1506,7 @@ final class PetWindowController {
         let day = yesterday ? PetStats.shared.yesterday : PetStats.shared.today
         let title = yesterday ? "昨日输入总结" : "今日输入小结"
         if let text = PetStats.summaryText(for: day, title: title) {
-            showToast(text, duration: 12)
+            showToast(text + "\n好感度 " + PetEmotion.shared.hearts, duration: 12)
         }
     }
 

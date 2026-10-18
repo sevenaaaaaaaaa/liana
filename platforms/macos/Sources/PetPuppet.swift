@@ -19,6 +19,8 @@ struct PuppetRig: Equatable {
     var ground: CGFloat = 0
     var eyes: [CGRect] = []
     var mouth: CGRect?
+    /// 识别到的人脸框（只用于表情图之间自动对齐，不参与形变）
+    var face: CGRect?
 
     var json: [String: Any] {
         var out: [String: Any] = [
@@ -28,6 +30,7 @@ struct PuppetRig: Equatable {
         ]
         if !eyes.isEmpty { out["eyes"] = eyes.map(box) }
         if let mouth { out["mouth"] = box(mouth) }
+        if let face { out["face"] = box(face) }
         return out
     }
 
@@ -65,16 +68,27 @@ struct PuppetRig: Equatable {
         if let g = json["ground"] as? Double { ground = g }
         eyes = ((json["eyes"] as? [Any]) ?? []).compactMap(Self.rect).prefix(2).map { $0 }
         mouth = Self.rect(json["mouth"])
+        face = Self.rect(json["face"])
     }
 
     private func round3(_ v: CGFloat) -> Double { (Double(v) * 1000).rounded() / 1000 }
 }
 
-/// 角色状态（图片的用途）。顺序即添加图片时自动分配的顺序。
+/// 角色状态（图片的用途）。顺序即形象工坊里格子的顺序，也是添加图片时自动分配的顺序。
 enum PuppetRole: String, CaseIterable, Identifiable {
-    case idle, happy, typing, sleep, surprised, blink, talk, shy, sad
+    case idle, blink, talk, happy, typing, sleep, surprised, shy, sad, angry, love, tired
 
     var id: String { rawValue }
+
+    enum Tier: String { case required = "必需", recommended = "推荐", optional = "可选" }
+
+    var tier: Tier {
+        switch self {
+        case .idle: return .required
+        case .blink, .happy, .sleep, .surprised: return .recommended
+        default: return .optional
+        }
+    }
 
     var title: String {
         switch self {
@@ -87,6 +101,72 @@ enum PuppetRole: String, CaseIterable, Identifiable {
         case .talk: return "张嘴（说话用）"
         case .shy: return "害羞"
         case .sad: return "委屈"
+        case .angry: return "生气"
+        case .love: return "心动"
+        case .tired: return "疲惫"
+        }
+    }
+
+    var shortTitle: String {
+        switch self {
+        case .idle: return "平时"
+        case .blink: return "闭眼"
+        case .talk: return "张嘴"
+        default: return title
+        }
+    }
+
+    /// 什么时候用到这张图
+    var usage: String {
+        switch self {
+        case .idle: return "大部分时间显示它，所有动作都从它开始"
+        case .blink: return "每隔几秒闪一下，桌宠就会眨眼"
+        case .talk: return "冒气泡说话时和「平时」快速交替，嘴巴就会动"
+        case .happy: return "被摸头、上屏、庆祝、打招呼"
+        case .typing: return "你打字时"
+        case .sleep: return "很久没输入时打盹"
+        case .surprised: return "被双击戳、被拎起来、晃晕"
+        case .shy: return "被连着摸、鼠标停在它身上"
+        case .sad: return "被冷落、委屈"
+        case .angry: return "被连戳好几下，背过身生气"
+        case .love: return "好感度高时被摸头，冒爱心"
+        case .tired: return "连续打字太久、深夜还没睡"
+        }
+    }
+
+    /// 拍摄 / 找图 / 生成要点（和示意图对应）
+    var hint: String {
+        switch self {
+        case .idle: return "正面站立、全身入镜、双手自然下垂、微笑；背景越简单越好"
+        case .blink: return "和「平时」同一张：同样姿势和位置，只把眼睛闭上（连拍最容易得到）"
+        case .talk: return "和「平时」同一张：只把嘴张开，像在说「啊」"
+        case .happy: return "眯眼大笑，双手举起或比耶"
+        case .typing: return "微微低头、专注，双手放在身前"
+        case .sleep: return "闭眼、头歪向一侧，可以揉眼睛"
+        case .surprised: return "睁大眼睛、嘴巴张圆，双手张开"
+        case .shy: return "脸红、眼睛看向一边，双手捧脸或绞手指"
+        case .sad: return "嘴角向下、眉头上扬，低头"
+        case .angry: return "鼓起脸、皱眉，双手叉腰"
+        case .love: return "笑得很甜，双手在胸前比心"
+        case .tired: return "半睁眼、弯腰驼背，可以打哈欠"
+        }
+    }
+
+    /// 生成提示词里描述这张图的那一句
+    var promptPhrase: String {
+        switch self {
+        case .idle: return "自然站立，微笑，双手自然下垂"
+        case .blink: return "与第 1 张完全相同的姿势和构图，只是双眼闭上"
+        case .talk: return "与第 1 张完全相同的姿势和构图，只是嘴巴张开像在说话"
+        case .happy: return "眯眼大笑，双手举起"
+        case .typing: return "微微低头，专注，双手放在身前像在打字"
+        case .sleep: return "闭眼打瞌睡，头歪向一侧"
+        case .surprised: return "睁大眼睛，嘴巴张圆，双手张开"
+        case .shy: return "脸红，眼睛看向一边，双手捧脸"
+        case .sad: return "委屈，嘴角向下，眉头上扬，低头"
+        case .angry: return "生气，鼓起脸颊，皱眉，双手叉腰"
+        case .love: return "甜甜地笑，双手在胸前比心"
+        case .tired: return "疲惫，半睁眼，弯腰，打哈欠"
         }
     }
 
@@ -96,15 +176,46 @@ enum PuppetRole: String, CaseIterable, Identifiable {
         let hints: [(PuppetRole, [String])] = [
             (.blink, ["blink", "闭眼", "eyes_closed", "closed"]),
             (.talk, ["talk", "speak", "mouth_open", "张嘴", "说话"]),
-            (.sleep, ["sleep", "睡", "困"]),
+            (.sleep, ["sleep", "睡"]),
+            (.tired, ["tired", "yawn", "累", "疲", "困"]),
             (.happy, ["happy", "smile", "开心", "笑"]),
             (.typing, ["typing", "type", "打字", "work"]),
             (.surprised, ["surprise", "shock", "惊"]),
             (.shy, ["shy", "blush", "害羞"]),
-            (.sad, ["sad", "cry", "angry", "委屈", "哭", "生气"]),
+            (.angry, ["angry", "mad", "生气", "怒"]),
+            (.love, ["love", "heart", "心动", "比心", "爱"]),
+            (.sad, ["sad", "cry", "委屈", "哭"]),
             (.idle, ["idle", "normal", "default", "平时", "站"]),
         ]
         return hints.first { _, keys in keys.contains { name.contains($0) } }?.0
+    }
+}
+
+/// 表情图相对「平时」图的对齐：缩放 + 平移（单位 = 平时图显示高度，dy 向上为正）。
+struct PuppetAlign: Equatable {
+    var scale: CGFloat = 1
+    var dx: CGFloat = 0
+    var dy: CGFloat = 0
+
+    static let identity = PuppetAlign()
+
+    var json: [String: Any] {
+        ["s": (Double(scale) * 1000).rounded() / 1000,
+         "dx": (Double(dx) * 1000).rounded() / 1000,
+         "dy": (Double(dy) * 1000).rounded() / 1000]
+    }
+
+    init(scale: CGFloat = 1, dx: CGFloat = 0, dy: CGFloat = 0) {
+        self.scale = scale
+        self.dx = dx
+        self.dy = dy
+    }
+
+    init(json: [String: Any]?) {
+        guard let json else { return }
+        scale = min(3, max(0.3, CGFloat(json["s"] as? Double ?? 1)))
+        dx = CGFloat(json["dx"] as? Double ?? 0)
+        dy = CGFloat(json["dy"] as? Double ?? 0)
     }
 }
 
@@ -114,8 +225,38 @@ struct PuppetImage: Identifiable {
     var png: Data
     var pixelSize: CGSize
     var rig: PuppetRig
+    var align = PuppetAlign.identity
 
     var aspect: CGFloat { pixelSize.width / max(1, pixelSize.height) }
+
+    /// 自动对齐到「平时」图：两张都识别到脸就让脸的大小和位置重合；否则按脚底与身高对齐（不缩放）。
+    static func autoAlign(_ image: PuppetImage, to idle: PuppetImage) -> PuppetAlign {
+        guard let f = image.rig.face, let g = idle.rig.face, f.height > 0.01 else { return .identity }
+        let s = min(2.5, max(0.4, g.height / f.height))
+        let dx = (g.midX - 0.5) * idle.aspect - (f.midX - 0.5) * image.aspect * s
+        let dy = (g.midY - idle.rig.ground) - (f.midY - image.rig.ground) * s
+        return PuppetAlign(scale: s, dx: dx, dy: dy)
+    }
+
+    /// 和「平时」图差得多不多：对齐后两者占据的区域重合度低、或要缩放很多（全身配半身）就提醒。
+    static func mismatch(_ image: PuppetImage, idle: PuppetImage) -> String? {
+        let a = image.align
+        if a.scale > 1.45 || a.scale < 0.7 {
+            return "构图和「平时」差别大（像是一张全身一张半身），切换时会跳"
+        }
+        // 两者在显示坐标里的外框（单位 = 平时图高度，原点 = 脚底中心）
+        let idleBox = CGRect(x: -idle.aspect / 2, y: 0, width: idle.aspect, height: 1)
+        let w = image.aspect * a.scale
+        let box = CGRect(x: -w / 2 + a.dx, y: a.dy, width: w, height: a.scale)
+        let inter = idleBox.intersection(box)
+        let union = idleBox.width * idleBox.height + box.width * box.height - (inter.isNull ? 0 : inter.width * inter.height)
+        let iou = inter.isNull ? 0 : inter.width * inter.height / max(0.0001, union)
+        if iou < 0.6 { return "人物位置或姿势和「平时」差别大，切换时会跳" }
+        if (image.rig.face == nil) != (idle.rig.face == nil) {
+            return "只有一张识别到脸，没能自动对齐，建议在下面手动对一下"
+        }
+        return nil
+    }
 }
 
 /// 动作编辑器的通道：标题、pet.json 通道名、滑杆范围。
@@ -447,6 +588,7 @@ enum PuppetBuilder {
         let y1 = min(1, face.maxY + face.height * 0.55)
         rig.head = CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
         rig.neck = CGPoint(x: face.midX, y: max(0.05, face.minY - face.height * 0.1))
+        rig.face = face
 
         // 特征点坐标相对人脸框归一化 → 换算到整张图
         func region(_ r: VNFaceLandmarkRegion2D?, padX: CGFloat, padY: CGFloat) -> CGRect? {
@@ -630,7 +772,9 @@ enum PuppetPackStore {
         for image in draft.images {
             let file = "\(image.role.rawValue).png"
             try image.png.write(to: dir.appendingPathComponent(file))
-            imageSpecs[image.role.rawValue] = ["src": file, "rig": image.rig.json]
+            var spec: [String: Any] = ["src": file, "rig": image.rig.json]
+            if image.role != .idle, image.align != .identity { spec["align"] = image.align.json }
+            imageSpecs[image.role.rawValue] = spec
         }
         // 没有自备闭眼 / 张嘴图时，按「平时」图的眼睛、嘴巴位置自动生成（标记 generated，编辑时重新生成）
         let roles = Set(draft.images.map(\.role))
@@ -748,7 +892,8 @@ enum PuppetPackStore {
                 role: role,
                 png: png,
                 pixelSize: CGSize(width: rep.pixelsWide, height: rep.pixelsHigh),
-                rig: PuppetRig(json: (spec as? [String: Any])?["rig"] as? [String: Any])
+                rig: PuppetRig(json: (spec as? [String: Any])?["rig"] as? [String: Any]),
+                align: PuppetAlign(json: (spec as? [String: Any])?["align"] as? [String: Any])
             ))
         }
         return draft.images.isEmpty ? nil : draft
