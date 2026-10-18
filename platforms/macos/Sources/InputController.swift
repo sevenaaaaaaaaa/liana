@@ -599,6 +599,7 @@ final class LianaInputController: IMKInputController {
         voicePunctPending = nil
         voice.onPartial = { [weak self] text in
             guard let self, self.voice.isListening else { return }
+            PetWindowController.shared.voiceHeard()
             self.voicePartial = text
             guard let client = self.activeClient() else { return }
             if self.engine.hasComposition {
@@ -1149,6 +1150,10 @@ final class LianaInputController: IMKInputController {
         lastEventAt = nowTick
 
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        // 桌宠对打字方式的反应：只传按键类别与 keyCode，不传内容
+        if let reaction = PetKeyObserver.shared.key(code: event.keyCode, flags: flags, characters: event.charactersIgnoringModifiers) {
+            PetWindowController.shared.keyReaction(reaction)
+        }
 
         // ⌃`：功能面板（与 Rime 的方案菜单同一个手感位）；再按一次关闭。
         // keyCode 50 = ANSI 键盘的 `，10 = ISO 键盘上 ` 所在的键。
@@ -1533,6 +1538,7 @@ final class LianaInputController: IMKInputController {
         let keys = engine.composition.raw.count
         guard let text = engine.select(index) else {
             NSSound.beep()
+            if let reaction = PetKeyObserver.shared.noteSelectFailed() { PetWindowController.shared.keyReaction(reaction) }
             return
         }
         noteEvolutionSelection(index: index)
@@ -1545,6 +1551,7 @@ final class LianaInputController: IMKInputController {
         recordModeSignal(strong: false)
         persistUserModel()
         PetWindowController.shared.react(.commit)
+        PetKeyObserver.shared.noteCommit()
         page = 0
         update(client)
     }

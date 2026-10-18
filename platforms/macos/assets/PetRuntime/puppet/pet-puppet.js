@@ -175,6 +175,7 @@
   // 没提供的表情图按近似表情兜底（再没有就用平时图）
   const FALLBACK = {
     angry: ['sad'], love: ['shy', 'happy'], tired: ['sleep'], shy: ['happy'],
+    covereyes: ['blink', 'sleep'], listen: ['happy'],
   };
   function resolveRole(role) {
     if (!role) return null;
@@ -272,6 +273,8 @@
   let hovered = false;
   let sleepy = false;
   let dragging = false;
+  /// 持续姿态：cover（输入密码时捂眼）/ listen（语音输入时倾听），优先于打字和待机
+  let hold = '';
   let typingUntil = 0;
   let lastCommitShot = 0;
   let lastHoverShot = 0;
@@ -597,6 +600,7 @@
   }
   function baseState() {
     if (dragging) return 'drag';
+    if (hold) return hold;
     if (sleepy) return 'sleep';
     return now < typingUntil ? 'typing' : 'idle';
   }
@@ -609,7 +613,7 @@
       lastCommitShot = now;
       trigger('commit');
     }
-    if (!dragging && !sleepy) setState(value === 'idle' ? 'idle' : 'typing');
+    if (!dragging && !sleepy && !hold) setState(value === 'idle' ? 'idle' : 'typing');
   };
   window.petPetted = () => { trigger('click', { force: true }); say('click', true); };
   window.petPoke = () => { trigger('double_click', { force: true }); say('double_click', true); };
@@ -630,6 +634,10 @@
     sleepy = !!on;
     if (sleepy) say('sleep');
     else { trigger('wake'); say('wake'); }
+    setState(baseState());
+  };
+  window.petSetHold = (name) => {
+    hold = (name === 'cover' || name === 'listen') ? name : '';
     setState(baseState());
   };
   window.petSetMood = (level) => { moodLevel = Math.max(0, Math.min(3, level | 0)); };

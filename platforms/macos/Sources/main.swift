@@ -543,6 +543,23 @@ if installArgs.count > 1 {
         NSApplication.shared.run()
         exit(0)
 
+    case "--pet-keys-test":
+        // 开发用：按键类反应规则（只看 keyCode 与修饰键）
+        let o = PetKeyObserver.shared
+        func k(_ code: UInt16, _ flags: NSEvent.ModifierFlags = [], _ ch: String? = nil) -> String {
+            o.key(code: code, flags: flags, characters: ch)?.trigger ?? "-"
+        }
+        print("3 deletes:", k(51), k(51), k(51))
+        print("same key x7:", (0..<7).map { _ in k(0) }.joined(separator: " "))
+        print("cmd+z:", k(6, .command, "z"), "cmd+s:", k(1, .command, "s"), "cmd+v:", k(9, .command, "v"))
+        print("arrows:", k(123), k(126))
+        print("enter:", k(36), "esc:", k(53), "tab:", k(48))
+        var errors: [String] = []
+        for _ in 0..<3 { o.noteCommit(); errors.append(k(51)) }
+        print("commit→delete x3:", errors.joined(separator: " "))
+        print("fast typing:", (0..<30).map { k(UInt16(($0 % 6) + 2)) }.filter { $0 != "-" })
+        exit(0)
+
     case "--pet-chat-test":
         // 开发用：模拟在对话气泡里打字（拼音组字 → 选词 → 发送），并检查本机规则回复
         let composer = ChatComposerView(frame: NSRect(x: 0, y: 0, width: 280, height: 30))

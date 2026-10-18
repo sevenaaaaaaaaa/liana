@@ -1283,6 +1283,7 @@ struct RoleSketch: View {
             case .sleep: head = CGPoint(x: 55, y: 37)
             case .typing, .sad: head = CGPoint(x: 50, y: 37)
             case .tired: head = CGPoint(x: 52, y: 39); lean = 4
+            case .listen: head = CGPoint(x: 47, y: 36)
             default: break
             }
             let neck = p(50 + lean / 2, 54), hip = p(50, 92)
@@ -1314,6 +1315,10 @@ struct RoleSketch: View {
                 text("♥", p(50, 64), 9, .pink)
             case .sleep:
                 stroke([p(39, 60), p(36, 76), p(38, 88)]); stroke([p(61, 60), p(64, 50), p(60, 42)])
+            case .covereyes:
+                stroke([p(39, 60), p(33, 46), p(44, 34)]); stroke([p(61, 60), p(67, 46), p(56, 34)])
+            case .listen:
+                stroke([p(39, 60), p(32, 76), p(31, 88)]); stroke([p(61, 60), p(74, 46), p(70, 33)])
             case .tired:
                 stroke([p(41, 60), p(36, 80), p(37, 92)]); stroke([p(63, 60), p(68, 80), p(67, 92)])
             default:
@@ -1330,6 +1335,11 @@ struct RoleSketch: View {
             switch role {
             case .blink, .sleep:
                 arc(le, 3.2, 20, 160); arc(re, 3.2, 20, 160)
+            case .covereyes:
+                for c in [le, re] {
+                    ctx.fill(Path(ellipseIn: CGRect(x: c.x - 6 * k, y: c.y - 4.5 * k, width: 12 * k, height: 9 * k)), with: soft)
+                    ctx.stroke(Path(ellipseIn: CGRect(x: c.x - 6 * k, y: c.y - 4.5 * k, width: 12 * k, height: 9 * k)), with: ink, style: StrokeStyle(lineWidth: 1.4 * k))
+                }
             case .happy, .love:
                 arc(CGPoint(x: le.x, y: le.y + 2 * k), 3.2, 200, 340); arc(CGPoint(x: re.x, y: re.y + 2 * k), 3.2, 200, 340)
                 if role == .love { text("♥", CGPoint(x: le.x, y: le.y - 6 * k), 6, .pink); text("♥", CGPoint(x: re.x, y: re.y - 6 * k), 6, .pink) }
@@ -1387,6 +1397,10 @@ struct RoleSketch: View {
             // 情绪符号
             switch role {
             case .sleep: text("z Z", p(78, 14), 9)
+            case .covereyes: text("🙈", p(76, 14), 10)
+            case .listen:
+                arc(CGPoint(x: hc.x + 22 * k, y: hc.y - 4 * k), 4, -60, 60)
+                arc(CGPoint(x: hc.x + 22 * k, y: hc.y - 4 * k), 8, -60, 60)
             case .surprised: text("!", p(76, 14), 13)
             case .angry: text("💢", p(74, 16), 10)
             case .sad, .tired: text("💧", p(73, 24), 8)

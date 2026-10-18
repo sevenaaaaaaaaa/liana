@@ -1,4 +1,5 @@
 import AppKit
+import Carbon
 import QuartzCore
 
 /// 桌宠 v2：内置玻璃小猫 + 社区形象包（声明式数据包，零代码执行）。
@@ -194,6 +195,18 @@ final class PetWindowController {
     private var shakeSamples: [(t: CFTimeInterval, x: CGFloat)] = []
     private var hovering = false
     private var stareWork: DispatchWorkItem?
+    /// 持续姿态：cover（输入密码捂眼）/ listen（语音倾听）
+    private var holds: Set<String> = []
+    private var secureSince: Date?
+    private var secureIgnored = false
+    private var voiceListening = false
+    private var voiceHeardAny = false
+    private var lastVoiceNod = Date.distantPast
+    private var pollTick = 0
+    private var dragSamples: [(t: CFTimeInterval, p: NSPoint)] = []
+    private var dragStarted = Date()
+    private var dragWork: DispatchWorkItem?
+    private var lastModeChinese: Bool?
 
     private struct PetPack {
         var size: CGFloat = 84
@@ -576,6 +589,126 @@ final class PetWindowController {
         PetEmotion.shared.reward(0.3)
     }
 
+    // MARK: - 打字方式 / 密码 / 语音 / 拖动 的反应
+
+    /// 按键类反应（PetKeyObserver 判断）：纸偶播动作，所有形象都冒情绪符号；台词遵守安静模式。
+    func keyReaction(_ reaction: PetKeyObserver.Reaction) {
+        guard panel?.isVisible == true else { return }
+        if pack?.renderer == "puppet" { petView?.trigger(reaction.trigger) } else if reaction.emote == nil { pulse(scale: 1.05, duration: 0.15) }
+        if let emote = reaction.emote { showEmote(emote) }
+        if let line = reaction.line, !Self.quietMode { showToast(line, duration: 2.5) }
+    }
+
+    private func setHold(_ name: String, _ on: Bool) {
+        let before = holds
+        if on { holds.insert(name) } else { holds.remove(name) }
+        guard holds != before else { return }
+        let effective = holds.contains("cover") ? "cover" : (holds.contains("listen") ? "listen" : "")
+        petView?.setHold(effective)
+    }
+
+    /// 系统进入「安全输入」（密码框）→ 捂眼睛；退出 → 偷看一眼。
+    /// 有的应用会长期开着安全输入（终端的安全键盘输入、密码管理器），捂 90 秒还没结束就放下手，等它关了再说。
+    private func pollSecureInput() {
+        let secure = IsSecureEventInputEnabled()
+        if secure {
+            if secureSince == nil {
+                secureSince = Date()
+                guard !secureIgnored else { return }
+                setHold("cover", true)
+                showEmote("🙈")
+                if !Self.quietMode { showToast(["我不看我不看", "捂好眼睛了，放心输", "嘘——我什么都没看到"].randomElement()!, duration: 2.5) }
+            } else if !secureIgnored, let since = secureSince, Date().timeIntervalSince(since) > 90 {
+                secureIgnored = true
+                setHold("cover", false)
+            }
+        } else if secureSince != nil {
+            secureSince = nil
+            let wasCovering = holds.contains("cover")
+            secureIgnored = false
+            setHold("cover", false)
+            if wasCovering {
+                petView?.trigger("cover_end")
+                showEmote("👀")
+                if !Self.quietMode { showToast(["输好了吗？", "我可以睁眼了吗～"].randomElement()!, duration: 2) }
+            }
+        }
+    }
+
+    /// 语音输入：开始 → 凑过来竖起耳朵；说完 → 开心回应。
+    private func pollVoice() {
+        let listening = VoiceInputController.shared.isListening
+        guard listening != voiceListening else { return }
+        voiceListening = listening
+        setHold("listen", listening)
+        if listening {
+            voiceHeardAny = false
+            showEmote("👂")
+        } else if voiceHeardAny {
+            petView?.trigger("voice_done")
+            showEmote("😊")
+        }
+    }
+
+    /// 语音识别有新内容（InputController 调）：听着听着点点头。
+    func voiceHeard() {
+        voiceHeardAny = true
+        guard Date().timeIntervalSince(lastVoiceNod) > 1.6 else { return }
+        lastVoiceNod = Date()
+        petView?.trigger("voice_heard")
+    }
+
+    /// 中 / 英切换：头顶冒「中」或「EN」。
+    private func modeChanged(chinese: Bool) {
+        defer { lastModeChinese = chinese }
+        guard let last = lastModeChinese, last != chinese, panel?.isVisible == true else { return }
+        petView?.trigger("mode")
+        showEmote(chinese ? "中" : "EN")
+    }
+
+    private func dragBegan() {
+        dragSamples.removeAll()
+        dragStarted = Date()
+        dragWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, !Self.quietMode else { return }
+            self.showToast(["放我下来嘛～", "要带我去哪儿呀？", "我恐高…"].randomElement()!, duration: 2.5)
+        }
+        dragWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6, execute: work)
+    }
+
+    /// 放下时：拎着来回晃 → 晕；用力一甩 → 转着圈落地。
+    private func dragEnded() {
+        dragWork?.cancel()
+        defer { dragSamples.removeAll() }
+        guard dragSamples.count > 4, let last = dragSamples.last else { return }
+        var reversals = 0, dir = 0
+        var extreme = dragSamples[0].p.x
+        for sample in dragSamples.dropFirst() {
+            let x = sample.p.x
+            switch dir {
+            case 0: if x - extreme > 25 { dir = 1; extreme = x } else if extreme - x > 25 { dir = -1; extreme = x }
+            case 1: if x > extreme { extreme = x } else if extreme - x > 25 { reversals += 1; dir = -1; extreme = x }
+            default: if x < extreme { extreme = x } else if x - extreme > 25 { reversals += 1; dir = 1; extreme = x }
+            }
+        }
+        let recent = dragSamples.filter { last.t - $0.t < 0.08 }
+        var speed: CGFloat = 0
+        if let first = recent.first, last.t - first.t > 0.01 {
+            speed = hypot(last.p.x - first.p.x, last.p.y - first.p.y) / CGFloat(last.t - first.t)
+        }
+        if reversals >= 4 {
+            petView?.trigger("drag_dizzy")
+            showEmote("💫")
+            if !Self.quietMode { showToast(["晕晕晕…", "别晃了，天旋地转的"].randomElement()!, duration: 2.5) }
+        } else if speed > 1800 {
+            petView?.trigger("fling")
+            showEmote("💫")
+            if !Self.quietMode { showToast("哇啊啊——", duration: 1.8) }
+        }
+    }
+
     /// 删字（InputController 调）：短时间删很多会被安慰。
     func noteDelete() {
         guard panel?.isVisible == true, let event = PetEmotion.shared.deleted() else { return }
@@ -585,6 +718,9 @@ final class PetWindowController {
     /// 鼠标在桌宠附近左右猛晃 → 晕。统计 1.2 秒内幅度超过 30pt 的折返次数。
     private func shakeTick() {
         guard let panel, panel.isVisible else { return }
+        pollTick += 1
+        if pollTick % 15 == 0 { pollSecureInput() }
+        pollVoice()
         let mouse = NSEvent.mouseLocation
         let now = CACurrentMediaTime()
         guard panel.frame.insetBy(dx: -160, dy: -160).contains(mouse) else {
@@ -964,7 +1100,14 @@ final class PetWindowController {
             PetEmotion.shared.touched()
             self.markActive(typing: false)
             self.petView?.setDragging(dragging)
+            if dragging { self.dragBegan() } else { self.dragEnded() }
             if !dragging { self.clampToScreen(animated: true) }
+        }
+        background.onDragMoved = { [weak self] point in
+            guard let self else { return }
+            let now = CACurrentMediaTime()
+            self.dragSamples.append((now, point))
+            self.dragSamples.removeAll { now - $0.t > 1.5 }
         }
 
         // 脚下柔和的椭圆投影：让角色「站」在桌面上（半身构图没有脚，不画）
@@ -1631,6 +1774,7 @@ final class PetWindowController {
 
     /// 快启动台的模式徽标：中文模式显示「中」，英文显示「EN」。
     func setModeLabel(chinese: Bool) {
+        modeChanged(chinese: chinese)
         modeButton?.title = chinese ? "中" : "EN"
     }
 
@@ -1850,6 +1994,8 @@ private final class PetBackgroundView: NSView {
     var onRightClick: ((NSEvent) -> Void)?
     /// 拖动状态变化（true = 正在被拎起来）
     var onDragChanged: ((Bool) -> Void)?
+    /// 拖动中的鼠标位置（屏幕坐标）：晃动、甩出去的判断
+    var onDragMoved: ((NSPoint) -> Void)?
     private var trackingArea: NSTrackingArea?
     private var downLocation: NSPoint = .zero
     private var downAt: TimeInterval = 0
@@ -1902,6 +2048,7 @@ private final class PetBackgroundView: NSView {
             x: current.x - grabOffset.x,
             y: current.y - grabOffset.y
         ))
+        onDragMoved?(current)
     }
 
     override func mouseUp(with event: NSEvent) {

@@ -77,6 +77,9 @@ class PetWebView: WKWebView, WKScriptMessageHandler, WKNavigationDelegate {
             completion(value as? String ?? "body")
         }
     }
+    /// 持续姿态：cover（捂眼）/ listen（倾听）/ ""（恢复）。纸偶渲染器支持。
+    func setHold(_ name: String) { eval("window.petSetHold && window.petSetHold('\(Self.jsSafe(name))')") }
+
     /// 说话口型（纸偶渲染器）：嘴巴开合若干秒。
     func speak(seconds: Double) { eval("window.petSpeak && window.petSpeak(\(seconds))") }
     /// 直接播放某个动作（形象工坊「试试动作」）。

@@ -76,7 +76,7 @@ struct PuppetRig: Equatable {
 
 /// 角色状态（图片的用途）。顺序即形象工坊里格子的顺序，也是添加图片时自动分配的顺序。
 enum PuppetRole: String, CaseIterable, Identifiable {
-    case idle, blink, talk, happy, typing, sleep, surprised, shy, sad, angry, love, tired
+    case idle, blink, talk, happy, typing, sleep, surprised, shy, sad, angry, love, tired, covereyes, listen
 
     var id: String { rawValue }
 
@@ -104,6 +104,8 @@ enum PuppetRole: String, CaseIterable, Identifiable {
         case .angry: return "生气"
         case .love: return "心动"
         case .tired: return "疲惫"
+        case .covereyes: return "捂眼睛"
+        case .listen: return "倾听"
         }
     }
 
@@ -131,6 +133,8 @@ enum PuppetRole: String, CaseIterable, Identifiable {
         case .angry: return "被连戳好几下，背过身生气"
         case .love: return "好感度高时被摸头，冒爱心"
         case .tired: return "连续打字太久、深夜还没睡"
+        case .covereyes: return "你输入密码时捂住眼睛"
+        case .listen: return "语音输入时凑过来听"
         }
     }
 
@@ -149,6 +153,8 @@ enum PuppetRole: String, CaseIterable, Identifiable {
         case .angry: return "鼓起脸、皱眉，双手叉腰"
         case .love: return "笑得很甜，双手在胸前比心"
         case .tired: return "半睁眼、弯腰驼背，可以打哈欠"
+        case .covereyes: return "双手捂住眼睛，可以从指缝偷看"
+        case .listen: return "一只手放在耳边，身体前倾，认真听"
         }
     }
 
@@ -167,6 +173,8 @@ enum PuppetRole: String, CaseIterable, Identifiable {
         case .angry: return "生气，鼓起脸颊，皱眉，双手叉腰"
         case .love: return "甜甜地笑，双手在胸前比心"
         case .tired: return "疲惫，半睁眼，弯腰，打哈欠"
+        case .covereyes: return "双手捂住眼睛，害羞地不看"
+        case .listen: return "一只手放在耳边做倾听状，身体微微前倾，好奇"
         }
     }
 
@@ -184,6 +192,8 @@ enum PuppetRole: String, CaseIterable, Identifiable {
             (.shy, ["shy", "blush", "害羞"]),
             (.angry, ["angry", "mad", "生气", "怒"]),
             (.love, ["love", "heart", "心动", "比心", "爱"]),
+            (.covereyes, ["cover", "捂眼", "不看"]),
+            (.listen, ["listen", "ear", "倾听", "听"]),
             (.sad, ["sad", "cry", "委屈", "哭"]),
             (.idle, ["idle", "normal", "default", "平时", "站"]),
         ]
