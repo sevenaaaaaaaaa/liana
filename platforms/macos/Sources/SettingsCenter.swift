@@ -728,13 +728,17 @@ struct PetPage: View {
                     Text("半身").tag("bust")
                 }
                 .pickerStyle(.segmented)
-                Picker("大小", selection: model.binding({ PetWindowController.zoomOverride }, { PetWindowController.zoomOverride = $0 })) {
-                    Text("80%").tag(0.8)
-                    Text("100%").tag(1.0)
-                    Text("125%").tag(1.25)
-                    Text("150%").tag(1.5)
+                HStack {
+                    Text("大小")
+                    Slider(value: model.binding({ PetWindowController.zoomOverride * 100 }, { PetWindowController.zoomOverride = $0 / 100 }),
+                           in: (PetWindowController.zoomRange.lowerBound * 100)...(PetWindowController.zoomRange.upperBound * 100))
+                    Text("\(Int((PetWindowController.zoomOverride * 100).rounded()))%")
+                        .font(.system(size: 12, design: .monospaced))
+                        .frame(width: 44, alignment: .trailing)
                 }
-                .pickerStyle(.segmented)
+                Text("也可以在桌宠身上双指捏合，或按住 ⌥ 滚动滚轮调节")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
             }
             Section("形象") {
                 if installed.isEmpty {

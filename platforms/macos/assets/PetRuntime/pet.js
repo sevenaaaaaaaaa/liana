@@ -197,6 +197,13 @@ function resetPose() {
   if (chest) chest.rotation.set(0, 0, 0);
   if (head) head.rotation.set(0, 0, 0);
   if (hip) hip.rotation.set(0, 0, 0);
+  // 手臂也每帧回到自然下垂：拖动 / 挥手 / 伸懒腰之后不会一直端着
+  const lu = node('leftUpperArm'), ru = node('rightUpperArm');
+  const ll = node('leftLowerArm'), rl = node('rightLowerArm');
+  if (lu) lu.rotation.set(0, 0, armBase.z);
+  if (ru) ru.rotation.set(0, 0, -armBase.z);
+  if (ll) ll.rotation.set(0, 0, armBase.z * 0.19);
+  if (rl) rl.rotation.set(0, 0, -armBase.z * 0.19);
 }
 
 function poseIdle(t) {
@@ -275,10 +282,12 @@ function poseDrag(t) {
   const rl = node('rightLowerArm');
   const hips = node('hips');
   const head = node('head');
-  if (l) l.rotation.z = -2.85;      // 双臂高举（被拎起来）
-  if (r) r.rotation.z = 2.85;
-  if (ll) ll.rotation.z = -0.5;
-  if (rl) rl.rotation.z = 0.5;
+  // 被拎起来：手臂自然下垂、跟着身体轻轻晃（按模型的下垂基准角，VRM0 / VRM1 都对）
+  const swing = Math.sin(t * 5) * 0.07;
+  if (l) l.rotation.z = armBase.z * 0.9 + swing;
+  if (r) r.rotation.z = -armBase.z * 0.9 + swing;
+  if (ll) ll.rotation.z = armBase.z * 0.12;
+  if (rl) rl.rotation.z = -armBase.z * 0.12;
   if (hips) hips.rotation.z = Math.sin(t * 5) * 0.12;
   if (head) { head.rotation.x = -0.1; head.rotation.z = Math.sin(t * 5) * 0.1; }
   vrm.scene.position.y = Math.abs(Math.sin(t * 5)) * 0.02;         // 被拎起来晃动

@@ -32,10 +32,16 @@ final class PetWindowController {
         set { UserDefaults.standard.set(newValue, forKey: framingKey); shared.rebuild() }
     }
 
-    /// 缩放：0.8 / 1.0 / 1.25 / 1.5
+    static let zoomRange = 0.05...1.5
+
+    /// 大小：5%～150% 无级调节，直接缩放桌宠窗口（不重新加载形象）
     static var zoomOverride: Double {
-        get { UserDefaults.standard.object(forKey: zoomKey) as? Double ?? 1.0 }
-        set { UserDefaults.standard.set(newValue, forKey: zoomKey); shared.rebuild() }
+        get { min(zoomRange.upperBound, max(zoomRange.lowerBound, UserDefaults.standard.object(forKey: zoomKey) as? Double ?? 1.0)) }
+        set {
+            let value = min(zoomRange.upperBound, max(zoomRange.lowerBound, newValue))
+            UserDefaults.standard.set(value, forKey: zoomKey)
+            shared.applyZoom()
+        }
     }
 
     /// 内置 emoji 形象（未选形象包时使用）。默认女孩。
@@ -229,6 +235,8 @@ final class PetWindowController {
     private var dragStarted = Date()
     private var dragWork: DispatchWorkItem?
     private var lastModeChinese: Bool?
+    /// 形象包声明的窗口大小（100%）
+    private var baseSize = NSSize(width: 84, height: 84)
     private var sceneBack: PetSceneView?
     private var sceneFront: PetSceneView?
     private(set) var currentScene: PetScene = .none
@@ -476,6 +484,47 @@ final class PetWindowController {
             panel.alphaValue = 1
             _ = self
         })
+    }
+
+    // MARK: - 大小（5%～150%）
+
+    private func scaledSize() -> NSSize {
+        let z = CGFloat(Self.zoomOverride)
+        return NSSize(width: max(12, (baseSize.width * z).rounded()), height: max(12, (baseSize.height * z).rounded()))
+    }
+
+    /// 实时缩放：以脚底中心为锚点，形象、投影、道具、emoji 字号跟着变；太小时收起悬停小圆钮。
+    func applyZoom() {
+        guard let panel, let host = panel.contentView else { return }
+        let size = scaledSize()
+        let old = panel.frame
+        var frame = NSRect(x: old.midX - size.width / 2, y: old.minY, width: size.width, height: size.height)
+        if let visible = (panel.screen ?? NSScreen.main)?.visibleFrame {
+            frame.origin.x = min(max(frame.minX, visible.minX - size.width * 0.4), visible.maxX - size.width * 0.6)
+            frame.origin.y = min(max(frame.minY, visible.minY), visible.maxY - size.height)
+        }
+        panel.setFrame(frame, display: true)
+        host.frame = NSRect(origin: .zero, size: size)
+        if let shadow = groundShadow {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            let w = size.width * 0.56, h = max(4, size.width * 0.09)
+            shadow.frame = CGRect(x: (size.width - w) / 2, y: 2, width: w, height: h)
+            CATransaction.commit()
+        }
+        emojiLabel?.font = .systemFont(ofSize: size.width * 0.62)
+        propLabel?.font = .systemFont(ofSize: size.width * 0.3)
+        face.font = .systemFont(ofSize: size.width * 0.62)
+        let tiny = size.width < 70
+        for button in [modeButton, statsButton, chatButton] { button?.alphaValue = tiny ? 0 : 1 }
+        positionToast()
+        saveOrigin()
+    }
+
+    /// 捏合 / ⌥ 滚轮：按比例缩放
+    fileprivate func zoom(by factor: CGFloat) {
+        Self.zoomOverride = Self.zoomOverride * Double(factor)
+        showToast("大小 \(Int((Self.zoomOverride * 100).rounded()))%", duration: 1)
     }
 
     // MARK: - 入场动画
@@ -1325,8 +1374,10 @@ final class PetWindowController {
 
     private func makePanel() -> NSPanel {
         let size = pack?.size ?? 84
-        let panelW = pack?.width ?? size
-        let panelH = pack?.height ?? size
+        baseSize = NSSize(width: pack?.width ?? size, height: pack?.height ?? size)
+        let scaled = scaledSize()
+        let panelW = scaled.width
+        let panelH = scaled.height
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: panelW, height: panelH),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -1361,6 +1412,7 @@ final class PetWindowController {
             if dragging { self.dragBegan() } else { self.dragEnded() }
             if !dragging { self.clampToScreen(animated: true) }
         }
+        background.onZoom = { [weak self] factor in self?.zoom(by: factor) }
         background.onDragMoved = { [weak self] point in
             guard let self else { return }
             let now = CACurrentMediaTime()
@@ -1394,7 +1446,7 @@ final class PetWindowController {
                     frame: background.bounds,
                     modelPath: modelPath,
                     framing: Self.framingOverride,
-                    zoom: pack.zoom * Self.zoomOverride
+                    zoom: pack.zoom
                 )
                 view.autoresizingMask = [.width, .height]
                 view.onError = { [weak self] message in
@@ -1413,7 +1465,7 @@ final class PetWindowController {
                     frame: background.bounds,
                     modelPath: modelPath,
                     framing: Self.framingOverride,
-                    zoom: pack.zoom * Self.zoomOverride,
+                    zoom: pack.zoom,
                     scale: pack.scale
                 )
                 view.autoresizingMask = [.width, .height]
@@ -1434,7 +1486,7 @@ final class PetWindowController {
                 let view = PuppetPetView(
                     frame: background.bounds,
                     packPath: packPath,
-                    zoom: pack.zoom * Self.zoomOverride,
+                    zoom: pack.zoom,
                     roam: Self.roamEnabled
                 )
                 view.autoresizingMask = [.width, .height]
@@ -1471,7 +1523,7 @@ final class PetWindowController {
         } else if let pack, let emoji = pack.emoji {
             // emoji 角色包：系统 emoji 作形象（可爱/好看），可选道具 emoji
             let label = NSTextField(labelWithString: emoji)
-            label.font = .systemFont(ofSize: size * 0.62)
+            label.font = .systemFont(ofSize: panelW * 0.62)
             label.alignment = .center
             label.translatesAutoresizingMaskIntoConstraints = false
             background.addSubview(label)
@@ -1482,7 +1534,7 @@ final class PetWindowController {
             emojiLabel = label
             if let prop = pack.prop, !prop.isEmpty {
                 let p = NSTextField(labelWithString: prop)
-                p.font = .systemFont(ofSize: size * 0.3)
+                p.font = .systemFont(ofSize: panelW * 0.3)
                 p.alignment = .center
                 p.translatesAutoresizingMaskIntoConstraints = false
                 background.addSubview(p)
@@ -1494,7 +1546,7 @@ final class PetWindowController {
             }
         } else {
             face.stringValue = Self.builtinEmoji
-            face.font = .systemFont(ofSize: size * 0.62)
+            face.font = .systemFont(ofSize: panelW * 0.62)
             face.alignment = .center
             face.translatesAutoresizingMaskIntoConstraints = false
             background.addSubview(face)
@@ -1762,16 +1814,9 @@ final class PetWindowController {
             roam.state = Self.roamEnabled ? .on : .off
             menu.addItem(roam)
         }
-        let sizeItem = NSMenuItem(title: "大小", action: nil, keyEquivalent: "")
-        let sizeMenu = NSMenu(title: "大小")
-        for (title, value) in [("80%", 0.8), ("100%", 1.0), ("125%", 1.25), ("150%", 1.5)] {
-            let item = NSMenuItem(title: title, action: #selector(petMenuZoom(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = value
-            item.state = abs(Self.zoomOverride - value) < 0.01 ? .on : .off
-            sizeMenu.addItem(item)
-        }
-        sizeItem.submenu = sizeMenu
+        // 大小：菜单里直接拖滑杆（5%～150%）
+        let sizeItem = NSMenuItem()
+        sizeItem.view = PetZoomSliderView()
         menu.addItem(sizeItem)
         let quiet = NSMenuItem(title: "安静模式（不主动说话）", action: #selector(petMenuToggleQuiet(_:)), keyEquivalent: "")
         quiet.target = self
@@ -1849,11 +1894,6 @@ final class PetWindowController {
     @objc private func petMenuForgetInteraction(_ sender: Any) {
         PetInteraction.shared.forget()
         showToast("好，之前的互动习惯我都忘掉了，重新认识一下吧", duration: 3)
-    }
-
-    @objc private func petMenuZoom(_ sender: NSMenuItem) {
-        guard let value = sender.representedObject as? Double else { return }
-        Self.zoomOverride = value
     }
 
     @objc private func petMenuToggleQuiet(_ sender: Any) {
@@ -2285,6 +2325,18 @@ private final class PetBackgroundView: NSView {
     var onDragChanged: ((Bool) -> Void)?
     /// 拖动中的鼠标位置（屏幕坐标）：晃动、甩出去的判断
     var onDragMoved: ((NSPoint) -> Void)?
+    /// 捏合 / ⌥ 滚轮缩放（倍数）
+    var onZoom: ((CGFloat) -> Void)?
+
+    override func magnify(with event: NSEvent) {
+        onZoom?(1 + event.magnification)
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        guard event.modifierFlags.contains(.option) else { return super.scrollWheel(with: event) }
+        let delta = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY / 200 : event.scrollingDeltaY / 20
+        onZoom?(1 + max(-0.3, min(0.3, delta)))
+    }
     private var trackingArea: NSTrackingArea?
     private var downLocation: NSPoint = .zero
     private var downAt: TimeInterval = 0
@@ -2399,4 +2451,37 @@ extension Notification.Name {
     static let petToggleLanguage = Notification.Name("LianaPetToggleLanguage")
     static let petTogglePunctuation = Notification.Name("LianaPetTogglePunctuation")
     static let petShowStats = Notification.Name("LianaPetShowStats")
+}
+
+/// 右键菜单里的大小滑杆：拖动时桌宠实时缩放。
+private final class PetZoomSliderView: NSView {
+    private let label = NSTextField(labelWithString: "")
+    private let slider = NSSlider(value: PetWindowController.zoomOverride * 100,
+                                  minValue: PetWindowController.zoomRange.lowerBound * 100,
+                                  maxValue: PetWindowController.zoomRange.upperBound * 100,
+                                  target: nil, action: nil)
+
+    init() {
+        super.init(frame: NSRect(x: 0, y: 0, width: 240, height: 30))
+        label.font = .menuFont(ofSize: 0)
+        label.frame = NSRect(x: 20, y: 7, width: 70, height: 17)
+        slider.frame = NSRect(x: 92, y: 5, width: 136, height: 20)
+        slider.isContinuous = true
+        slider.target = self
+        slider.action = #selector(changed)
+        addSubview(label)
+        addSubview(slider)
+        refresh()
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    @objc private func changed() {
+        PetWindowController.zoomOverride = slider.doubleValue / 100
+        refresh()
+    }
+
+    private func refresh() {
+        label.stringValue = "大小 \(Int((PetWindowController.zoomOverride * 100).rounded()))%"
+    }
 }

@@ -428,7 +428,7 @@ final class LianaInputController: IMKInputController {
             framingMenu.addItem(item)
         }
         let zoomMenu = NSMenu(title: "缩放")
-        for value in [0.8, 1.0, 1.25, 1.5] {
+        for value in [0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5] {
             let item = NSMenuItem(title: String(format: "%.0f%%", value * 100), action: #selector(selectPetZoom(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = value
