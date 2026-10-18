@@ -274,6 +274,8 @@ struct PuppetImage: Identifiable {
         if a.scale > 1.45 || a.scale < 0.7 {
             return "构图和「平时」差别大（像是一张全身一张半身），切换时会跳"
         }
+        // 两张都识别到脸：已经按脸对齐，外框宽窄不同（比如一张张开手臂）不算问题
+        if image.rig.face != nil && idle.rig.face != nil { return nil }
         // 两者在显示坐标里的外框（单位 = 平时图高度，原点 = 脚底中心）
         let idleBox = CGRect(x: -idle.aspect / 2, y: 0, width: idle.aspect, height: 1)
         let w = image.aspect * a.scale
