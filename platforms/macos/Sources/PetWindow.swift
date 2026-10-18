@@ -562,9 +562,35 @@ final class PetWindowController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.6, execute: work)
     }
 
+    // MARK: - 复制即动作的表现
+
+    /// 复制了命令 / 链接：桌宠抬头看一眼
+    func clipNoticed(emote: String) {
+        guard panel?.isVisible == true else { return }
+        petView?.trigger("tap_miss")
+        showEmote(emote)
+    }
+
+    func linkTaskStarted(_ line: String) {
+        setHold("listen", true)
+        showEmote("🔍")
+        showToast(line, duration: 3)
+    }
+
+    func linkTaskFinished(ok: Bool, line: String?) {
+        setHold("listen", false)
+        petView?.trigger(ok ? "voice_done" : "lonely")
+        showEmote(ok ? "✅" : "💦")
+        if let line { showToast(line, duration: 5) }
+    }
+
     // MARK: - 聊天时的表现
 
     var petFrame: NSRect? { panel?.isVisible == true ? panel?.frame : nil }
+
+    func petSpeak(seconds: Double) {
+        petView?.speak(seconds: seconds)
+    }
 
     func chatOpened() {
         lastUserTouch = Date()

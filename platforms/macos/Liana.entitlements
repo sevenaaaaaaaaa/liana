@@ -7,5 +7,8 @@
 	  保持空集是审计最友好的形态。将来若公证后某能力被硬运行时拦截，
 	  在这里逐条加并写明理由（例：com.apple.security.cs.allow-dyld-environment-variables 仅调试用）。
 	-->
+	<!-- 复制命令后点「在终端运行」：用 AppleScript 让终端 / iTerm2 执行（每次都由用户点按钮触发，系统另有自动化授权弹窗） -->
+	<key>com.apple.security.automation.apple-events</key>
+	<true/>
 </dict>
 </plist>

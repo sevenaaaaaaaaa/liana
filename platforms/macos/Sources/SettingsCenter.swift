@@ -689,6 +689,21 @@ struct PetPage: View {
                     isOn: model.binding({ PetChatAutoTrigger.enabled }, { PetChatAutoTrigger.enabled = $0 })
                 )
                 ToggleRow(
+                    title: "复制命令后问我要不要在终端运行",
+                    detail: "点「在终端运行」才会运行；rm -rf、sudo、curl | sh 等危险命令会再弹窗确认。剪贴板只判断一次，不记录",
+                    isOn: model.binding({ ClipboardActionWatcher.commandsEnabled }, { ClipboardActionWatcher.commandsEnabled = $0 })
+                )
+                ToggleRow(
+                    title: "复制链接后提供浏览器任务",
+                    detail: "总结 / 翻译 / 截图存档 / 站点菜谱：用本机 ego lite（优先）或 Chrome 打开，本机模型处理，不走云服务",
+                    isOn: model.binding({ ClipboardActionWatcher.linksEnabled }, { ClipboardActionWatcher.linksEnabled = $0 })
+                )
+                HStack {
+                    Text("站点菜谱：按域名匹配、在页面里运行的一段 JS").font(.system(size: 12)).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("打开菜谱目录…") { LinkRecipeStore.openFolder() }.controlSize(.small)
+                }
+                ToggleRow(
                     title: "休息提醒",
                     detail: "连续打字 \(PetWindowController.breakMinutes) 分钟后提醒你起身活动",
                     isOn: model.binding({ PetWindowController.breakReminder }, { PetWindowController.breakReminder = $0 })

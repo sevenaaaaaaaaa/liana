@@ -62,6 +62,7 @@ final class ClipboardMonitor {
     func ignore(_ text: String) {
         lastSeenText = text
         lastChangeCount = NSPasteboard.general.changeCount
+        ClipboardActionWatcher.shared.ignoreCurrent()
     }
 
     private func poll() {

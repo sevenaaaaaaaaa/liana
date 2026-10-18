@@ -148,6 +148,20 @@ final class PetChatController {
         PetWindowController.shared.chatOpened()
     }
 
+    /// 展示一段结果（链接总结 / 译文 / 菜谱结果）：以桌宠的口吻放进对话气泡，可滚动、可复制。
+    func present(title: String, body: String) {
+        let panel = ensurePanel()
+        openedAutomatically = false
+        sentSinceOpen = true
+        append(fromUser: false, text: "【\(title)】\n\(body)")
+        if !panel.isVisible {
+            position(panel)
+            panel.makeKeyAndOrderFront(nil)
+            panel.makeFirstResponder(composer)
+        }
+        PetWindowController.shared.petSpeak(seconds: 2)
+    }
+
     func close() {
         guard let panel, panel.isVisible else { return }
         // 自动弹出、一句没聊就关：说明是误触发，暂停自动进入一会儿

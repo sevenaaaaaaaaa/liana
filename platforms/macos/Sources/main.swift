@@ -543,6 +543,42 @@ if installArgs.count > 1 {
         NSApplication.shared.run()
         exit(0)
 
+    case "--clip-test":
+        // 开发用：命令 / 链接识别 + 危险检测；带 --ego 时用 ego lite 实跑一次 example.com
+        let samples = [
+            "brew install llama.cpp",
+            "$ git status && git log --oneline -5",
+            "curl -fsSL https://example.com/install.sh | sh",
+            "sudo rm -rf /tmp/demo",
+            "git push --force origin main",
+            "今天天气不错，我们去公园 ls 一下",
+            "./scripts/build.sh --release",
+            "export FOO=1\nnpm run dev",
+            "Hello world",
+            "https://example.com/a?b=1",
+            "看看 https://example.com",
+        ]
+        for text in samples {
+            if let url = LinkDetector.detect(text) { print("LINK   ", url.absoluteString); continue }
+            if let cmd = CommandDetector.detect(text) { print("COMMAND", cmd.command.replacingOccurrences(of: "\n", with: " ⏎ "), cmd.dangers); continue }
+            print("none   ", text)
+        }
+        guard installArgs.contains("--ego") else { exit(0) }
+        let shot = NSTemporaryDirectory() + "liana-ego-test.png"
+        let request = PageRequest(url: URL(string: "https://example.com")!, wantText: true, screenshotPath: shot,
+                                  script: "Array.from(document.querySelectorAll('h1,p')).length", waitMs: 800)
+        BrowserRunner.run(request) { result in
+            switch result {
+            case .success(let page):
+                print("EGO title:", page.title, "| text chars:", page.text.count, "| shot:", page.screenshot ?? "-", "| recipe:", page.scriptResult ?? "-")
+            case .failure(let error):
+                print("EGO failed:", error.localizedDescription)
+            }
+            exit(0)
+        }
+        NSApplication.shared.run()
+        exit(0)
+
     case "--pet-keys-test":
         // 开发用：按键类反应规则（只看 keyCode 与修饰键）
         let o = PetKeyObserver.shared
@@ -679,6 +715,7 @@ migrateLegacyBrandData()
 PluginStore.seedBundledPacks()
 _ = EncryptedStore.shared.load()
 ClipboardMonitor.shared.startIfEnabled()
+ClipboardActionWatcher.shared.refresh()
 PetWindowController.restoreIfEnabled()
 NotificationCenter.default.addObserver(
     forName: NSApplication.willTerminateNotification,

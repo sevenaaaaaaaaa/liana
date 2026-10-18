@@ -90,6 +90,8 @@
     <string>13.0</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>你复制了一条命令并点了「在终端运行」时，用来打开终端并运行它；不会在你不知情时控制任何应用。</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>用于端上语音输入：音频只在本机识别，不落盘、不上传。</string>
     <key>NSSpeechRecognitionUsageDescription</key>
