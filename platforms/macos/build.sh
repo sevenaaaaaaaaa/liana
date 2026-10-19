@@ -182,6 +182,30 @@ else
     echo "词典已是最新，跳过（源文件未变）"
 fi
 
+# 整句搭配模型 base.lm：从万象 LMDG 语法模型（CC BY 4.0）抽取常用搭配，见 crates/dict/data/SOURCES.md。
+# 原始 .gram 约 400MB，只下载一次放在本机缓存；LIANA_NO_LM=1 跳过（输入法没有它也能用，只是整句不看上下文）
+LM_OUT="$HERE/build/base.lm"
+LM_CACHE="${LIANA_LM_CACHE:-$HOME/Library/Caches/Liana-build}"
+GRAM="$LM_CACHE/wanxiang-lts-zh-hans.gram"
+GRAM_URL="https://github.com/amzxyz/RIME-LMDG/releases/download/LTS/wanxiang-lts-zh-hans.gram"
+if [[ "${LIANA_NO_LM:-0}" == "1" ]]; then
+    echo "    跳过整句搭配模型（LIANA_NO_LM=1）"
+elif [[ ! -f "$LM_OUT" || "$DICT_SRC" -nt "$LM_OUT" ]]; then
+    if [[ ! -f "$GRAM" ]]; then
+        echo "    下载语法模型（约 400MB，只需一次）→ $GRAM"
+        mkdir -p "$LM_CACHE"
+        curl -fL --retry 3 -o "$GRAM.part" "$GRAM_URL" && mv "$GRAM.part" "$GRAM" \
+            || echo "    ⚠️ 下载失败，本次不带整句搭配模型"
+    fi
+    if [[ -f "$GRAM" ]]; then
+        cargo run --quiet --release --manifest-path "$ROOT/Cargo.toml" -p xtask -- \
+            lm build "$GRAM" -o "$LM_OUT" --max-len 4 --band4 17.5,99 \
+            || { rm -f "$LM_OUT"; echo "    ⚠️ 生成整句搭配模型失败，本次不带"; }
+    fi
+else
+    echo "    整句搭配模型已是最新，跳过"
+fi
+
 echo "==> 4/5 构建图形安装器"
 INSTALLER="$BUILD/松萝安装器.app"
 INSTALLER_CONTENTS="$INSTALLER/Contents"
@@ -204,6 +228,8 @@ cp "$HERE/assets/Liana.icns" "$INSTALLER_RES/Liana.icns"
 # 把输入法本体与词库作为安装包内嵌资源
 cp -R "$BUNDLE" "$INSTALLER_RES/Liana.app"
 cp "$HERE/build/base.ifd" "$INSTALLER_RES/base.ifd"
+rm -f "$INSTALLER_RES/base.lm"
+if [[ -f "$HERE/build/base.lm" ]]; then cp "$HERE/build/base.lm" "$INSTALLER_RES/base.lm"; fi
 
 echo "==> 5/5 签名"
 if [[ -n "$CODESIGN_IDENTITY" ]]; then

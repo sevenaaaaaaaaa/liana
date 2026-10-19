@@ -2,10 +2,11 @@
 
 pub mod binary;
 pub mod import;
+pub mod lm;
 
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 pub use import::{ImportReport, normalize_pinyin};
 
@@ -37,6 +38,8 @@ pub struct Dictionary {
     char_pinyin: OnceLock<HashMap<char, Box<str>>>,
     /// ln(全部词频之和)：把词频换算成对数概率的归一化常数（解码器整句打分用）。
     log_total: OnceLock<f64>,
+    /// 字级搭配模型（可选）：整句解码按上下文打分；没有时退回纯词频。
+    collocations: Option<Arc<lm::Collocations>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -130,6 +133,15 @@ impl Dictionary {
         self.log_total = OnceLock::new();
     }
 
+    /// 挂上字级搭配模型（与词库同生命周期，进程内共享）。
+    pub fn set_collocations(&mut self, lm: Option<Arc<lm::Collocations>>) {
+        self.collocations = lm;
+    }
+
+    pub fn collocations(&self) -> Option<&lm::Collocations> {
+        self.collocations.as_deref()
+    }
+
     /// ln(Σ词频)：词频 → 对数概率的归一化常数。空词典返回 0。
     pub fn log_total(&self) -> f64 {
         *self.log_total.get_or_init(|| {
@@ -207,9 +219,13 @@ impl Dictionary {
                 best[0] = Some((0, Vec::new()));
                 for end in 1..=n {
                     for start in end.saturating_sub(MAX_PIECE)..end {
-                        let Some((segs, keys)) = &best[start] else { continue };
+                        let Some((segs, keys)) = &best[start] else {
+                            continue;
+                        };
                         let piece = &word[byte_at(start)..byte_at(end)];
-                        let Some(&(key, _)) = readings.get(piece) else { continue };
+                        let Some(&(key, _)) = readings.get(piece) else {
+                            continue;
+                        };
                         if best[end].as_ref().is_none_or(|(s, _)| segs + 1 < *s) {
                             let mut next = keys.clone();
                             next.push(key);

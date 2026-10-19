@@ -21,6 +21,10 @@ if [[ -f "$HERE/build/base.ifd" ]]; then
     cp "$HERE/build/base.ifd" "$DATA_DIR/base.ifd"
     echo "词典已安装: $DATA_DIR/base.ifd"
 fi
+if [[ -f "$HERE/build/base.lm" ]]; then
+    cp "$HERE/build/base.lm" "$DATA_DIR/base.lm"
+    echo "整句搭配模型已安装: $DATA_DIR/base.lm"
+fi
 
 killall "$APP" 2>/dev/null || true
 

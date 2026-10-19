@@ -96,6 +96,17 @@ private func dedupeInputSourcePersistence() -> (hitoolboxRemoved: Int, thirdPart
 let installArgs = CommandLine.arguments
 if installArgs.count > 1 {
     switch installArgs[1] {
+    case "--engine-query":
+        // 开发用：走和输入法相同的加载路径（base.ifd + base.lm + dicts/ 词包），打印每串按键的前 5 个候选
+        for keys in installArgs.dropFirst(2) {
+            let engine = LianaEngine(mode: "pinyin")
+            let started = Date()
+            for ch in keys { _ = engine.feed(ch) }
+            let top = engine.composition.candidates.prefix(5).map(\.text).joined(separator: " / ")
+            print("\(keys)（\(Int(Date().timeIntervalSince(started) * 1000))ms）: \(top)")
+        }
+        exit(0)
+
     case "--app-names":
         // 开发用：列出本机应用名词包会收录的名字
         let names = AppNameLexicon.collectNames().sorted()

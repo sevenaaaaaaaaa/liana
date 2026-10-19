@@ -125,6 +125,8 @@ final class InstallerModel: ObservableObject {
     let systemAppPath = "/Library/Input Methods/Liana.app"
     var sourceApp: String { Bundle.main.resourcePath.map { $0 + "/Liana.app" } ?? "" }
     var sourceDict: String { Bundle.main.resourcePath.map { $0 + "/base.ifd" } ?? "" }
+    /// 整句搭配模型（可选，和词库放在一起）
+    var sourceLM: String { Bundle.main.resourcePath.map { $0 + "/base.lm" } ?? "" }
     var userDataDir: String { NSHomeDirectory() + "/Library/Application Support/Liana" }
 
     var isInstalled: Bool {
@@ -196,6 +198,11 @@ final class InstallerModel: ObservableObject {
             return
         }
         onMain { self.set(2, .running) }
+        if fm.fileExists(atPath: sourceLM) {
+            try? fm.createDirectory(atPath: userDataDir, withIntermediateDirectories: true)
+            try? fm.removeItem(atPath: userDataDir + "/base.lm")
+            try? fm.copyItem(atPath: sourceLM, toPath: userDataDir + "/base.lm")
+        }
         if fm.fileExists(atPath: sourceDict) {
             try? fm.removeItem(atPath: userDataDir + "/base.ifd")
             do {
@@ -229,6 +236,7 @@ final class InstallerModel: ObservableObject {
         SRC="\(sourceApp)"
         DST="/Library/Input Methods/Liana.app"
         DICT_SRC="\(sourceDict)"
+        LM_SRC="\(sourceLM)"
         DICT_DST="/Users/\(user)/Library/Application Support/Liana"
         mkdir -p "/Library/Input Methods"
         rm -rf "$DST"
@@ -238,6 +246,7 @@ final class InstallerModel: ObservableObject {
         xattr -dr com.apple.quarantine "$DST" 2>/dev/null || true
         mkdir -p "$DICT_DST"
         if [ -f "$DICT_SRC" ]; then cp "$DICT_SRC" "$DICT_DST/base.ifd"; chown \(user) "$DICT_DST/base.ifd" || true; fi
+        if [ -f "$LM_SRC" ]; then cp "$LM_SRC" "$DICT_DST/base.lm"; chown \(user) "$DICT_DST/base.lm" || true; fi
         "$DST/Contents/MacOS/Liana" --register-input-source || true
         "$DST/Contents/MacOS/Liana" --enable-input-source || true
         "$DST/Contents/MacOS/Liana" --dedupe-input-source || true

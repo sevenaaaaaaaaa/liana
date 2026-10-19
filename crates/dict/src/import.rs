@@ -156,7 +156,11 @@ pub fn parse_tsv(s: &str) -> (Dictionary, ImportReport) {
 
 /// 词表：一行一个词，可选「词<TAB>拼音<TAB>词频」；拼音留空时按 `base` 自动注音，
 /// 没写词频时用 `default_freq`。返回只含这些词的小词典（之后与基础词库合并）。
-pub fn parse_word_list(s: &str, base: &Dictionary, default_freq: u32) -> (Dictionary, ImportReport) {
+pub fn parse_word_list(
+    s: &str,
+    base: &Dictionary,
+    default_freq: u32,
+) -> (Dictionary, ImportReport) {
     let mut dict = Dictionary::new();
     let mut report = ImportReport::default();
     let mut pending: Vec<(usize, &str, u32)> = Vec::new();

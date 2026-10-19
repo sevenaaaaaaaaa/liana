@@ -201,7 +201,13 @@ fn file_signature(path: &Path) -> String {
 /// 同词同音取较大词频（词包只补词、抬词频）。
 fn load_layered(base_path: Option<&str>, layers_dir: Option<&str>) -> Arc<Dictionary> {
     let files = layer_files(layers_dir);
+    // 字级搭配模型：基础词库旁边的 base.lm（没有就只用词频）
+    let lm_path = base_path.map(|p| Path::new(p).with_file_name("base.lm"));
     let mut signature = base_path.map(|p| file_signature(Path::new(p))).unwrap_or_default();
+    if let Some(lm) = &lm_path {
+        signature.push('|');
+        signature.push_str(&file_signature(lm));
+    }
     for f in &files {
         signature.push('|');
         signature.push_str(&file_signature(f));
@@ -217,6 +223,12 @@ fn load_layered(base_path: Option<&str>, layers_dir: Option<&str>) -> Arc<Dictio
         .and_then(|p| std::fs::read(p).ok())
         .and_then(|b| Dictionary::from_bytes(&b).ok())
         .unwrap_or_else(Dictionary::embedded);
+    if let Some(lm) = lm_path
+        .and_then(|p| std::fs::read(p).ok())
+        .and_then(|b| liana_dict::lm::Collocations::from_bytes(&b).ok())
+    {
+        dict.set_collocations(Some(Arc::new(lm)));
+    }
     for f in &files {
         if let Ok(text) = std::fs::read_to_string(f) {
             let (layer, _) = liana_dict::import::parse_word_list(&text, &dict, LAYER_DEFAULT_FREQ);

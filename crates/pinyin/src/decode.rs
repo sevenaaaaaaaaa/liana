@@ -46,13 +46,49 @@ const SYL_MISMATCH_PENALTY: f64 = 6.0;
 const EXACT_FULL_BONUS: f64 = 2.5;
 /// 常用简拼先验：表里的词比同层最高分再高这么多（个人学习的加分仍可反超）。
 const JIANPIN_PRIOR_BONUS: f64 = 1.5;
+/// 整句解码每个位置保留的路径数（按「到此为止的整句文本」区分）。
+const BEAM: usize = 8;
+/// 有搭配模型时，每个读音参与竞争的同音词数（没有模型时只取最高的一个，和纯词频一致）。
+const LM_HOMOPHONES: usize = 4;
+/// 搭配分超过这个值的部分才算证据（octagram 里「没搭配」与「有搭配」的分界）。
+const LM_THRESHOLD: f64 = 8.0;
+/// 搭配证据的权重（与 ln 词频同尺度；用 xtask accuracy 的整句 / 困难 / 词汇三套评测调出）。
+const LM_WEIGHT: f64 = 0.35;
+/// 只对覆盖最好的前几条切分跑带搭配模型的完整搜索，其余切分仍用纯词频（长输入保持流畅）。
+const LM_PATHS: usize = 6;
+/// 最多给出几条不同的整句候选。
+const MAX_SENTENCES: usize = 3;
 /// 常用简拼表（`data/jianpin.tsv`）。
 const JIANPIN_TSV: &str = include_str!("../data/jianpin.tsv");
 
+/// 放进某个位置的 beam：同一文本只留得分最高的切分，超出 BEAM 条时挤掉最低分。
+fn push_beam(beam: &mut Vec<Hyp>, cand: Hyp) {
+    if let Some(cur) = beam.iter_mut().find(|h| h.text == cand.text) {
+        if cand.score > cur.score {
+            *cur = cand;
+        }
+        return;
+    }
+    if beam.len() < BEAM {
+        beam.push(cand);
+        return;
+    }
+    let (worst, worst_score) = beam
+        .iter()
+        .enumerate()
+        .map(|(i, h)| (i, h.score))
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .expect("beam 非空");
+    if cand.score > worst_score {
+        beam[worst] = cand;
+    }
+}
+
 /// 某个简拼的先验词：`(词, 词库 key)`，按表里的先后。
 fn jianpin_priors(abbr: &str) -> Vec<(&'static str, String)> {
-    static TABLE: std::sync::OnceLock<std::collections::HashMap<&'static str, Vec<(&'static str, String)>>> =
-        std::sync::OnceLock::new();
+    static TABLE: std::sync::OnceLock<
+        std::collections::HashMap<&'static str, Vec<(&'static str, String)>>,
+    > = std::sync::OnceLock::new();
     TABLE
         .get_or_init(|| {
             let mut map: std::collections::HashMap<&'static str, Vec<(&'static str, String)>> =
@@ -63,7 +99,9 @@ fn jianpin_priors(abbr: &str) -> Vec<(&'static str, String)> {
                 }
                 let mut f = line.split('\t');
                 if let (Some(abbr), Some(word), Some(py)) = (f.next(), f.next(), f.next()) {
-                    map.entry(abbr).or_default().push((word, py.split_whitespace().collect::<Vec<_>>().join("'")));
+                    map.entry(abbr)
+                        .or_default()
+                        .push((word, py.split_whitespace().collect::<Vec<_>>().join("'")));
                 }
             }
             map
@@ -134,6 +172,8 @@ struct Hyp {
     garbage: usize,
     text: String,
     pinyin: Vec<String>,
+    /// 搭配加分之和（已计入 score；整句换算到候选尺度时单独加回）
+    lm: f64,
 }
 
 pub struct PinyinDecoder {
@@ -197,7 +237,7 @@ impl PinyinDecoder {
         }
         let ends_complete = paths.iter().any(|p| p.iter().all(|s| s.syl.is_some()));
         let mut out: Vec<Candidate> = Vec::new();
-        let mut best: Option<(Hyp, usize, usize, f64)> = None;
+        let mut best: Option<(Vec<Hyp>, usize, usize, f64)> = None;
         // 只处理覆盖最好的前 N 条路径：路径数上限放宽后仍保持性能
         // （长输入会产生大量等价切分，全部跑 Viterbi 会拖慢到毫秒级）
         let mut ranked: Vec<(usize, usize, f64)> = paths
@@ -244,13 +284,14 @@ impl PinyinDecoder {
         for idx in decode_set {
             self.decode_path(orig, &paths[idx], &mut out);
         }
-        for idx in chosen.iter().copied() {
+        for (rank, idx) in chosen.iter().copied().enumerate() {
             let path = &paths[idx];
             let usable: Vec<&Seg> = path.iter().take_while(|s| s.syl.is_some()).collect();
             if usable.is_empty() {
                 continue;
             }
-            if let Some(h) = self.viterbi(&usable, boost) {
+            let hyps = self.viterbi(&usable, boost, rank < LM_PATHS);
+            if let Some(h) = hyps.first() {
                 let consumed = orig[usable.last().expect("非空").end - 1] + 1;
                 let path_fuzzy: f64 = usable.iter().map(|s| s.fuzzy).sum();
                 let cover = (
@@ -263,37 +304,47 @@ impl PinyinDecoder {
                     .as_ref()
                     .is_none_or(|(cur, cur_consumed, _, cur_fuzzy)| {
                         cover.0
-                            > cur.score - cur_fuzzy * FUZZY_PENALTY
+                            > cur[0].score - cur_fuzzy * FUZZY_PENALTY
                                 + COVERAGE_BONUS * *cur_consumed as f64
                     });
                 if better {
-                    best = Some((h, consumed, usable.len(), path_fuzzy));
+                    best = Some((hyps, consumed, usable.len(), path_fuzzy));
                 }
             }
         }
         let full_cover = best
             .as_ref()
             .is_some_and(|(_, consumed, _, _)| *consumed >= orig.len());
-        if let Some((hyp, consumed, syls, path_fuzzy)) = best {
+        if let Some((hyps, consumed, syls, path_fuzzy)) = best {
             let kind = if syls == 1 {
                 CandidateKind::Char
             } else {
                 CandidateKind::Sentence
             };
-            // 旁路音节重罚：避免「词 + 未成词残字」凑出的伪整句（如 专区+du）压过真词；
-            // 路径的模糊代价也计入整句——模糊读音的整句不得压过精确读音的词。
-            // sum_ln 是各词 ln(词频) 之和；每多一个词就多算了一次归一化常数 ln Z，
-            // 必须扣回去，整句才和单个词处在同一尺度（否则「吗上」会压过「马上」）。
-            let ln_z = self.dict.log_total();
-            let sum_ln = hyp.sum_ln - hyp.words.saturating_sub(1) as f64 * ln_z;
-            let score = sum_ln + LEN_BONUS * hyp.matched as f64 + 1.0
-                - hyp.garbage as f64 * 30.0
-                - path_fuzzy * FUZZY_PENALTY;
-            let mut c = Candidate::new(hyp.text, consumed, kind, score);
-            if !hyp.pinyin.is_empty() {
-                c = c.with_reading(hyp.pinyin.join(" "));
+            // 最优整句之外，再给出几条不同的整句（有搭配模型时同音的另一种说法常在这里）；
+            // 只有一个音节时就是单字，不出备选
+            let take = if syls == 1 { 1 } else { MAX_SENTENCES };
+            for (_, hyp) in hyps
+                .into_iter()
+                .enumerate()
+                .filter(|(r, h)| *r == 0 || h.garbage == 0)
+                .take(take)
+            {
+                // 旁路音节重罚：避免「词 + 未成词残字」凑出的伪整句（如 专区+du）压过真词；
+                // 路径的模糊代价也计入整句——模糊读音的整句不得压过精确读音的词。
+                // sum_ln 是各词 ln(词频) 之和；每多一个词就多算了一次归一化常数 ln Z，
+                // 必须扣回去，整句才和单个词处在同一尺度（否则「吗上」会压过「马上」）。
+                let ln_z = self.dict.log_total();
+                let sum_ln = hyp.sum_ln - hyp.words.saturating_sub(1) as f64 * ln_z;
+                let score = sum_ln + LEN_BONUS * hyp.matched as f64 + 1.0 + hyp.lm
+                    - hyp.garbage as f64 * 30.0
+                    - path_fuzzy * FUZZY_PENALTY;
+                let mut c = Candidate::new(hyp.text, consumed, kind, score);
+                if !hyp.pinyin.is_empty() {
+                    c = c.with_reading(hyp.pinyin.join(" "));
+                }
+                out.push(c);
             }
-            out.push(c);
         }
         out.push(Candidate::new(
             raw,
@@ -435,8 +486,13 @@ impl PinyinDecoder {
                 };
                 out.retain(|c| !(c.text == *word && c.consumed == consumed));
                 out.push(
-                    Candidate::new(*word, consumed, word_kind(entry), base + JIANPIN_PRIOR_BONUS - rank as f64 * 0.1)
-                        .with_reading(key.replace('\'', " ")),
+                    Candidate::new(
+                        *word,
+                        consumed,
+                        word_kind(entry),
+                        base + JIANPIN_PRIOR_BONUS - rank as f64 * 0.1,
+                    )
+                    .with_reading(key.replace('\'', " ")),
                 );
             }
         }
@@ -595,15 +651,20 @@ impl PinyinDecoder {
     }
 
     /// Viterbi：按「词惩罚」选择最佳切分，返回唯一最佳假设。
-    fn viterbi(&self, segs: &[&Seg], boost: &dyn Fn(&str) -> f64) -> Option<Hyp> {
+    /// 整句解码：按音节切分做 beam search，返回得分最高的几条整句（高分在前）。
+    ///
+    /// 每个词按 ln(f/Z) 计分（unigram），WORD_PENALTY 偏好更长的词；有字级搭配模型时，
+    /// 词与词交界处再按上下文加分，并让同音词的前几个都参与竞争（「到的」才有机会压过「道德」）。
+    /// 没有搭配模型时，beam 的最优路径与逐位置单一最优的 Viterbi 完全相同。
+    fn viterbi(&self, segs: &[&Seg], boost: &dyn Fn(&str) -> f64, rich: bool) -> Vec<Hyp> {
         let n = segs.len();
-        // 词频 → 对数概率：每个词按 ln(f/Z) 计分，真正的 unigram 语言模型；
-        // WORD_PENALTY 只是额外的少量「分词惩罚」，偏好更长的词。
         let ln_z = self.dict.log_total();
-        let mut dp: Vec<Option<Hyp>> = vec![None; n + 1];
-        dp[0] = Some(Hyp::default());
+        let lm = self.dict.collocations().filter(|_| rich);
+        let homophones = if lm.is_some() { LM_HOMOPHONES } else { 1 };
+        let mut dp: Vec<Vec<Hyp>> = vec![Vec::new(); n + 1];
+        dp[0].push(Hyp::default());
         for i in 0..n {
-            let Some(base) = dp[i].clone() else { continue };
+            let bases = std::mem::take(&mut dp[i]);
             for k in 1..=MAX_WORD_SYLLABLES.min(n - i) {
                 let mut key = String::new();
                 for (j, s) in segs[i..i + k].iter().enumerate() {
@@ -614,51 +675,63 @@ impl PinyinDecoder {
                 }
                 let fuzzy_cost: f64 = segs[i..i + k].iter().map(|s| s.fuzzy).sum();
                 let entries = self.dict.lookup(&key);
-                let (text, wscore, sum_ln, matched, pys) = if entries.is_empty() {
+                // 候选词：(文本, 词分, ln 词频, 覆盖音节数)
+                let words: Vec<(String, f64, f64, usize)> = if entries.is_empty() {
                     if k == 1 {
                         let raw = segs[i].syl.clone().unwrap_or_default();
-                        (raw.clone(), PASS_THROUGH_PENALTY, 0.0, 0, vec![raw])
+                        vec![(raw, PASS_THROUGH_PENALTY, 0.0, 0)]
                     } else {
                         continue;
                     }
                 } else {
-                    // 同读音里取「词频 + 个人加分」最高的词；只看前几条，保持性能。
-                    // 并列时保留词典靠前的那条（严格大于才替换）。
-                    let first = &entries[0];
-                    let (e, ln) = entries.iter().take(8).skip(1).fold(
-                        (first, (first.freq as f64).ln() + boost(&first.word)),
-                        |best, e| {
-                            let score = (e.freq as f64).ln() + boost(&e.word);
-                            if score > best.1 { (e, score) } else { best }
-                        },
-                    );
-                    (
-                        e.word.clone(),
-                        ln - ln_z - WORD_PENALTY,
-                        ln,
-                        k,
-                        key.split('\'').map(str::to_string).collect::<Vec<_>>(),
-                    )
+                    // 同读音按「词频 + 个人加分」排，只看前几条保持性能；并列时保留词典靠前的那条
+                    let mut scored: Vec<(&Entry, f64)> = entries
+                        .iter()
+                        .take(8)
+                        .map(|e| (e, (e.freq as f64).ln() + boost(&e.word)))
+                        .collect();
+                    scored.sort_by(|a, b| b.1.total_cmp(&a.1));
+                    scored
+                        .into_iter()
+                        .take(homophones)
+                        .map(|(e, ln)| (e.word.clone(), ln - ln_z - WORD_PENALTY, ln, k))
+                        .collect()
                 };
-                let mut pinyin = base.pinyin.clone();
-                pinyin.extend(pys);
-                let pass_through = entries.is_empty();
-                let cand = Hyp {
-                    score: base.score + wscore - fuzzy_cost * FUZZY_PENALTY,
-                    sum_ln: base.sum_ln + sum_ln,
-                    words: base.words + 1,
-                    matched: base.matched + matched,
-                    garbage: base.garbage + usize::from(pass_through),
-                    text: format!("{}{}", base.text, text),
-                    pinyin,
-                };
-                let better = dp[i + k].as_ref().is_none_or(|cur| cand.score > cur.score);
-                if better {
-                    dp[i + k] = Some(cand);
+                let pys: Vec<String> = key.split('\'').map(str::to_string).collect();
+                for base in &bases {
+                    for (text, wscore, sum_ln, matched) in &words {
+                        let pass_through = entries.is_empty();
+                        let bonus = match lm {
+                            Some(lm) if !pass_through && !base.text.is_empty() => {
+                                lm.junction(&base.text, text, LM_THRESHOLD as f32) as f64
+                                    * LM_WEIGHT
+                            }
+                            _ => 0.0,
+                        };
+                        let mut pinyin = base.pinyin.clone();
+                        if pass_through {
+                            pinyin.push(text.clone());
+                        } else {
+                            pinyin.extend(pys.iter().cloned());
+                        }
+                        let cand = Hyp {
+                            score: base.score + wscore - fuzzy_cost * FUZZY_PENALTY + bonus,
+                            sum_ln: base.sum_ln + sum_ln,
+                            words: base.words + 1,
+                            matched: base.matched + matched,
+                            garbage: base.garbage + usize::from(pass_through),
+                            text: format!("{}{}", base.text, text),
+                            pinyin,
+                            lm: base.lm + bonus,
+                        };
+                        push_beam(&mut dp[i + k], cand);
+                    }
                 }
             }
         }
-        dp[n].clone()
+        let mut done = std::mem::take(&mut dp[n]);
+        done.sort_by(|a, b| b.score.total_cmp(&a.score));
+        done
     }
 }
 
@@ -960,6 +1033,31 @@ mod tests {
 
     fn first(decode: &PinyinDecoder, input: &str) -> String {
         decode.candidates(input)[0].text.clone()
+    }
+
+    #[test]
+    fn collocations_pick_homophone_by_context() {
+        let mut dict = Dictionary::new();
+        dict.insert("shi'hou", "时候", 50000);
+        dict.insert("dao'de", "道德", 20000);
+        dict.insert("dao'de", "到的", 5000);
+        let without = PinyinDecoder::new(Arc::new(clone_dict(&dict)), Layout::Full);
+        assert_eq!(first(&without, "shihoudaode"), "时候道德");
+        dict.set_collocations(Some(Arc::new(liana_dict::lm::Collocations::build([
+            ("时候到".to_string(), 15.6),
+            ("候到".to_string(), 12.0),
+        ]))));
+        let with = PinyinDecoder::new(Arc::new(dict), Layout::Full);
+        let cands = with.candidates("shihoudaode");
+        assert_eq!(cands[0].text, "时候到的");
+        // 另一种说法作为备选整句保留
+        assert!(cands.iter().any(|c| c.text == "时候道德"));
+    }
+
+    fn clone_dict(d: &Dictionary) -> Dictionary {
+        let mut out = Dictionary::new();
+        out.merge(d);
+        out
     }
 
     #[test]

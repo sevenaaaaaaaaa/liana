@@ -78,6 +78,20 @@ cargo run --release -p xtask -- accuracy --hard --cases xtask/data/accuracy-voca
 
 常用简拼先验（`crates/pinyin/data/jianpin.tsv`，本项目维护）不在词库里，由解码器内置。
 
+## `base.lm`（整句搭配模型，不入库，构建时生成）
+
+由 [万象 RIME-LMDG](https://github.com/amzxyz/RIME-LMDG) 的语法模型 `wanxiang-lts-zh-hans.gram`
+（作者 amzxyz，[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)）抽取常用字的 2～4 字搭配并重新编码（LMC2 格式），
+作为整句解码的上下文打分。设计见 `docs/adr/0012-collocation-language-model.md`。
+
+```bash
+curl -fL -o /tmp/wanxiang-lts-zh-hans.gram https://github.com/amzxyz/RIME-LMDG/releases/download/LTS/wanxiang-lts-zh-hans.gram
+cargo run --release -p xtask -- lm build /tmp/wanxiang-lts-zh-hans.gram -o base.lm --max-len 4 --band4 17.5,99
+cargo run --release -p xtask -- accuracy --hard --cases xtask/data/accuracy-sentences.tsv --lm base.lm
+```
+
+macOS `build.sh` 会自动完成以上步骤（原始模型缓存在 `~/Library/Caches/Liana-build`）。
+
 ## `base.tsv`（内置兜底词库）
 
 本项目人工维护的 367 条高频词/短语，供 `cargo test`、无外部词典的兜底场景使用，

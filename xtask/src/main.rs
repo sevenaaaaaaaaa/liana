@@ -11,6 +11,8 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+mod gram;
+
 use liana_dict::Dictionary;
 use liana_dict::import::{ImportReport, parse_rime_dict, parse_rime_dicts, parse_tsv};
 use liana_plugin::Pack;
@@ -37,6 +39,7 @@ fn run(args: &[String]) -> Result<(), String> {
         }
         Some("accuracy") => accuracy_cmd(),
         Some("query") => query_cmd(&args[1..]),
+        Some("lm") => lm_cmd(&args[1..]),
         Some("-h") | Some("--help") => {
             usage();
             Ok(())
@@ -425,7 +428,11 @@ fn dict_cmd(args: &[String]) -> Result<(), String> {
     match args.first().map(String::as_str) {
         Some("build") => {
             let no_packs = args.iter().any(|a| a == "--no-packs");
-            let rest: Vec<String> = args[1..].iter().filter(|a| *a != "--no-packs").cloned().collect();
+            let rest: Vec<String> = args[1..]
+                .iter()
+                .filter(|a| *a != "--no-packs")
+                .cloned()
+                .collect();
             let (input, output, with_base) = parse_io(&rest)?;
             let src = read(&input)?;
             let (mut dict, report) = parse_tsv(&src);
@@ -540,6 +547,197 @@ fn import_rime_multi(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+/// `xtask lm stats <.gram> [词…]`：统计语法模型里的搭配（按字数、按分数段），并查几个搭配自检。
+fn lm_cmd(args: &[String]) -> Result<(), String> {
+    match args.first().map(String::as_str) {
+        Some("stats") => {
+            let path = args.get(1).ok_or("需要 .gram 路径")?;
+            let g = gram::GramFile::open(path)?;
+            println!("双数组单元: {}", g.unit_count());
+            for probe in &args[2..] {
+                let v = g.lookup(&gram::encode(probe));
+                println!("  {probe}: {:?}", v.map(|v| v as f64 / 10000.0));
+            }
+            let t = std::time::Instant::now();
+            let mut by_len = [0usize; 10];
+            let mut by_score = [0usize; 30];
+            let mut non_han = 0usize;
+            let is_han = |c: &char| ('\u{3400}'..='\u{9fff}').contains(c);
+            g.for_each(&|_| true, &mut |chars, v| {
+                if !chars.iter().all(is_han) {
+                    non_han += 1;
+                    return;
+                }
+                by_len[chars.len().min(9)] += 1;
+                by_score[((v / 10000) as usize).min(29)] += 1;
+            });
+            println!("遍历用时 {:.1}s，非汉字键 {non_han}", t.elapsed().as_secs_f64());
+            for (len, n) in by_len.iter().enumerate().filter(|(_, n)| **n > 0) {
+                println!("  {len} 字: {n}");
+            }
+            let mut cum = 0usize;
+            for (s, n) in by_score.iter().enumerate().rev().filter(|(_, n)| **n > 0) {
+                cum += n;
+                println!("  ln 频次 ≥ {s:>2}: 累计 {cum}");
+            }
+            Ok(())
+        }
+        Some("sample") => {
+            // 每个（字数, 分数段）抽前几条看看
+            let path = args.get(1).ok_or("需要 .gram 路径")?;
+            let g = gram::GramFile::open(path)?;
+            let mut seen: std::collections::BTreeMap<(usize, u32), Vec<String>> = Default::default();
+            let mut n = 0u64;
+            g.for_each(&|_| true, &mut |chars, v| {
+                n += 1;
+                if n % 997 != 0 {
+                    return;
+                }
+                let e = seen.entry((chars.len(), v / 10000)).or_default();
+                if e.len() < 6 {
+                    e.push(format!("{}={:.2}", chars.iter().collect::<String>(), v as f64 / 10000.0));
+                }
+            });
+            for ((len, s), list) in seen {
+                println!("{len}字 {s:>2}: {}", list.join(" "));
+            }
+            Ok(())
+        }
+        Some("build") => lm_build(&args[1..]),
+        _ => Err("用法: xtask lm stats|sample <.gram> [搭配…]\n      xtask lm build <.gram> -o <base.lm> [--max-len 3] [--min-value 0] [--top-chars 6000]".into()),
+    }
+}
+
+/// `xtask lm build`：从 octagram 语法模型抽出常用字组成的 2～max-len 字搭配，写成 LMC1。
+fn lm_build(args: &[String]) -> Result<(), String> {
+    use std::collections::{HashMap, HashSet};
+
+    let mut gram_path = None;
+    let mut out = None;
+    let (mut max_len, mut min_value, mut top_chars) = (3usize, 0.0f64, 6000usize);
+    // 4 字搭配只保留这个分数区间（体积主要在 4 字上）
+    let (mut lo4, mut hi4) = (0.0f64, 99.0f64);
+    // 3 字搭配的最低分
+    let mut min3 = 0.0f64;
+    // 4 字搭配要比同一交界处必然会查到的子片段（中间 2 字、前 3 字、后 3 字）高出这么多才收：
+    // 交界取最高分，不比子片段高的 4 字搭配永远不会改变结果
+    let mut delta4: Option<f64> = None;
+    let mut i = 0;
+    while i < args.len() {
+        let next = || args.get(i + 1).cloned().ok_or(format!("{} 缺值", args[i]));
+        match args[i].as_str() {
+            "-o" => out = Some(next()?),
+            "--max-len" => max_len = next()?.parse().map_err(|_| "--max-len 要整数")?,
+            "--min-value" => min_value = next()?.parse().map_err(|_| "--min-value 要数字")?,
+            "--top-chars" => top_chars = next()?.parse().map_err(|_| "--top-chars 要整数")?,
+            "--delta4" => delta4 = Some(next()?.parse().map_err(|_| "--delta4 要数字")?),
+            "--min3" => min3 = next()?.parse().map_err(|_| "--min3 要数字")?,
+            "--band4" => {
+                let v = next()?;
+                let (a, b) = v.split_once(',').ok_or("--band4 格式: 下限,上限")?;
+                lo4 = a.parse().map_err(|_| "--band4 下限要数字")?;
+                hi4 = b.parse().map_err(|_| "--band4 上限要数字")?;
+            }
+            other if gram_path.is_none() => {
+                gram_path = Some(other.to_string());
+                i += 1;
+                continue;
+            }
+            other => return Err(format!("未知参数: {other}")),
+        }
+        i += 2;
+    }
+    let gram_path = gram_path.ok_or("需要 .gram 路径")?;
+    let out = out.ok_or("需要 -o 输出路径")?;
+    let max_len = max_len.clamp(2, liana_dict::lm::MAX_KEY_CHARS);
+
+    // 字表：基础词库里单字条目按词频取前 top_chars 个（覆盖日常用字，去掉生僻字以控制体积）
+    // 按 xtask 所在位置找仓库根目录：构建脚本可能在别的目录调用
+    let base_tsv = Path::new(env!("CARGO_MANIFEST_DIR")).join("../crates/dict/data/base-large.tsv");
+    let tsv = read(&base_tsv.to_string_lossy())?;
+    let mut char_freq: HashMap<char, u64> = HashMap::new();
+    for line in tsv.lines() {
+        let f: Vec<&str> = line.split('\t').collect();
+        if f.len() < 3 {
+            continue;
+        }
+        let mut cs = f[0].chars();
+        if let (Some(c), None) = (cs.next(), cs.next()) {
+            let fr: u64 = f[2].trim().parse().unwrap_or(0);
+            *char_freq.entry(c).or_default() += fr;
+        }
+    }
+    let mut ranked: Vec<(char, u64)> = char_freq.into_iter().collect();
+    ranked.sort_by_key(|p| std::cmp::Reverse(p.1));
+    let charset: HashSet<char> = ranked.iter().take(top_chars).map(|p| p.0).collect();
+
+    let g = gram::GramFile::open(&gram_path)?;
+    let t = std::time::Instant::now();
+    let mut entries: Vec<(String, f32)> = Vec::new();
+    let threshold = (min_value * 10000.0) as u32;
+    // 先收 2～3 字（做 4 字的冗余判断用）
+    let mut short: HashMap<Vec<char>, f32> = HashMap::new();
+    if delta4.is_some() {
+        g.for_each(
+            &|prefix| prefix.len() <= 3 && prefix.iter().all(|c| charset.contains(c)),
+            &mut |chars, v| {
+                if chars.len() >= 2 {
+                    short.insert(chars.to_vec(), v as f32 / 10000.0);
+                }
+            },
+        );
+    }
+    let (mut dropped4, mut kept4) = (0usize, 0usize);
+    g.for_each(
+        &|prefix| prefix.len() <= max_len && prefix.iter().all(|c| charset.contains(c)),
+        &mut |chars, v| {
+            if let (Some(delta), 4) = (delta4, chars.len()) {
+                let sub = [&chars[1..3], &chars[0..3], &chars[1..4]]
+                    .iter()
+                    .filter_map(|k| short.get(*k).copied())
+                    .fold(f32::NEG_INFINITY, f32::max);
+                if (v as f32 / 10000.0) <= sub + delta as f32 {
+                    dropped4 += 1;
+                    return;
+                }
+                kept4 += 1;
+            }
+            let score = v as f64 / 10000.0;
+            if chars.len() == 4 && !(lo4..hi4).contains(&score) {
+                return;
+            }
+            if chars.len() == 3 && score < min3 {
+                return;
+            }
+            if chars.len() >= 2 && v >= threshold {
+                entries.push((chars.iter().collect(), v as f32 / 10000.0));
+            }
+        },
+    );
+    if delta4.is_some() {
+        println!("4 字冗余剪枝：保留 {kept4}，剪掉 {dropped4}");
+    }
+    let lm = liana_dict::lm::Collocations::build(entries);
+    let bytes = lm.to_bytes();
+    std::fs::write(&out, &bytes).map_err(|e| format!("写入 {out} 失败: {e}"))?;
+    println!(
+        "已写出 {out}: {} 条（≤{max_len} 字，分 ≥ {min_value}，常用字 {top_chars}），{:.1} MB，用时 {:.1}s",
+        lm.len(),
+        bytes.len() as f64 / 1e6,
+        t.elapsed().as_secs_f64()
+    );
+    Ok(())
+}
+
+fn attach_lm(dict: &mut Dictionary, path: &str) -> Result<(), String> {
+    let bytes = std::fs::read(path).map_err(|e| format!("读不到 {path}: {e}"))?;
+    let lm =
+        liana_dict::lm::Collocations::from_bytes(&bytes).map_err(|e| format!("{path}: {e}"))?;
+    println!("搭配模型 {path}: {} 条", lm.len());
+    dict.set_collocations(Some(std::sync::Arc::new(lm)));
+    Ok(())
+}
+
 /// `xtask query <按键>…`：打印生产词库（含官方词包）下的前 10 个候选与分数，排查排序用。
 fn query_cmd(args: &[String]) -> Result<(), String> {
     use std::sync::Arc;
@@ -548,18 +746,35 @@ fn query_cmd(args: &[String]) -> Result<(), String> {
     use liana_engine::Session;
 
     let path = "crates/dict/data/base-large.tsv";
-    let tsv = std::fs::read_to_string(path).map_err(|e| format!("读不到 {path}: {e}（请在仓库根目录运行）"))?;
+    let tsv = std::fs::read_to_string(path)
+        .map_err(|e| format!("读不到 {path}: {e}（请在仓库根目录运行）"))?;
     let mut dict = parse_tsv(&tsv).0;
     merge_default_packs(&mut dict, Path::new(path))?;
-    let dict = Arc::new(dict);
-    for keys in args {
-        let mut s = Session::with_mode(dict.clone(), Mode::Pinyin);
-        for ch in keys.chars() {
-            s.feed(ch);
+    let mut keys_args: Vec<&String> = Vec::new();
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        if a == "--lm" {
+            attach_lm(&mut dict, it.next().ok_or("--lm 缺值")?)?;
+        } else {
+            keys_args.push(a);
         }
-        println!("{keys}:");
+    }
+    let dict = Arc::new(dict);
+    for keys in keys_args {
+        let mut s = Session::with_mode(dict.clone(), Mode::Pinyin);
+        let mut slowest = std::time::Duration::ZERO;
+        for ch in keys.chars() {
+            let t = std::time::Instant::now();
+            s.feed(ch);
+            let _ = s.composition();
+            slowest = slowest.max(t.elapsed());
+        }
+        println!("{keys}:（最慢一键 {:.2} ms）", slowest.as_secs_f64() * 1000.0);
         for c in s.composition().candidates.iter().take(10) {
-            println!("  {:<12} {:>7.2}  {:?} 消耗 {}", c.text, c.score, c.kind, c.consumed);
+            println!(
+                "  {:<12} {:>7.2}  {:?} 消耗 {}",
+                c.text, c.score, c.kind, c.consumed
+            );
         }
     }
     Ok(())
@@ -567,7 +782,10 @@ fn query_cmd(args: &[String]) -> Result<(), String> {
 
 /// 官方词包：输入文件同目录的 `packs/default/*.tsv` 全部合并（同词同音取较大词频，只补词、抬词频）。
 fn merge_default_packs(dict: &mut Dictionary, input: &Path) -> Result<usize, String> {
-    let dir = input.parent().unwrap_or(Path::new(".")).join("packs/default");
+    let dir = input
+        .parent()
+        .unwrap_or(Path::new("."))
+        .join("packs/default");
     let Ok(read_dir) = std::fs::read_dir(&dir) else {
         return Ok(0);
     };
@@ -578,7 +796,8 @@ fn merge_default_packs(dict: &mut Dictionary, input: &Path) -> Result<usize, Str
     paths.sort();
     let before = dict.entry_count();
     for path in &paths {
-        let src = std::fs::read_to_string(path).map_err(|e| format!("读取 {} 失败: {e}", path.display()))?;
+        let src = std::fs::read_to_string(path)
+            .map_err(|e| format!("读取 {} 失败: {e}", path.display()))?;
         let (pack, report) = parse_tsv(&src);
         if report.skipped > 0 {
             print_report("词包", &path.display().to_string(), &report);
@@ -587,7 +806,11 @@ fn merge_default_packs(dict: &mut Dictionary, input: &Path) -> Result<usize, Str
     }
     let added = dict.entry_count() - before;
     if !paths.is_empty() {
-        println!("已合并官方词包 {} 个：+{added} 词条（共 {}）", paths.len(), dict.entry_count());
+        println!(
+            "已合并官方词包 {} 个：+{added} 词条（共 {}）",
+            paths.len(),
+            dict.entry_count()
+        );
     }
     Ok(added)
 }
@@ -673,11 +896,13 @@ fn accuracy_hard_cmd(args: &[String]) -> Result<(), String> {
     // --cases <评测集>（默认困难集）、--dict <词典 .ifd/.tsv>（默认 base-large.tsv）
     let mut cases_path = "xtask/data/accuracy-hard.tsv".to_string();
     let mut dict_path = "crates/dict/data/base-large.tsv".to_string();
+    let mut lm_path: Option<String> = None;
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
             "--cases" => cases_path = args.get(i + 1).ok_or("--cases 缺值")?.clone(),
             "--dict" => dict_path = args.get(i + 1).ok_or("--dict 缺值")?.clone(),
+            "--lm" => lm_path = Some(args.get(i + 1).ok_or("--lm 缺值")?.clone()),
             other => return Err(format!("未知参数: {other}")),
         }
         i += 2;
@@ -692,9 +917,13 @@ fn accuracy_hard_cmd(args: &[String]) -> Result<(), String> {
         merge_default_packs(&mut dict, Path::new(&dict_path))?;
         dict
     };
+    let mut dict = dict;
+    if let Some(path) = &lm_path {
+        attach_lm(&mut dict, path)?;
+    }
     let dict = Arc::new(dict);
-    let cases_src = std::fs::read_to_string(&cases_path)
-        .map_err(|e| format!("读不到 {cases_path}: {e}"))?;
+    let cases_src =
+        std::fs::read_to_string(&cases_path).map_err(|e| format!("读不到 {cases_path}: {e}"))?;
 
     let run = |keys: &str| -> Vec<String> {
         let mut s = Session::with_mode(dict.clone(), Mode::Pinyin);
