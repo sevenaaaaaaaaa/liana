@@ -172,17 +172,34 @@
     return { s: Math.max(0.3, Math.min(3, num(a.s, 1))), dx: Math.max(-1, Math.min(1, num(a.dx, 0))), dy: Math.max(-1, Math.min(1, num(a.dy, 0))) };
   }
 
-  // 没提供的表情图按近似表情兜底（再没有就用平时图）
+  // 没提供的表情图按近似表情兜底（再没有就用当前循环的图 / 平时图）。
+  // 扩展表情（思考、击掌、场景姿势、通知…）都兜底到原来那个动作用的图，没有这些图的形象表现和以前一样。
   const FALLBACK = {
     angry: ['sad'], love: ['shy', 'happy'], tired: ['sleep'], shy: ['happy'],
     covereyes: ['blink', 'sleep'], listen: ['happy'],
+    thinking: ['surprised'], focus: ['happy'], proud: ['happy'], cheer: ['happy'], shush: ['covereyes'],
+    eureka: ['surprised'], gaming: ['typing'], music: ['happy'], pillow: ['tired', 'sleep'],
+    petted: ['happy'], puff: ['angry', 'sad'], giggle: ['happy'], highfive: ['happy'], wave: ['happy'],
+    hug: ['happy'], cry: ['sad'], scared: ['surprised'], dizzy: ['surprised'], bow: ['happy'],
+    thumbsup: ['happy'], kiss: ['love', 'happy'], back: ['angry', 'sad'],
+    notify_ok: ['thumbsup', 'happy'], notify_error: ['sad'], notify_battery: ['tired'],
+    notify_gift: ['happy'], notify_sun: ['happy'],
   };
   function resolveRole(role) {
     if (!role) return null;
+    if (role === 'side') role = walkDir < 0 ? 'side_left' : 'side_right';
     if (images[role]) return role;
     for (const r of FALLBACK[role] || []) if (images[r]) return r;
     return null;
   }
+
+  // 场景 → 场景姿势图（人物自己拿着手柄 / 咖啡 / 书…）。打游戏 / 听歌 / 看视频没有图也有专门的循环动作；
+  // 其余场景只有形象包里真有这张图时才进入（否则保持原来的打字 / 待机）。
+  const SCENE_POSE = {
+    game: 'gaming', music: 'music', watch: 'watching', coding: 'coding', office: 'coffee', chat: 'phone',
+    design: 'drawing', reading: 'reading', meeting: 'headset',
+  };
+  const SCENE_ALWAYS = ['game', 'music', 'watch'];
 
   async function loadPack() {
     library = await loadJSON('./actions.json');
@@ -268,6 +285,8 @@
   let prevLoop = null;              // 切换时淡出
   let shots = [];                   // 一次性动作 { action, start }
   let facing = 1;
+  /// 最近一次走动的方向（-1 左 / 1 右）：有侧身图时走路换成侧身
+  let walkDir = 1;
   let gaze = { x: 0, y: 0 };
   let moodLevel = 0;
   let hovered = false;
@@ -329,6 +348,7 @@
     }
     if (action.walk && !preview) {
       const dir = Math.random() < 0.5 ? -1 : 1;
+      walkDir = dir;
       if (faces !== 'front') facing = (faces === 'right' ? dir : -dir);
       post({ walk: dir * (+action.walk || 1), duration: +action.duration || 2 });
     }
@@ -575,7 +595,7 @@
     resize();
     gl.clear(gl.COLOR_BUFFER_BIT);
     if (!ready) return;
-    if (state === 'typing' && now > typingUntil) setState('idle');
+    if (state === 'typing' && now > typingUntil) setState(baseState());
     scheduleIdle();
     const p = computeParams();
     // 图片切换：交叉淡入
@@ -617,8 +637,10 @@
     if (dragging) return 'drag';
     if (hold) return hold;
     if (sleepy) return 'sleep';
-    if (scene) return scene;
-    return now < typingUntil ? 'typing' : 'idle';
+    const typing = now < typingUntil;
+    // 打游戏 / 听歌 / 看视频时不打字；其余场景姿势（喝咖啡、看书…）一打字就切回打字
+    if (scene && (SCENE_ALWAYS.includes(scene) || !typing)) return scene;
+    return typing ? 'typing' : 'idle';
   }
 
   // ───────────────── Swift → JS 接口（与 pet.js 同名同义） ─────────────────
@@ -629,7 +651,8 @@
       lastCommitShot = now;
       trigger('commit');
     }
-    if (!dragging && !sleepy && !hold && !scene) setState(value === 'idle' ? 'idle' : 'typing');
+    if (value === 'idle') typingUntil = Math.min(typingUntil, now);
+    if (!dragging && !sleepy && !hold && !SCENE_ALWAYS.includes(scene)) setState(baseState());
   };
   window.petPetted = () => { trigger('click', { force: true }); say('click', true); };
   window.petPoke = () => { trigger('double_click', { force: true }); say('double_click', true); };
@@ -671,13 +694,18 @@
   };
   /// 朝向：dir = -1 往左 / 1 往右（侧身形象溜达、跟着鼠标走时用）
   window.petFace = (dir) => {
-    if (faces === 'front') return;
     const d = dir < 0 ? -1 : 1;
+    walkDir = d;
+    if (faces === 'front') return;
     facing = faces === 'right' ? d : -d;
   };
+  /// 返回这个场景是否由形象自己的场景姿势图来演（是的话 Swift 就不再摆代码画的道具）
   window.petSetScene = (name) => {
-    scene = ['game', 'music', 'watch'].includes(name) ? name : '';
+    const pose = SCENE_POSE[name];
+    const hasPose = !!(pose && images[pose]);
+    scene = pose && (hasPose || SCENE_ALWAYS.includes(name)) ? name : '';
     setState(baseState());
+    return hasPose;
   };
   /// 通用触发器（milestone / break …）与直接播放动作（形象工坊预览按钮）
   window.petTrigger = (name, weights) => trigger(name, { force: true, weights: weights || {} });

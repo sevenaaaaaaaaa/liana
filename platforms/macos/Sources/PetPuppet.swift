@@ -77,6 +77,17 @@ struct PuppetRig: Equatable {
 /// 角色状态（图片的用途）。顺序即形象工坊里格子的顺序，也是添加图片时自动分配的顺序。
 enum PuppetRole: String, CaseIterable, Identifiable {
     case idle, blink, talk, happy, typing, sleep, surprised, shy, sad, angry, love, tired, covereyes, listen
+    // 输入相关
+    case thinking, focus, oops, proud, cheer, shush, eureka, wink
+    // 场景姿势（人物自己拿着道具）
+    case gaming, music, watching, coding, coffee, phone, reading, drawing, headset, stretch, drink, pillow
+    // 通知
+    case notifyMessage = "notify_message", notifyMail = "notify_mail", notifyMeeting = "notify_meeting"
+    case notifyAlarm = "notify_alarm", notifyOK = "notify_ok", notifyError = "notify_error", notifyGift = "notify_gift"
+    case notifyBattery = "notify_battery", notifyRain = "notify_rain", notifySun = "notify_sun"
+    // 情感互动
+    case petted, puff, giggle, highfive, wave, hug, cry, scared, dizzy, bow, thumbsup, kiss, back
+    case sideLeft = "side_left", sideRight = "side_right"
 
     var id: String { rawValue }
 
@@ -90,7 +101,32 @@ enum PuppetRole: String, CaseIterable, Identifiable {
         }
     }
 
+    /// 形象工坊里的分组（基础表情之外的都可选，缺图时动作自动借用最接近的表情）
+    enum Group: String, CaseIterable, Identifiable {
+        case core = "基础表情", input = "输入相关", scene = "场景姿势", notify = "通知", emotion = "情感互动"
+        var id: String { rawValue }
+
+        var note: String {
+            switch self {
+            case .core: return "大部分动作都用这几张"
+            case .input: return "思考、尴尬、保存时得意……打字时的小反应"
+            case .scene: return "打游戏、写代码、看剧时人物自己拿着道具；有这张图就不再摆代码画的道具"
+            case .notify: return "完成、出错、没电、新版本……（来消息 / 天气等为之后接入通知准备）"
+            case .emotion: return "摸头、击掌、要抱抱、晕了、背过身、走路侧身……"
+            }
+        }
+    }
+
+    var group: Group {
+        if let extra = Self.extras[self] { return extra.group }
+        return .core
+    }
+
+    /// 示意图上的小符号（扩展表情用：小人只画基本姿势，靠符号区分）
+    var symbol: String? { Self.extras[self]?.symbol }
+
     var title: String {
+        if let extra = Self.extras[self] { return extra.title }
         switch self {
         case .idle: return "平时（必需）"
         case .happy: return "开心"
@@ -106,6 +142,7 @@ enum PuppetRole: String, CaseIterable, Identifiable {
         case .tired: return "疲惫"
         case .covereyes: return "捂眼睛"
         case .listen: return "倾听"
+        default: return rawValue
         }
     }
 
@@ -120,6 +157,7 @@ enum PuppetRole: String, CaseIterable, Identifiable {
 
     /// 什么时候用到这张图
     var usage: String {
+        if let extra = Self.extras[self] { return extra.usage }
         switch self {
         case .idle: return "大部分时间显示它，所有动作都从它开始"
         case .blink: return "每隔几秒闪一下，桌宠就会眨眼"
@@ -135,11 +173,13 @@ enum PuppetRole: String, CaseIterable, Identifiable {
         case .tired: return "连续打字太久、深夜还没睡"
         case .covereyes: return "你输入密码时捂住眼睛"
         case .listen: return "语音输入时凑过来听"
+        default: return ""
         }
     }
 
     /// 拍摄 / 找图 / 生成要点（和示意图对应）
     var hint: String {
+        if let extra = Self.extras[self] { return extra.hint }
         switch self {
         case .idle: return "正面站立、全身入镜、双手自然下垂、微笑；背景越简单越好"
         case .blink: return "和「平时」同一张：同样姿势和位置，只把眼睛闭上（连拍最容易得到）"
@@ -155,11 +195,13 @@ enum PuppetRole: String, CaseIterable, Identifiable {
         case .tired: return "半睁眼、弯腰驼背，可以打哈欠"
         case .covereyes: return "双手捂住眼睛，可以从指缝偷看"
         case .listen: return "一只手放在耳边，身体前倾，认真听"
+        default: return ""
         }
     }
 
     /// 生成提示词里描述这张图的那一句
     var promptPhrase: String {
+        if let extra = Self.extras[self] { return extra.hint }
         switch self {
         case .idle: return "自然站立，微笑，双手自然下垂"
         case .blink: return "与第 1 张完全相同的姿势和构图，只是双眼闭上"
@@ -175,11 +217,13 @@ enum PuppetRole: String, CaseIterable, Identifiable {
         case .tired: return "疲惫，半睁眼，弯腰，打哈欠"
         case .covereyes: return "双手捂住眼睛，害羞地不看"
         case .listen: return "一只手放在耳边做倾听状，身体微微前倾，好奇"
+        default: return ""
         }
     }
 
     /// 给图像模型的英文描述（「AI 补全表情」用）
     var englishPhrase: String {
+        if let extra = Self.extras[self] { return extra.english }
         switch self {
         case .idle: return "standing naturally with a gentle smile, arms relaxed at the sides"
         case .blink: return "exactly the same as the reference, only both eyes gently closed as in a natural blink; nothing else changes"
@@ -195,12 +239,76 @@ enum PuppetRole: String, CaseIterable, Identifiable {
         case .tired: return "exhausted, half-closed eyes, slouching, yawning"
         case .covereyes: return "covering both eyes with both hands, peeking shyly between the fingers"
         case .listen: return "one hand cupped behind the ear, leaning forward slightly with a curious listening expression"
+        default: return ""
         }
     }
+
+    private struct Extra {
+        let group: Group
+        let title: String
+        let symbol: String
+        let usage: String
+        /// 画面要点（也用作中文提示词）
+        let hint: String
+        let english: String
+    }
+
+    private static let extras: [PuppetRole: Extra] = [
+        .thinking: Extra(group: .input, title: "思考", symbol: "🤔", usage: "多次选错字、打字停下来想的时候", hint: "一只手托下巴，眼睛看向斜上方，若有所思", english: "thinking: one hand on the chin, eyes looking up to the side, pondering"),
+        .focus: Extra(group: .input, title: "专注", symbol: "🔥", usage: "手速飞快时", hint: "微微前倾，眉头轻皱，认真盯着前方", english: "focused: leaning forward slightly, brows a little furrowed, staring intently ahead"),
+        .oops: Extra(group: .input, title: "尴尬", symbol: "😛", usage: "刚上屏就删、撤销", hint: "吐舌头，一只手挠头", english: "embarrassed oops: sticking the tongue out a little, one hand scratching the back of the head"),
+        .proud: Extra(group: .input, title: "得意", symbol: "😎", usage: "⌘S 保存、字数里程碑", hint: "双手叉腰挺胸，一只眼 wink，得意地笑", english: "proud: hands on hips, chest out, winking one eye with a confident grin"),
+        .cheer: Extra(group: .input, title: "加油", symbol: "💪", usage: "删了很多字时给你打气、里程碑", hint: "双手握拳放在胸前，眼神坚定", english: "cheering you on: both fists clenched in front of the chest, determined eyes, encouraging smile"),
+        .shush: Extra(group: .input, title: "嘘", symbol: "🤫", usage: "开会时安静下来", hint: "食指放在嘴前，做嘘的手势", english: "shushing: index finger raised to the lips, quiet gesture"),
+        .eureka: Extra(group: .input, title: "灵光一现", symbol: "💡", usage: "停下来很久后突然噼里啪啦打字", hint: "竖起食指，眼睛发亮，嘴巴张开", english: "eureka: index finger raised, eyes sparkling, mouth open with a sudden idea"),
+        .wink: Extra(group: .input, title: "眨单眼", symbol: "😉", usage: "复制、粘贴", hint: "俏皮地眨一只眼，比个小 V", english: "playful wink with one eye, making a small V sign"),
+        .gaming: Extra(group: .scene, title: "打游戏", symbol: "🎮", usage: "你在玩游戏时", hint: "双手握游戏手柄，身体前倾，兴奋", english: "holding a game controller with both hands, leaning forward, excited"),
+        .music: Extra(group: .scene, title: "听歌", symbol: "🎧", usage: "你在听歌时", hint: "戴头戴式耳机，闭眼陶醉，手指打拍子", english: "wearing over-ear headphones, eyes closed enjoying the music, tapping fingers to the beat"),
+        .watching: Extra(group: .scene, title: "看剧", symbol: "🍿", usage: "你在看视频时", hint: "抱着一桶爆米花，开心地笑", english: "holding a bucket of popcorn, smiling happily as if watching a show"),
+        .coding: Extra(group: .scene, title: "写代码", symbol: "💻", usage: "在写代码的应用里、停下来没打字时", hint: "戴细框眼镜，托腮看前方", english: "wearing thin-framed glasses, chin resting on one hand, looking ahead thoughtfully"),
+        .coffee: Extra(group: .scene, title: "喝咖啡", symbol: "☕", usage: "办公时停下来没打字", hint: "双手捧着马克杯，杯口冒热气", english: "holding a steaming mug of coffee with both hands"),
+        .phone: Extra(group: .scene, title: "看手机", symbol: "📱", usage: "在聊天应用里", hint: "双手拿手机，低头打字，微笑", english: "holding a smartphone with both hands, looking down at it and texting, smiling"),
+        .reading: Extra(group: .scene, title: "看书", symbol: "📖", usage: "在读书 / 看 PDF 时", hint: "双手捧着一本打开的书", english: "holding an open book with both hands, reading"),
+        .drawing: Extra(group: .scene, title: "画画", symbol: "🎨", usage: "在设计 / 画图应用里", hint: "一手拿数位笔，一手拿平板", english: "holding a drawing tablet in one hand and a stylus in the other, sketching"),
+        .headset: Extra(group: .scene, title: "开会", symbol: "🎙", usage: "在开会应用里", hint: "戴耳麦，一只手按着麦克风，认真说话", english: "wearing a headset with a microphone, one hand on the mic, speaking seriously"),
+        .stretch: Extra(group: .scene, title: "伸懒腰", symbol: "🙆", usage: "休息提醒、发呆时伸懒腰", hint: "双臂高举伸懒腰，闭眼", english: "stretching with both arms raised high above the head, eyes closed"),
+        .drink: Extra(group: .scene, title: "喝水", symbol: "💧", usage: "休息提醒：喝口水", hint: "举着一杯水在喝", english: "drinking from a glass of water"),
+        .pillow: Extra(group: .scene, title: "抱枕头", symbol: "😪", usage: "深夜还在打字", hint: "抱着枕头，困得睁不开眼", english: "hugging a pillow, very sleepy with heavy eyelids"),
+        .notifyMessage: Extra(group: .notify, title: "来消息", symbol: "💬", usage: "新消息（为接入通知准备）", hint: "举起手机朝向你，开心", english: "holding up a smartphone toward the viewer, happy, as if showing a new message"),
+        .notifyMail: Extra(group: .notify, title: "来信", symbol: "✉️", usage: "新邮件（为接入通知准备）", hint: "双手举着一封信", english: "holding up an envelope letter with both hands"),
+        .notifyMeeting: Extra(group: .notify, title: "会议提醒", symbol: "⌚", usage: "会议快开始（为接入日程准备）", hint: "指着手腕上的手表，着急", english: "pointing at a wristwatch, looking a bit anxious, reminding of a meeting"),
+        .notifyAlarm: Extra(group: .notify, title: "闹钟", symbol: "⏰", usage: "提醒到点（为接入提醒准备）", hint: "举着一个响铃的闹钟", english: "holding up a ringing alarm clock"),
+        .notifyOK: Extra(group: .notify, title: "完成", symbol: "✅", usage: "剪贴板命令 / 网页任务完成", hint: "比 OK 手势，笑", english: "making an OK hand sign, smiling"),
+        .notifyError: Extra(group: .notify, title: "出错", symbol: "❌", usage: "剪贴板命令 / 网页任务失败", hint: "双手交叉打叉，皱眉", english: "crossing both arms in an X shape, frowning"),
+        .notifyGift: Extra(group: .notify, title: "新版本", symbol: "🎁", usage: "松萝更新后第一次见面", hint: "双手捧着礼物盒", english: "holding a gift box with both hands"),
+        .notifyBattery: Extra(group: .notify, title: "没电了", symbol: "🪫", usage: "电量低于 15% 且没充电", hint: "软趴趴，抱着一块空电池", english: "limp and drained, hugging a big empty battery"),
+        .notifyRain: Extra(group: .notify, title: "下雨", symbol: "☔", usage: "天气：雨（之后接入天气）", hint: "撑着一把透明雨伞", english: "holding a clear transparent umbrella"),
+        .notifySun: Extra(group: .notify, title: "晴天", symbol: "😎", usage: "天气：晴（之后接入天气）", hint: "戴墨镜，比 V", english: "wearing sunglasses, making a V sign"),
+        .petted: Extra(group: .emotion, title: "被摸头", symbol: "🥰", usage: "摸头", hint: "缩着脖子、眯眼，幸福地笑", english: "being patted on the head: shoulders slightly raised, eyes squinted shut, blissful smile"),
+        .puff: Extra(group: .emotion, title: "鼓腮", symbol: "😤", usage: "连着戳脸", hint: "鼓起脸颊，眼睛瞪着你", english: "puffing out both cheeks, glaring at the viewer, pouty"),
+        .giggle: Extra(group: .emotion, title: "笑弯腰", symbol: "🤭", usage: "挠痒痒", hint: "笑到弯腰，一只手捂肚子", english: "laughing so hard, bending slightly, one hand on the belly"),
+        .highfive: Extra(group: .emotion, title: "击掌", symbol: "🖐", usage: "举手等你击掌", hint: "举起一只手掌对着你", english: "raising one open palm toward the viewer for a high five"),
+        .wave: Extra(group: .emotion, title: "挥手", symbol: "👋", usage: "问候、入场", hint: "一只手挥手打招呼", english: "waving hello with one hand"),
+        .hug: Extra(group: .emotion, title: "要抱抱", symbol: "🤗", usage: "你离开很久回来时", hint: "张开双臂要抱抱", english: "opening both arms wide asking for a hug"),
+        .cry: Extra(group: .emotion, title: "大哭", symbol: "😭", usage: "被冷落很久", hint: "眼泪汪汪，用手背擦眼泪", english: "teary eyes, wiping tears with the back of one hand"),
+        .scared: Extra(group: .emotion, title: "害怕", symbol: "😨", usage: "被甩出去、吓一跳", hint: "抱住自己，发抖", english: "scared, hugging herself and trembling"),
+        .dizzy: Extra(group: .emotion, title: "晕了", symbol: "💫", usage: "被晃晕", hint: "眼睛转圈圈，身体歪", english: "dizzy with swirly eyes, body tilting unsteadily"),
+        .bow: Extra(group: .emotion, title: "鞠躬", symbol: "🙇", usage: "谢谢 / 道歉", hint: "双手放在身前，鞠躬", english: "bowing politely with both hands in front"),
+        .thumbsup: Extra(group: .emotion, title: "点赞", symbol: "👍", usage: "击掌成功、里程碑、语音输入完成", hint: "竖大拇指", english: "giving a thumbs up with a big smile"),
+        .kiss: Extra(group: .emotion, title: "飞吻", symbol: "😘", usage: "好感度高时摸头", hint: "一只手在嘴边做飞吻", english: "blowing a kiss with one hand near the lips"),
+        .back: Extra(group: .emotion, title: "背影", symbol: "🔙", usage: "生气背过身、闹别扭", hint: "背对镜头站着，同样的发型服装", english: "standing with the back to the camera, same hairstyle and outfit seen from behind"),
+        .sideLeft: Extra(group: .emotion, title: "侧身朝左", symbol: "⬅️", usage: "往左走、跟着鼠标走", hint: "侧身朝画面左侧自然站立", english: "standing in side profile facing the left side of the image"),
+        .sideRight: Extra(group: .emotion, title: "侧身朝右", symbol: "➡️", usage: "往右走、跟着鼠标走", hint: "侧身朝画面右侧自然站立", english: "standing in side profile facing the right side of the image"),
+    ]
 
     /// 文件名关键词 → 角色（AI 生成的一组图常按表情命名）
     static func guess(from filename: String) -> PuppetRole? {
         let name = filename.lowercased()
+        // 扩展表情按键名（notify_ok、side_left…）或中文名精确命中，长的先比，免得「倾听」抢走「听歌」
+        let extended = extras.sorted { $0.key.rawValue.count > $1.key.rawValue.count }
+        if let hit = extended.first(where: { name.contains($0.key.rawValue) }) { return hit.key }
+        if let hit = extended.sorted(by: { $0.value.title.count > $1.value.title.count })
+            .first(where: { name.contains($0.value.title) }) { return hit.key }
         let hints: [(PuppetRole, [String])] = [
             (.blink, ["blink", "闭眼", "eyes_closed", "closed"]),
             (.talk, ["talk", "speak", "mouth_open", "张嘴", "说话"]),
@@ -258,6 +366,11 @@ struct PuppetImage: Identifiable {
     var align = PuppetAlign.identity
     /// 处理时的裁切组（同一次添加里尺寸相同、主体位置高度重合的图用同一个裁切框）；不存进形象包
     var cropGroup: String?
+    /// 处理时的原图画布：同一次添加里原图尺寸相同的视为同一批生成（构图一致），
+    /// rect = 裁切框在原图里的位置（归一化，原点左下），aspect = 原图宽高比；不存进形象包
+    var canvas: (key: String, rect: CGRect, aspect: CGFloat)?
+    /// 这次的对齐是按同批图片的画布几何推算的（认不出脸的插画也能对齐）
+    var canvasAligned = false
 
     var aspect: CGFloat { pixelSize.width / max(1, pixelSize.height) }
 
@@ -276,12 +389,62 @@ struct PuppetImage: Identifiable {
         return PuppetAlign(scale: s, dx: dx, dy: dy)
     }
 
+    /// 整套自动对齐：先按脸对齐；再把同一批生成的图（同尺寸原图）当成共用一张画布——
+    /// 用组里认出脸的几张取中位数定出画布的位置和大小，认不出脸 / 脸认错了的图按裁切框几何摆上去。
+    static func alignAll(_ images: [PuppetImage], idle: PuppetImage) -> [(align: PuppetAlign, canvas: Bool)] {
+        var result = images.map { image -> (align: PuppetAlign, canvas: Bool) in
+            image.id == idle.id ? (.identity, false) : (autoAlign(image, to: idle), false)
+        }
+        // 画布在显示坐标里的位置（单位 = 平时图高度）：k = 画布高度，bottom = 画布底边，center = 画布中线
+        typealias Placement = (k: CGFloat, bottom: CGFloat, center: CGFloat)
+        func placement(_ image: PuppetImage, _ a: PuppetAlign) -> Placement? {
+            guard let c = image.canvas, c.rect.height > 0.01 else { return nil }
+            let k = a.scale / c.rect.height
+            return (k, a.dy - image.rig.ground * a.scale - c.rect.minY * k,
+                    a.dx + (0.5 - c.rect.midX) * k * c.aspect)
+        }
+        func median(_ values: [CGFloat]) -> CGFloat {
+            let sorted = values.sorted()
+            return sorted[sorted.count / 2]
+        }
+        let groups = Dictionary(grouping: images.indices.filter { images[$0].canvas != nil }) { images[$0].canvas!.key }
+        for members in groups.values where members.count > 1 {
+            // 平时图在组里就以它为准；否则用组里两边都认出脸的图
+            let refs: [Placement]
+            if let i = members.first(where: { images[$0].id == idle.id }), let p = placement(images[i], .identity) {
+                refs = [p]
+            } else {
+                refs = members.filter { images[$0].rig.face != nil && idle.rig.face != nil }
+                    .compactMap { placement(images[$0], result[$0].align) }
+            }
+            guard !refs.isEmpty else { continue }
+            let ref = (k: median(refs.map(\.k)), bottom: median(refs.map(\.bottom)), center: median(refs.map(\.center)))
+            for i in members where images[i].id != idle.id {
+                let image = images[i]
+                guard let c = image.canvas else { continue }
+                // 认出脸且和全组一致的保留按脸对齐；认不出脸、或明显偏离（多半认错了脸）的改用画布几何
+                if image.rig.face != nil, idle.rig.face != nil, let p = placement(image, result[i].align),
+                   abs(p.k / ref.k - 1) < 0.12, abs(p.bottom - ref.bottom) < 0.06, abs(p.center - ref.center) < 0.06 {
+                    continue
+                }
+                let s = ref.k * c.rect.height
+                let align = PuppetAlign(scale: min(2.5, max(0.4, s)),
+                                        dx: ref.center - (0.5 - c.rect.midX) * ref.k * c.aspect,
+                                        dy: ref.bottom + c.rect.minY * ref.k + image.rig.ground * s)
+                result[i] = (align, true)
+            }
+        }
+        return result
+    }
+
     /// 和「平时」图差得多不多：对齐后两者占据的区域重合度低、或要缩放很多（全身配半身）就提醒。
     static func mismatch(_ image: PuppetImage, idle: PuppetImage) -> String? {
         let a = image.align
         if a.scale > 1.45 || a.scale < 0.7 {
             return "构图和「平时」差别大（像是一张全身一张半身），切换时会跳"
         }
+        // 按同一批图片的画布推算的：位置是几何上对的，张开手臂、举伞造成的外框差异不算问题
+        if image.canvasAligned { return nil }
         // 两张都识别到脸：已经按脸对齐，外框宽窄不同（比如一张张开手臂）不算问题
         if image.rig.face != nil && idle.rig.face != nil { return nil }
         // 两者在显示坐标里的外框（单位 = 平时图高度，原点 = 脚底中心）
@@ -455,12 +618,14 @@ enum PuppetBuilder {
         // 表情切换、眨眼时不跳动；同一部手机拍的不同照片尺寸也相同，但主体位置不同，不会被并组
         var groups: [(size: CGSize, box: CGRect)] = []
         var groupOf: [Int] = []
+        var boxes: [CGRect] = []
         let batch = UUID().uuidString
         for (_, image) in cutouts {
             guard let box = alphaBounds(image) else {
                 throw PuppetError.message("抠图结果是空的：请换一张主体更明显的图")
             }
             let size = CGSize(width: image.width, height: image.height)
+            boxes.append(box)
             if let g = groups.firstIndex(where: { $0.size == size && overlap($0.box, box) > 0.75 }) {
                 groups[g].box = groups[g].box.union(box)
                 groupOf.append(g)
@@ -485,6 +650,13 @@ enum PuppetBuilder {
                 rig: detectRig(scaled)
             )
             image.cropGroup = "\(batch)-\(groupOf[index])"
+            let w = CGFloat(item.image.width), h = CGFloat(item.image.height)
+            // 已经抠好、裁到人物边缘的透明图没有原始构图信息，不参与画布对齐
+            if boxes[index].width < w * 0.9 || boxes[index].height < h * 0.9 {
+                image.canvas = ("\(batch)-\(item.image.width)x\(item.image.height)",
+                                CGRect(x: box.minX / w, y: 1 - box.maxY / h, width: box.width / w, height: box.height / h),
+                                w / max(1, h))
+            }
             return (item.name, image)
         }
     }

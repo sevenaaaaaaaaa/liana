@@ -66,8 +66,13 @@ class PetWebView: WKWebView, WKScriptMessageHandler, WKNavigationDelegate {
     func setGaze(dx: Double, dy: Double, near: Double = 0) {
         eval("window.petSetGaze && window.petSetGaze(\(dx), \(dy), \(near))")
     }
-    /// 场景姿态：game / music / watch / ""（纸偶渲染器）
-    func setScene(_ pose: String) { eval("window.petSetScene && window.petSetScene('\(Self.jsSafe(pose))')") }
+    /// 场景姿态：game / music / watch / coding / office …… / ""（纸偶渲染器）。
+    /// completion(true) = 形象有这个场景的姿势图（人物自己拿着道具），不用再摆代码画的道具。
+    func setScene(_ pose: String, completion: @escaping (Bool) -> Void = { _ in }) {
+        evaluateJavaScript("!!(window.petSetScene && window.petSetScene('\(Self.jsSafe(pose))'))") { result, _ in
+            completion(result as? Bool ?? false)
+        }
+    }
     /// 侧身形象的朝向：-1 往左 / 1 往右
     func face(_ dir: Int) { eval("window.petFace && window.petFace(\(dir))") }
     /// 通用触发器（milestone / break …），纸偶渲染器支持；其他渲染器没有该函数时静默忽略。

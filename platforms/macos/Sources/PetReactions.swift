@@ -17,6 +17,9 @@ final class PetKeyObserver {
     private var deleteTimes: [Date] = []
     private var sameKey: (code: UInt16, times: [Date]) = (0, [])
     private var lastCommitAt: Date?
+    private var lastKeyAt: Date?
+    /// 停下来很久（20 秒～10 分钟）后重新开始打字的时刻：紧接着噼里啪啦 = 灵光一现
+    private var resumedAt: Date?
     private var errors: [Date] = []
     private var cooldowns: [String: Date] = [:]
 
@@ -47,8 +50,16 @@ final class PetKeyObserver {
             }
         }
 
+        if let last = lastKeyAt, (20..<600).contains(now.timeIntervalSince(last)) { resumedAt = now }
+        lastKeyAt = now
+
         // 手速：3 秒内 ≥ 24 键（约每秒 8 键）
         keyTimes = keyTimes.filter { now.timeIntervalSince($0) < 3 } + [now]
+        if let resumed = resumedAt, now.timeIntervalSince(resumed) < 4,
+           keyTimes.filter({ $0 >= resumed }).count >= 14, ready("eureka", 300) {
+            resumedAt = nil
+            return Reaction(trigger: "eureka", emote: "💡", line: ["灵感来了！", "想到了！", "就是这个！"].randomElement())
+        }
         if keyTimes.count >= 24, ready("typing_fast", 180) {
             return Reaction(trigger: "typing_fast", emote: "🔥", line: ["手速好快！", "噼里啪啦～", "停不下来了！"].randomElement())
         }
@@ -58,6 +69,7 @@ final class PetKeyObserver {
             if let commit = lastCommitAt, now.timeIntervalSince(commit) < 2 {
                 lastCommitAt = nil
                 if let confused = noteError() { return confused }
+                if ready("oops", 30) { return Reaction(trigger: "oops", emote: "😛", line: nil) }
             }
             deleteTimes = deleteTimes.filter { now.timeIntervalSince($0) < 1 } + [now]
             if deleteTimes.count >= 3, ready("deleting", 3) {

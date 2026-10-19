@@ -222,6 +222,7 @@ enum CommandActions {
             guard alert.runModal() == .alertSecondButtonReturn else { return }
         }
         if let error = TerminalLauncher.run(cmd.command) {
+            PetWindowController.shared.notify("notify_error")
             PetWindowController.shared.showToast(error, duration: 6)
         }
     }

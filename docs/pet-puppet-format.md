@@ -58,7 +58,7 @@ happy.png …     其他表情图（可选）
 |---|---|
 | `faces` | `front` / `left` / `right`：侧身形象溜达时按方向镜像 |
 | `rights` | `shareable`（作者声明原创或已获授权，可申请发布到松萝社区）/ `personal`（个人使用；本地使用与导出不受限） |
-| `images.<表情>` | 表情：`idle`（必需）`blink`（闭眼，用于眨眼）`talk`（张嘴，说话口型）`happy` `typing` `sleep` `surprised` `shy` `sad` `angry` `love` `tired` `covereyes`（输密码时捂眼）`listen`（语音时倾听）；缺的表情按近似表情兜底（angry→sad，love→shy→happy，tired→sleep，shy→happy，covereyes→blink→sleep，listen→happy，最后用 idle）；也可以自定义表情名供自己的动作引用 |
+| `images.<表情>` | 表情：`idle`（必需）`blink`（闭眼，用于眨眼）`talk`（张嘴，说话口型）`happy` `typing` `sleep` `surprised` `shy` `sad` `angry` `love` `tired` `covereyes`（输密码时捂眼）`listen`（语音时倾听）；扩展表情（全部可选）：输入相关 `thinking` `focus` `oops` `proud` `cheer` `shush` `eureka` `wink`，场景姿势 `gaming` `music` `watching` `coding` `coffee` `phone` `reading` `drawing` `headset` `stretch` `drink` `pillow`，通知 `notify_message` `notify_mail` `notify_meeting` `notify_alarm` `notify_ok` `notify_error` `notify_gift` `notify_battery` `notify_rain` `notify_sun`，情感互动 `petted` `puff` `giggle` `highfive` `wave` `hug` `cry` `scared` `dizzy` `bow` `thumbsup` `kiss` `back` `side_left` `side_right`；缺的表情按近似表情兜底（angry→sad，love→shy→happy，tired→sleep，shy→happy，covereyes→blink→sleep，listen→happy；扩展表情兜底到原来那个动作用的图，如 petted→happy、puff→angry、cry→sad、back→angry，见 `pet-puppet.js` 的 `FALLBACK`；最后用当前循环的图 / idle）；动作的 `image` 写 `side` 时按走动方向取 `side_left` / `side_right`；也可以自定义表情名供自己的动作引用 |
 | `images.<表情>.align` | 可选，相对平时图的对齐 `{"s": 缩放, "dx": 左右, "dy": 上下}`（单位 = 平时图显示高度，dy 向上为正）；形象工坊按人脸自动计算，可手动微调 |
 | `images.<表情>.generated` | `true` 表示由形象工坊按「平时」图自动生成（目前是 `blink` / `talk`），只和平时图对齐，编辑时会重新生成 |
 | `rig.neck` | 脖子转轴（图片归一化坐标，**y 自下而上**） |
@@ -126,7 +126,7 @@ happy.png …     其他表情图（可选）
 部位类（单击，按骨架与透明度判断点在哪）：`tap_head` 摸头、`tap_face` / `tap_face2` 戳脸（连戳升级）、`tap_body` / `tap_body2` 挠痒（连挠升级）、`tap_hand` 举手等击掌、`highfive` 击掌成功、`highfive_miss` 没接住、`tap_feet` 踩脚、`tap_miss` 点空白处、`invite` 主动邀请互动；
 打字类：`deleting` 连续删除、`noisy` 狂敲同一个键、`enter` `tab` `esc` `arrow_left|right|up|down`、`undo` `save` `copy` `paste`（⌘Z/S/C/V）、`mode` 中英切换、`typing_fast` 手速快、`confused` 反复出错；
 持续姿态（states）：`cover` 输入密码时捂眼、`listen` 语音输入时倾听，结束时触发 `cover_end` / `voice_done`，语音中触发 `voice_heard`；拖动类：`fling` 被甩出去、`drag_dizzy` 拎着晃晕；
-场景类：进入场景时触发 `scene_<场景>`（office / coding / game / music / video / chat / design / reading / meeting / browse），场景姿态（states）`game` `music` `watch`；入场 `entrance_land` `entrance_pop` `entrance_walk`、离场 `exit`、跟着鼠标走 `follow_walk`；
+场景类：进入场景时触发 `scene_<场景>`（office / coding / game / music / video / chat / design / reading / meeting / browse），场景姿态（states）`game` `music` `watch` 总是生效，`coding` `office` `chat` `design` `reading` `meeting` 只在形象有对应姿势图（`coding` `coffee` `phone` `drawing` `reading` `headset`）时生效——此时宿主不再摆代码画的道具，一打字切回打字图，停下来回到姿势；状态提示 `thinking` `eureka` `oops` `notify_ok` `notify_error` `notify_battery` `notify_gift`；入场 `entrance_land` `entrance_pop` `entrance_walk`、离场 `exit`、跟着鼠标走 `follow_walk`；
 对话类：`chat` 听你说话、`chat_happy`、`chat_sad`；
 情感类：`love` 连着摸头、`angry` 被连戳、`lonely` 被冷落、`welcome` 离开后回来、`comfort` 删字很多、`dizzy` 被鼠标晃晕、`shy` 一直盯着它、`night` 深夜还在打字、`scared` 受惊。
 值为动作 id 或 id 数组（随机挑一个）。

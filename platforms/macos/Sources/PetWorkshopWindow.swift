@@ -280,9 +280,11 @@ final class WorkshopModel: ObservableObject {
     /// 所有表情图重新对齐到「平时」图（换了平时图、加了新图时调用）。
     func realign() {
         guard let idle = image(for: .idle) else { return }
+        let aligned = PuppetImage.alignAll(draft.images, idle: idle)
         for i in draft.images.indices where draft.images[i].role != .idle {
             if manuallyAligned.contains(draft.images[i].id) { continue }
-            draft.images[i].align = PuppetImage.autoAlign(draft.images[i], to: idle)
+            draft.images[i].align = aligned[i].align
+            draft.images[i].canvasAligned = aligned[i].canvas
         }
         if let i = draft.images.firstIndex(where: { $0.role == .idle }) { draft.images[i].align = .identity }
     }
@@ -295,6 +297,7 @@ final class WorkshopModel: ObservableObject {
     func setAlign(_ align: PuppetAlign, final: Bool) {
         guard let index = selectedIndex, draft.images[index].role != .idle else { return }
         draft.images[index].align = align
+        draft.images[index].canvasAligned = false
         manuallyAligned.insert(draft.images[index].id)
         if final { refreshPreview(immediately: false) }
     }
@@ -302,7 +305,9 @@ final class WorkshopModel: ObservableObject {
     func autoAlignSelected() {
         guard let index = selectedIndex, let idle = image(for: .idle) else { return }
         manuallyAligned.remove(draft.images[index].id)
-        draft.images[index].align = PuppetImage.autoAlign(draft.images[index], to: idle)
+        let aligned = PuppetImage.alignAll(draft.images, idle: idle)[index]
+        draft.images[index].align = aligned.align
+        draft.images[index].canvasAligned = aligned.canvas
         refreshPreview(immediately: true)
     }
 
@@ -406,8 +411,14 @@ final class WorkshopModel: ObservableObject {
             "",
         ]
         if !characterDesc.isEmpty { lines.insert("【角色】" + characterDesc, at: 1) }
-        for (i, role) in PuppetRole.allCases.enumerated() where role != .idle {
-            lines.append("\(i). \(role.shortTitle)（存成 \(role.rawValue).png）：\(role.promptPhrase)")
+        var index = 0
+        for group in PuppetRole.Group.allCases {
+            lines.append("")
+            lines.append("【\(group.rawValue)】\(group == .core ? "" : "可选：")\(group.note)")
+            for role in PuppetRole.allCases where role.group == group && role != .idle {
+                index += 1
+                lines.append("\(index). \(role.shortTitle)（存成 \(role.rawValue).png）：\(role.promptPhrase)")
+            }
         }
         return lines.joined(separator: "\n")
     }
@@ -532,6 +543,7 @@ final class WorkshopModel: ObservableObject {
 
 struct WorkshopView: View {
     @ObservedObject var model: WorkshopModel
+    @State private var expandedGroups: Set<PuppetRole.Group> = []
 
     var body: some View {
         HStack(spacing: 0) {
@@ -666,9 +678,40 @@ struct WorkshopView: View {
                     .help("一次选多张：文件名带 happy / sleep / blink 等会自动放进对应格子")
             }
             guideBox
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 148), spacing: 10)], spacing: 12) {
-                ForEach(PuppetRole.allCases) { role in
-                    RoleSlot(model: model, role: role, pick: { pickImages(role: role) })
+            ForEach(PuppetRole.Group.allCases) { group in
+                roleGroup(group)
+            }
+        }
+    }
+
+    /// 一组表情格子：基础表情常开；其余分组默认收起，已经有图的分组自动展开
+    @ViewBuilder
+    private func roleGroup(_ group: PuppetRole.Group) -> some View {
+        let roles = PuppetRole.allCases.filter { $0.group == group }
+        let filled = roles.filter { model.image(for: $0) != nil }.count
+        let open = group == .core || expandedGroups.contains(group) || filled > 0
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                if expandedGroups.contains(group) { expandedGroups.remove(group) } else { expandedGroups.insert(group) }
+            } label: {
+                HStack(spacing: 6) {
+                    if group != .core {
+                        Image(systemName: open ? "chevron.down" : "chevron.right").font(.system(size: 10, weight: .semibold))
+                    }
+                    Text(group.rawValue).font(.system(size: 12, weight: .semibold))
+                    Text("\(filled)/\(roles.count)").font(.system(size: 11)).foregroundStyle(.secondary)
+                    Text(group.note).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(group == .core || filled > 0)
+            if open {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 148), spacing: 10)], spacing: 12) {
+                    ForEach(roles) { role in
+                        RoleSlot(model: model, role: role, pick: { pickImages(role: role) })
+                    }
                 }
             }
         }
@@ -960,6 +1003,8 @@ private let triggerTitles: [(key: String, title: String)] = [
     ("drop", "被放下"), ("break", "休息提醒"), ("roam", "溜达"),
     ("love", "连着摸头（心动）"), ("angry", "被连戳（生气）"), ("lonely", "被冷落"), ("welcome", "你回来时"),
     ("comfort", "删字很多时（安慰）"), ("dizzy", "被鼠标晃晕"), ("shy", "一直盯着它"), ("night", "深夜还在打字"),
+    ("thinking", "打字停下来想事情"), ("eureka", "停很久后突然快打"), ("oops", "刚上屏就删"), ("save", "⌘S 保存"),
+    ("notify_ok", "任务完成"), ("notify_error", "任务出错"), ("notify_battery", "电量低"), ("notify_gift", "松萝更新后"),
 ]
 
 private let lineTitles: [(key: String, title: String)] = [
@@ -1512,7 +1557,7 @@ struct RoleSketch: View {
             case .angry: text("💢", p(74, 16), 10)
             case .sad, .tired: text("💧", p(73, 24), 8)
             case .love: text("♥", p(76, 14), 11, .pink)
-            default: break
+            default: if let symbol = role.symbol { text(symbol, p(76, 16), 14) }
             }
         }
     }
@@ -1662,7 +1707,8 @@ private struct AIGenSheet: View {
         .onAppear {
             apiKey = PetImageGenKeychain.get(config.provider) ?? ""
             // 默认勾选还空着的格子（闭眼 / 张嘴可以自动生成，也默认勾上：AI 生成的更自然）
-            roles = Set(PuppetRole.allCases.filter { $0 != .idle && model.image(for: $0) == nil })
+            // 默认只勾基础表情里缺的；扩展表情按需自己勾（每张都要计费）
+            roles = Set(PuppetRole.allCases.filter { $0 != .idle && $0.group == .core && model.image(for: $0) == nil })
         }
     }
 

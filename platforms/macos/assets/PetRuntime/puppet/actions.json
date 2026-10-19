@@ -617,7 +617,8 @@
             0
           ]
         ]
-      }
+      },
+      "image": "stretch"
     },
     "sway": {
       "name": "左右摇摆",
@@ -776,7 +777,7 @@
     "wave": {
       "name": "打招呼",
       "duration": 1.1,
-      "image": "happy",
+      "image": "wave",
       "tracks": {
         "root.rot": [
           [
@@ -1251,12 +1252,13 @@
             1.2
           ]
         }
-      }
+      },
+      "image": "side"
     },
     "angry_turn": {
       "name": "生气背过身",
       "duration": 2.4,
-      "image": "angry",
+      "image": "back",
       "emote": "💢",
       "tracks": {
         "root.sx": [
@@ -1497,7 +1499,7 @@
     "lonely": {
       "name": "被冷落",
       "duration": 3.0,
-      "image": "sad",
+      "image": "cry",
       "emote": "💧",
       "tracks": {
         "head.rot": [
@@ -1577,7 +1579,7 @@
     "welcome": {
       "name": "欢迎回来",
       "duration": 1.6,
-      "image": "happy",
+      "image": "hug",
       "effect": "sparks",
       "emote": "✨",
       "tracks": {
@@ -1676,7 +1678,7 @@
     "comfort": {
       "name": "安慰你",
       "duration": 1.6,
-      "image": "happy",
+      "image": "cheer",
       "emote": "🍵",
       "tracks": {
         "lean": [
@@ -1746,7 +1748,7 @@
     "dizzy": {
       "name": "晕了",
       "duration": 2.2,
-      "image": "surprised",
+      "image": "dizzy",
       "emote": "💫",
       "tracks": {
         "root.swing": {
@@ -2032,7 +2034,7 @@
     "shiver": {
       "name": "发抖",
       "duration": 1.4,
-      "image": "surprised",
+      "image": "scared",
       "emote": "💦",
       "tracks": {
         "root.tx": {
@@ -2064,7 +2066,7 @@
     "bow": {
       "name": "鞠躬",
       "duration": 1.6,
-      "image": "happy",
+      "image": "bow",
       "tracks": {
         "lean": [
           [
@@ -2125,7 +2127,7 @@
     "pat_head": {
       "name": "被摸头",
       "duration": 1.0,
-      "image": "happy",
+      "image": "petted",
       "tracks": {
         "head.ty": [
           [
@@ -2237,7 +2239,7 @@
     "cheek_puff": {
       "name": "鼓起脸",
       "duration": 1.5,
-      "image": "angry",
+      "image": "puff",
       "emote": "😤",
       "tracks": {
         "root.sx": [
@@ -2299,7 +2301,7 @@
     "tickle": {
       "name": "被挠痒",
       "duration": 1.2,
-      "image": "happy",
+      "image": "giggle",
       "emote": "🤭",
       "tracks": {
         "root.sx": {
@@ -2319,7 +2321,7 @@
     "tickle_hard": {
       "name": "笑得停不下来",
       "duration": 1.8,
-      "image": "happy",
+      "image": "giggle",
       "effect": "sparks",
       "emote": "🤣",
       "tracks": {
@@ -2347,7 +2349,7 @@
     "raise_hand": {
       "name": "举手等击掌",
       "duration": 3.0,
-      "image": "happy",
+      "image": "highfive",
       "emote": "🖐",
       "tracks": {
         "lean": [
@@ -2415,7 +2417,7 @@
     "highfive": {
       "name": "击掌",
       "duration": 1.0,
-      "image": "happy",
+      "image": "thumbsup",
       "effect": "sparks",
       "emote": "✨",
       "tracks": {
@@ -3103,12 +3105,13 @@
             0
           ]
         ]
-      }
+      },
+      "image": "oops"
     },
     "save_proud": {
       "name": "保存了",
       "duration": 0.9,
-      "image": "happy",
+      "image": "proud",
       "emote": "💾",
       "tracks": {
         "head.ty": [
@@ -3194,7 +3197,8 @@
             0
           ]
         ]
-      }
+      },
+      "image": "wink"
     },
     "mode_switch": {
       "name": "切换中英",
@@ -3228,7 +3232,7 @@
     "confused": {
       "name": "困惑",
       "duration": 1.8,
-      "image": "surprised",
+      "image": "thinking",
       "emote": "🤔",
       "tracks": {
         "head.rot": [
@@ -3272,7 +3276,7 @@
     "typing_fast": {
       "name": "手速好快",
       "duration": 1.0,
-      "image": "happy",
+      "image": "focus",
       "effect": "sparks",
       "emote": "🔥",
       "tracks": {
@@ -3422,7 +3426,7 @@
     "gaming_loop": {
       "name": "打游戏",
       "loop": true,
-      "image": "typing",
+      "image": "gaming",
       "tracks": {
         "lean": {
           "base": 0.03,
@@ -3456,7 +3460,7 @@
     "groove_loop": {
       "name": "跟着节奏摇",
       "loop": true,
-      "image": "happy",
+      "image": "music",
       "tracks": {
         "root.ty": {
           "bob": [
@@ -3505,7 +3509,8 @@
             0.12
           ]
         }
-      }
+      },
+      "image": "watching"
     },
     "follow_walk": {
       "name": "跟着鼠标走",
@@ -3523,7 +3528,8 @@
             1.3
           ]
         }
-      }
+      },
+      "image": "side"
     },
     "entrance_land": {
       "name": "落地",
@@ -3676,6 +3682,1265 @@
           ]
         ]
       }
+    },
+    "think": {
+      "name": "思考",
+      "duration": 2.6,
+      "image": "thinking",
+      "emote": "🤔",
+      "tracks": {
+        "head.rot": [
+          [
+            0,
+            0
+          ],
+          [
+            0.4,
+            0.1
+          ],
+          [
+            2.2,
+            0.1
+          ],
+          [
+            2.6,
+            0
+          ]
+        ],
+        "head.ty": [
+          [
+            0,
+            0
+          ],
+          [
+            0.4,
+            0.01
+          ],
+          [
+            2.2,
+            0.01
+          ],
+          [
+            2.6,
+            0
+          ]
+        ],
+        "breathe": {
+          "sin": [
+            0.01,
+            0.3
+          ]
+        }
+      }
+    },
+    "eureka": {
+      "name": "灵光一现",
+      "duration": 1.2,
+      "image": "eureka",
+      "emote": "💡",
+      "effect": "sparks",
+      "tracks": {
+        "root.ty": [
+          [
+            0,
+            0
+          ],
+          [
+            0.15,
+            0.06
+          ],
+          [
+            0.35,
+            0
+          ],
+          [
+            1.2,
+            0
+          ]
+        ],
+        "root.sy": [
+          [
+            0,
+            0
+          ],
+          [
+            0.08,
+            -0.06
+          ],
+          [
+            0.2,
+            0.05
+          ],
+          [
+            0.4,
+            0
+          ],
+          [
+            1.2,
+            0
+          ]
+        ]
+      }
+    },
+    "oops": {
+      "name": "尴尬",
+      "duration": 1.4,
+      "image": "oops",
+      "emote": "😛",
+      "tracks": {
+        "head.rot": [
+          [
+            0,
+            0
+          ],
+          [
+            0.25,
+            -0.1
+          ],
+          [
+            1.1,
+            -0.1
+          ],
+          [
+            1.4,
+            0
+          ]
+        ],
+        "root.sy": [
+          [
+            0,
+            0
+          ],
+          [
+            0.15,
+            -0.04
+          ],
+          [
+            0.3,
+            0
+          ],
+          [
+            1.4,
+            0
+          ]
+        ]
+      }
+    },
+    "proud": {
+      "name": "得意",
+      "duration": 1.4,
+      "image": "proud",
+      "emote": "😎",
+      "tracks": {
+        "root.sy": [
+          [
+            0,
+            0
+          ],
+          [
+            0.2,
+            0.05
+          ],
+          [
+            1.1,
+            0.05
+          ],
+          [
+            1.4,
+            0
+          ]
+        ],
+        "head.rot": [
+          [
+            0,
+            0
+          ],
+          [
+            0.3,
+            -0.06
+          ],
+          [
+            1.1,
+            -0.06
+          ],
+          [
+            1.4,
+            0
+          ]
+        ]
+      }
+    },
+    "cheer_on": {
+      "name": "加油",
+      "duration": 1.4,
+      "image": "cheer",
+      "emote": "💪",
+      "tracks": {
+        "root.ty": [
+          [
+            0,
+            0
+          ],
+          [
+            0.2,
+            0.04
+          ],
+          [
+            0.4,
+            0
+          ],
+          [
+            0.6,
+            0.04
+          ],
+          [
+            0.8,
+            0
+          ],
+          [
+            1.4,
+            0
+          ]
+        ]
+      }
+    },
+    "shush": {
+      "name": "嘘",
+      "duration": 1.8,
+      "image": "shush",
+      "emote": "🤫",
+      "tracks": {
+        "lean": [
+          [
+            0,
+            0
+          ],
+          [
+            0.3,
+            0.03
+          ],
+          [
+            1.5,
+            0.03
+          ],
+          [
+            1.8,
+            0
+          ]
+        ]
+      }
+    },
+    "wink": {
+      "name": "眨眼",
+      "duration": 1.0,
+      "image": "wink",
+      "emote": "😉",
+      "tracks": {
+        "head.rot": [
+          [
+            0,
+            0
+          ],
+          [
+            0.2,
+            0.08
+          ],
+          [
+            0.7,
+            0.08
+          ],
+          [
+            1.0,
+            0
+          ]
+        ]
+      }
+    },
+    "thumbs_up": {
+      "name": "点赞",
+      "duration": 1.3,
+      "image": "thumbsup",
+      "emote": "👍",
+      "tracks": {
+        "root.ty": [
+          [
+            0,
+            0
+          ],
+          [
+            0.15,
+            0.04
+          ],
+          [
+            0.35,
+            0
+          ],
+          [
+            1.3,
+            0
+          ]
+        ]
+      }
+    },
+    "blow_kiss": {
+      "name": "飞吻",
+      "duration": 1.6,
+      "image": "kiss",
+      "emote": "😘",
+      "effect": "hearts",
+      "tracks": {
+        "lean": [
+          [
+            0,
+            0
+          ],
+          [
+            0.3,
+            0.04
+          ],
+          [
+            1.2,
+            0.04
+          ],
+          [
+            1.6,
+            0
+          ]
+        ],
+        "head.rot": [
+          [
+            0,
+            0
+          ],
+          [
+            0.3,
+            0.06
+          ],
+          [
+            1.2,
+            0.06
+          ],
+          [
+            1.6,
+            0
+          ]
+        ]
+      }
+    },
+    "hug_me": {
+      "name": "要抱抱",
+      "duration": 1.8,
+      "image": "hug",
+      "emote": "🤗",
+      "effect": "hearts",
+      "tracks": {
+        "root.ty": [
+          [
+            0,
+            0
+          ],
+          [
+            0.2,
+            0.03
+          ],
+          [
+            0.4,
+            0
+          ],
+          [
+            1.8,
+            0
+          ]
+        ],
+        "lean": [
+          [
+            0,
+            0
+          ],
+          [
+            0.4,
+            0.03
+          ],
+          [
+            1.5,
+            0.03
+          ],
+          [
+            1.8,
+            0
+          ]
+        ]
+      }
+    },
+    "pillow_doze": {
+      "name": "抱着枕头犯困",
+      "duration": 3.0,
+      "image": "pillow",
+      "emote": "😪",
+      "tracks": {
+        "head.rot": [
+          [
+            0,
+            0
+          ],
+          [
+            0.8,
+            0.12
+          ],
+          [
+            2.4,
+            0.12
+          ],
+          [
+            3.0,
+            0
+          ]
+        ],
+        "breathe": {
+          "sin": [
+            0.015,
+            0.25
+          ]
+        }
+      }
+    },
+    "drink_water": {
+      "name": "喝口水",
+      "duration": 2.2,
+      "image": "drink",
+      "emote": "💧",
+      "tracks": {
+        "head.rot": [
+          [
+            0,
+            0
+          ],
+          [
+            0.5,
+            -0.06
+          ],
+          [
+            1.8,
+            -0.06
+          ],
+          [
+            2.2,
+            0
+          ]
+        ]
+      }
+    },
+    "stretch_up": {
+      "name": "伸懒腰",
+      "duration": 2.2,
+      "image": "stretch",
+      "emote": "🙆",
+      "tracks": {
+        "root.sy": [
+          [
+            0,
+            0
+          ],
+          [
+            0.6,
+            0.06
+          ],
+          [
+            1.6,
+            0.06
+          ],
+          [
+            1.9,
+            -0.02
+          ],
+          [
+            2.2,
+            0
+          ]
+        ]
+      }
+    },
+    "cry": {
+      "name": "大哭",
+      "duration": 2.6,
+      "image": "cry",
+      "emote": "😭",
+      "tracks": {
+        "root.sy": {
+          "sin": [
+            0.012,
+            3.0
+          ]
+        },
+        "head.rot": [
+          [
+            0,
+            0
+          ],
+          [
+            0.4,
+            0.08
+          ],
+          [
+            2.2,
+            0.08
+          ],
+          [
+            2.6,
+            0
+          ]
+        ]
+      }
+    },
+    "scared": {
+      "name": "害怕",
+      "duration": 1.6,
+      "image": "scared",
+      "emote": "😨",
+      "tracks": {
+        "root.tx": {
+          "sin": [
+            0.006,
+            9
+          ]
+        },
+        "root.sy": [
+          [
+            0,
+            0
+          ],
+          [
+            0.2,
+            -0.05
+          ],
+          [
+            1.4,
+            -0.05
+          ],
+          [
+            1.6,
+            0
+          ]
+        ]
+      }
+    },
+    "notify_ok": {
+      "name": "完成啦",
+      "duration": 2.4,
+      "image": "notify_ok",
+      "emote": "✅",
+      "effect": "sparks",
+      "tracks": {
+        "root.ty": [
+          [
+            0,
+            0
+          ],
+          [
+            0.15,
+            0.05
+          ],
+          [
+            0.35,
+            0
+          ],
+          [
+            0.5,
+            0.03
+          ],
+          [
+            0.65,
+            0
+          ],
+          [
+            2.4,
+            0
+          ]
+        ],
+        "root.sy": [
+          [
+            0,
+            0
+          ],
+          [
+            0.08,
+            -0.05
+          ],
+          [
+            0.2,
+            0.04
+          ],
+          [
+            0.4,
+            0
+          ],
+          [
+            2.4,
+            0
+          ]
+        ]
+      }
+    },
+    "notify_error": {
+      "name": "出错了",
+      "duration": 2.4,
+      "image": "notify_error",
+      "emote": "❌",
+      "tracks": {
+        "root.ty": [
+          [
+            0,
+            0
+          ],
+          [
+            0.15,
+            0.05
+          ],
+          [
+            0.35,
+            0
+          ],
+          [
+            0.5,
+            0.03
+          ],
+          [
+            0.65,
+            0
+          ],
+          [
+            2.4,
+            0
+          ]
+        ],
+        "root.sy": [
+          [
+            0,
+            0
+          ],
+          [
+            0.08,
+            -0.05
+          ],
+          [
+            0.2,
+            0.04
+          ],
+          [
+            0.4,
+            0
+          ],
+          [
+            2.4,
+            0
+          ]
+        ]
+      }
+    },
+    "notify_battery": {
+      "name": "没电了",
+      "duration": 2.4,
+      "image": "notify_battery",
+      "emote": "🪫",
+      "tracks": {
+        "root.ty": [
+          [
+            0,
+            0
+          ],
+          [
+            0.15,
+            0.05
+          ],
+          [
+            0.35,
+            0
+          ],
+          [
+            0.5,
+            0.03
+          ],
+          [
+            0.65,
+            0
+          ],
+          [
+            2.4,
+            0
+          ]
+        ],
+        "root.sy": [
+          [
+            0,
+            0
+          ],
+          [
+            0.08,
+            -0.05
+          ],
+          [
+            0.2,
+            0.04
+          ],
+          [
+            0.4,
+            0
+          ],
+          [
+            2.4,
+            0
+          ]
+        ]
+      }
+    },
+    "notify_gift": {
+      "name": "新版本",
+      "duration": 2.4,
+      "image": "notify_gift",
+      "emote": "🎁",
+      "effect": "sparks",
+      "tracks": {
+        "root.ty": [
+          [
+            0,
+            0
+          ],
+          [
+            0.15,
+            0.05
+          ],
+          [
+            0.35,
+            0
+          ],
+          [
+            0.5,
+            0.03
+          ],
+          [
+            0.65,
+            0
+          ],
+          [
+            2.4,
+            0
+          ]
+        ],
+        "root.sy": [
+          [
+            0,
+            0
+          ],
+          [
+            0.08,
+            -0.05
+          ],
+          [
+            0.2,
+            0.04
+          ],
+          [
+            0.4,
+            0
+          ],
+          [
+            2.4,
+            0
+          ]
+        ]
+      }
+    },
+    "notify_message": {
+      "name": "来消息",
+      "duration": 2.4,
+      "image": "notify_message",
+      "emote": "💬",
+      "tracks": {
+        "root.ty": [
+          [
+            0,
+            0
+          ],
+          [
+            0.15,
+            0.05
+          ],
+          [
+            0.35,
+            0
+          ],
+          [
+            0.5,
+            0.03
+          ],
+          [
+            0.65,
+            0
+          ],
+          [
+            2.4,
+            0
+          ]
+        ],
+        "root.sy": [
+          [
+            0,
+            0
+          ],
+          [
+            0.08,
+            -0.05
+          ],
+          [
+            0.2,
+            0.04
+          ],
+          [
+            0.4,
+            0
+          ],
+          [
+            2.4,
+            0
+          ]
+        ]
+      }
+    },
+    "notify_mail": {
+      "name": "来信",
+      "duration": 2.4,
+      "image": "notify_mail",
+      "emote": "✉️",
+      "tracks": {
+        "root.ty": [
+          [
+            0,
+            0
+          ],
+          [
+            0.15,
+            0.05
+          ],
+          [
+            0.35,
+            0
+          ],
+          [
+            0.5,
+            0.03
+          ],
+          [
+            0.65,
+            0
+          ],
+          [
+            2.4,
+            0
+          ]
+        ],
+        "root.sy": [
+          [
+            0,
+            0
+          ],
+          [
+            0.08,
+            -0.05
+          ],
+          [
+            0.2,
+            0.04
+          ],
+          [
+            0.4,
+            0
+          ],
+          [
+            2.4,
+            0
+          ]
+        ]
+      }
+    },
+    "notify_meeting": {
+      "name": "会议提醒",
+      "duration": 2.4,
+      "image": "notify_meeting",
+      "emote": "⏰",
+      "tracks": {
+        "root.ty": [
+          [
+            0,
+            0
+          ],
+          [
+            0.15,
+            0.05
+          ],
+          [
+            0.35,
+            0
+          ],
+          [
+            0.5,
+            0.03
+          ],
+          [
+            0.65,
+            0
+          ],
+          [
+            2.4,
+            0
+          ]
+        ],
+        "root.sy": [
+          [
+            0,
+            0
+          ],
+          [
+            0.08,
+            -0.05
+          ],
+          [
+            0.2,
+            0.04
+          ],
+          [
+            0.4,
+            0
+          ],
+          [
+            2.4,
+            0
+          ]
+        ]
+      }
+    },
+    "notify_alarm": {
+      "name": "闹钟",
+      "duration": 2.4,
+      "image": "notify_alarm",
+      "emote": "⏰",
+      "tracks": {
+        "root.ty": [
+          [
+            0,
+            0
+          ],
+          [
+            0.15,
+            0.05
+          ],
+          [
+            0.35,
+            0
+          ],
+          [
+            0.5,
+            0.03
+          ],
+          [
+            0.65,
+            0
+          ],
+          [
+            2.4,
+            0
+          ]
+        ],
+        "root.sy": [
+          [
+            0,
+            0
+          ],
+          [
+            0.08,
+            -0.05
+          ],
+          [
+            0.2,
+            0.04
+          ],
+          [
+            0.4,
+            0
+          ],
+          [
+            2.4,
+            0
+          ]
+        ]
+      }
+    },
+    "weather_rain": {
+      "name": "下雨了",
+      "duration": 2.4,
+      "image": "notify_rain",
+      "emote": "☔️",
+      "tracks": {
+        "root.ty": [
+          [
+            0,
+            0
+          ],
+          [
+            0.15,
+            0.05
+          ],
+          [
+            0.35,
+            0
+          ],
+          [
+            0.5,
+            0.03
+          ],
+          [
+            0.65,
+            0
+          ],
+          [
+            2.4,
+            0
+          ]
+        ],
+        "root.sy": [
+          [
+            0,
+            0
+          ],
+          [
+            0.08,
+            -0.05
+          ],
+          [
+            0.2,
+            0.04
+          ],
+          [
+            0.4,
+            0
+          ],
+          [
+            2.4,
+            0
+          ]
+        ]
+      }
+    },
+    "weather_sun": {
+      "name": "晴天",
+      "duration": 2.4,
+      "image": "notify_sun",
+      "emote": "☀️",
+      "tracks": {
+        "root.ty": [
+          [
+            0,
+            0
+          ],
+          [
+            0.15,
+            0.05
+          ],
+          [
+            0.35,
+            0
+          ],
+          [
+            0.5,
+            0.03
+          ],
+          [
+            0.65,
+            0
+          ],
+          [
+            2.4,
+            0
+          ]
+        ],
+        "root.sy": [
+          [
+            0,
+            0
+          ],
+          [
+            0.08,
+            -0.05
+          ],
+          [
+            0.2,
+            0.04
+          ],
+          [
+            0.4,
+            0
+          ],
+          [
+            2.4,
+            0
+          ]
+        ]
+      }
+    },
+    "coding_loop": {
+      "name": "写代码",
+      "loop": true,
+      "image": "coding",
+      "tracks": {
+        "breathe": {
+          "sin": [
+            0.01,
+            0.26
+          ]
+        },
+        "head.rot": {
+          "sin": [
+            0.018,
+            0.12
+          ]
+        },
+        "lean": {
+          "sin": [
+            0.006,
+            0.1,
+            1.1
+          ]
+        }
+      }
+    },
+    "coffee_loop": {
+      "name": "喝咖啡",
+      "loop": true,
+      "image": "coffee",
+      "tracks": {
+        "breathe": {
+          "sin": [
+            0.01,
+            0.26
+          ]
+        },
+        "head.rot": {
+          "sin": [
+            0.018,
+            0.12
+          ]
+        },
+        "lean": {
+          "sin": [
+            0.006,
+            0.1,
+            1.1
+          ]
+        }
+      }
+    },
+    "phone_loop": {
+      "name": "看手机",
+      "loop": true,
+      "image": "phone",
+      "tracks": {
+        "breathe": {
+          "sin": [
+            0.01,
+            0.26
+          ]
+        },
+        "head.rot": {
+          "sin": [
+            0.018,
+            0.12
+          ]
+        },
+        "lean": {
+          "sin": [
+            0.006,
+            0.1,
+            1.1
+          ]
+        }
+      }
+    },
+    "drawing_loop": {
+      "name": "画画",
+      "loop": true,
+      "image": "drawing",
+      "tracks": {
+        "breathe": {
+          "sin": [
+            0.01,
+            0.26
+          ]
+        },
+        "head.rot": {
+          "sin": [
+            0.018,
+            0.12
+          ]
+        },
+        "lean": {
+          "sin": [
+            0.006,
+            0.1,
+            1.1
+          ]
+        }
+      }
+    },
+    "reading_loop": {
+      "name": "看书",
+      "loop": true,
+      "image": "reading",
+      "tracks": {
+        "breathe": {
+          "sin": [
+            0.01,
+            0.26
+          ]
+        },
+        "head.rot": {
+          "sin": [
+            0.018,
+            0.12
+          ]
+        },
+        "lean": {
+          "sin": [
+            0.006,
+            0.1,
+            1.1
+          ]
+        }
+      }
+    },
+    "headset_loop": {
+      "name": "开会",
+      "loop": true,
+      "image": "headset",
+      "tracks": {
+        "breathe": {
+          "sin": [
+            0.01,
+            0.26
+          ]
+        },
+        "head.rot": {
+          "sin": [
+            0.018,
+            0.12
+          ]
+        },
+        "lean": {
+          "sin": [
+            0.006,
+            0.1,
+            1.1
+          ]
+        }
+      }
     }
   },
   "triggers": {
@@ -3716,7 +4981,9 @@
       "wave"
     ],
     "milestone": [
-      "cheer"
+      "cheer",
+      "thumbs_up",
+      "cheer_on"
     ],
     "wake": [
       "wake_shake"
@@ -3726,7 +4993,9 @@
     ],
     "break": [
       "yawn",
-      "stretch"
+      "stretch",
+      "drink_water",
+      "stretch_up"
     ],
     "angry": [
       "angry_turn",
@@ -3735,14 +5004,17 @@
     ],
     "love": [
       "love",
-      "shy"
+      "shy",
+      "blow_kiss"
     ],
     "lonely": [
       "lonely",
-      "sulk"
+      "sulk",
+      "cry"
     ],
     "welcome": [
-      "welcome"
+      "welcome",
+      "hug_me"
     ],
     "comfort": [
       "comfort"
@@ -3751,13 +5023,15 @@
       "dizzy"
     ],
     "night": [
-      "yawn"
+      "yawn",
+      "pillow_doze"
     ],
     "shy": [
       "shy_hover"
     ],
     "scared": [
-      "shiver"
+      "shiver",
+      "scared"
     ],
     "tap_head": [
       "pat_head",
@@ -3849,10 +5123,12 @@
       "save_proud"
     ],
     "copy": [
-      "copy_paste"
+      "copy_paste",
+      "wink"
     ],
     "paste": [
-      "copy_paste"
+      "copy_paste",
+      "wink"
     ],
     "mode": [
       "mode_switch"
@@ -3864,7 +5140,8 @@
       "confused"
     ],
     "fling": [
-      "fling"
+      "fling",
+      "scared"
     ],
     "drag_dizzy": [
       "dizzy"
@@ -3874,7 +5151,8 @@
     ],
     "voice_done": [
       "happy_bounce",
-      "nod"
+      "nod",
+      "thumbs_up"
     ],
     "entrance_land": [
       "entrance_land"
@@ -3919,10 +5197,56 @@
       "nod"
     ],
     "scene_meeting": [
-      "nod_small"
+      "nod_small",
+      "shush"
     ],
     "scene_browse": [
       "look_around"
+    ],
+    "thinking": [
+      "think"
+    ],
+    "eureka": [
+      "eureka"
+    ],
+    "oops": [
+      "oops"
+    ],
+    "cheer": [
+      "cheer_on"
+    ],
+    "shush": [
+      "shush"
+    ],
+    "notify_ok": [
+      "notify_ok"
+    ],
+    "notify_error": [
+      "notify_error"
+    ],
+    "notify_battery": [
+      "notify_battery"
+    ],
+    "notify_gift": [
+      "notify_gift"
+    ],
+    "notify_message": [
+      "notify_message"
+    ],
+    "notify_mail": [
+      "notify_mail"
+    ],
+    "notify_meeting": [
+      "notify_meeting"
+    ],
+    "notify_alarm": [
+      "notify_alarm"
+    ],
+    "weather_rain": [
+      "weather_rain"
+    ],
+    "weather_sun": [
+      "weather_sun"
     ]
   },
   "states": {
@@ -3934,6 +5258,12 @@
     "listen": "listen_loop",
     "game": "gaming_loop",
     "music": "groove_loop",
-    "watch": "watch_loop"
+    "watch": "watch_loop",
+    "coding": "coding_loop",
+    "office": "coffee_loop",
+    "chat": "phone_loop",
+    "design": "drawing_loop",
+    "reading": "reading_loop",
+    "meeting": "headset_loop"
   }
 }

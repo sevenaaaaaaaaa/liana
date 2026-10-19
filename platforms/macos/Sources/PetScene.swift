@@ -11,13 +11,13 @@ enum PetScene: String {
     /// 场景里用户是「在忙但不打字」：不要打瞌睡
     var keepsAwake: Bool { [.game, .music, .video, .meeting, .design, .reading].contains(self) }
 
-    /// 纸偶的场景姿态（pet.js 的 petSetScene）
+    /// 纸偶的场景姿态（pet-puppet.js 的 petSetScene）：打游戏 / 听歌 / 看视频总有专门的循环动作，
+    /// 其余场景只有形象包里有对应的姿势图（写代码、喝咖啡、看手机…）时才生效
     var pose: String {
         switch self {
-        case .game: return "game"
-        case .music: return "music"
         case .video: return "watch"
-        default: return ""
+        case .none, .browse: return ""
+        default: return rawValue
         }
     }
 

@@ -1,5 +1,6 @@
 import AppKit
 import Carbon
+import IOKit.ps
 import QuartzCore
 
 /// 桌宠 v2：内置玻璃小猫 + 社区形象包（声明式数据包，零代码执行）。
@@ -77,6 +78,7 @@ final class PetWindowController {
     static let breakMinutes = 50
 
     private static let scenesKey = "LianaPetScenes"
+    private static let seenVersionKey = "LianaPetSeenVersion"
     private static let entranceKey = "LianaPetEntrance"
     private static let followMouseKey = "LianaPetFollowMouse"
 
@@ -211,6 +213,10 @@ final class PetWindowController {
     /// 连续打字段：段内相邻输入间隔 < 5 分钟；超过 breakMinutes 提醒一次
     private var sessionStart: Date?
     private var breakReminded = false
+    /// 打字停下来想事情（思考）的冷却、低电量提醒的冷却
+    private var thinkingAt = Date.distantPast
+    private var batteryWarnedAt = Date.distantPast
+    private var lifeTicks = 0
     /// 最近一次用户直接互动（点按/戳/拖动/菜单）：安静模式下仍允许这之后的回应台词
     private var lastUserTouch = Date.distantPast
     private var lastMilestone = 0
@@ -600,6 +606,15 @@ final class PetWindowController {
             showToast(["换好啦，好看吗？", "新造型登场！", "噔噔～"].randomElement()!, duration: 2.5)
         } else if !greetedThisLaunch {
             greetedThisLaunch = true
+            // 松萝更新后第一次见面：捧着礼物盒
+            let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+            let seen = UserDefaults.standard.string(forKey: Self.seenVersionKey)
+            UserDefaults.standard.set(version, forKey: Self.seenVersionKey)
+            if let seen, !version.isEmpty, seen != version {
+                petView?.trigger("notify_gift")
+                showToast("松萝更新到 \(version) 啦，又学会了新东西～", duration: 3.5)
+                return
+            }
             showToast(["我来啦～", "来陪你啦！", "嗨，又见面了"].randomElement()!, duration: 2.5)
         }
     }
@@ -626,10 +641,14 @@ final class PetWindowController {
         let changed = scene != currentScene
         currentScene = scene
         sceneBack?.show(scene, night: night, animated: animated)
-        sceneFront?.show(scene, night: night, animated: animated)
-        // 有桌子的场景不要地面投影（桌子挡着）
-        groundShadow?.isHidden = [.office, .coding].contains(scene)
-        petView?.setScene(scene.pose)
+        // 形象有这个场景的姿势图（自己拿着手柄 / 咖啡 / 书）时，不再摆代码画的前景道具
+        let applyFront = { [weak self] (posed: Bool) in
+            guard let self, self.currentScene == scene else { return }
+            self.sceneFront?.show(posed ? .none : scene, night: night, animated: animated)
+            // 有桌子的场景不要地面投影（桌子挡着）
+            self.groundShadow?.isHidden = !posed && [.office, .coding].contains(scene)
+        }
+        if let petView { petView.setScene(scene.pose, completion: applyFront) } else { applyFront(false) }
         if scene.keepsAwake, sleepy { setSleepy(false) }
         guard changed, scene != .none else { return }
         petView?.trigger("scene_\(scene.rawValue)")
@@ -852,6 +871,12 @@ final class PetWindowController {
         showEmote(emote)
     }
 
+    /// 状态提示（notify_ok / notify_error …）：有对应图的形象换上那张图，没有就借用相近的表情
+    func notify(_ trigger: String) {
+        guard panel?.isVisible == true else { return }
+        petView?.trigger(trigger)
+    }
+
     func linkTaskStarted(_ line: String) {
         setHold("listen", true)
         showEmote("🔍")
@@ -860,7 +885,7 @@ final class PetWindowController {
 
     func linkTaskFinished(ok: Bool, line: String?) {
         setHold("listen", false)
-        petView?.trigger(ok ? "voice_done" : "lonely")
+        petView?.trigger(ok ? "notify_ok" : "notify_error")
         showEmote(ok ? "✅" : "💦")
         if let line { showToast(line, duration: 5) }
     }
@@ -1077,12 +1102,39 @@ final class PetWindowController {
             showToast("已经连续打字 \(Self.breakMinutes) 分钟了，起来伸个懒腰、喝口水吧 ☕️", duration: 8)
         }
         greetIfNeeded()
+        lifeTicks += 1
+        // 打着字停下来 5 秒：托腮想一想（不常有）
+        let pause = Date().timeIntervalSince(lastTypedAt)
+        if pause >= 5, pause < 6, !sleepy, Date().timeIntervalSince(thinkingAt) > 240, Double.random(in: 0..<1) < 0.5 {
+            thinkingAt = Date()
+            petView?.trigger("thinking")
+        }
+        if lifeTicks % 60 == 0 { checkBattery() }
         if let event = PetEmotion.shared.tick(typingRecently: idleFor < 120) { perform(event) }
         // 人在、醒着、有一阵没跟它玩了 → 偶尔用你最喜欢的方式邀请你
         if idleFor < 120, !sleepy, Date().timeIntervalSince(lastUserTouch) > 300,
            let invite = PetInteraction.shared.invite() {
             performReaction(invite, proactive: true)
             if invite.trigger == "tap_hand" { scheduleHighFiveCheck(after: 8.2) }
+        }
+    }
+
+    /// 电量低于 15% 且没在充电：抱着空电池提醒一次（30 分钟内不重复）
+    private func checkBattery() {
+        guard Date().timeIntervalSince(batteryWarnedAt) > 1800,
+              let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
+              let list = IOPSCopyPowerSourcesList(info)?.takeRetainedValue() as? [CFTypeRef] else { return }
+        for source in list {
+            guard let desc = IOPSGetPowerSourceDescription(info, source)?.takeUnretainedValue() as? [String: Any],
+                  desc[kIOPSPowerSourceStateKey] as? String == kIOPSBatteryPowerValue,
+                  let current = desc[kIOPSCurrentCapacityKey] as? Int,
+                  let max = desc[kIOPSMaxCapacityKey] as? Int, max > 0 else { continue }
+            let percent = current * 100 / max
+            guard percent < 15 else { return }
+            batteryWarnedAt = Date()
+            petView?.trigger("notify_battery")
+            if !quietNow { showToast("电量只剩 \(percent)% 了，记得插上电源", duration: 5) }
+            return
         }
     }
 
@@ -1187,6 +1239,14 @@ final class PetWindowController {
             }
             try? data.write(to: URL(fileURLWithPath: path))
             completion(true)
+        }
+    }
+
+    /// 开发用：在桌宠页面里执行一段 JS。
+    func debugEval(_ js: String, _ completion: @escaping (String) -> Void) {
+        guard let petView else { return completion("no-web-view") }
+        petView.evaluateJavaScript(js) { value, error in
+            completion(error.map { "error: \($0.localizedDescription)" } ?? String(describing: value ?? "nil"))
         }
     }
 

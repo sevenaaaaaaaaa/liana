@@ -490,6 +490,27 @@ if installArgs.count > 1 {
         RunLoop.main.run()
         exit(0)
 
+    case "--pet-eval":
+        // 开发用：加载形象 → 依次执行几段 JS（每段之间等 1.2 秒）→ 打印页面状态并抓图
+        // 用法: --pet-eval <packId> <out.png> "<js>" ["<js>" …]
+        guard installArgs.count > 4 else { print("用法: --pet-eval <packId> <out.png> \"<js>\" …"); exit(1) }
+        PluginStore.seedBundledPacks()
+        PetWindowController.activePackId = installArgs[2]
+        PetWindowController.setEnabled(true)
+        RunLoop.main.run(until: Date().addingTimeInterval(5))
+        for js in installArgs.dropFirst(4) {
+            PetWindowController.shared.debugEval(js) { print("eval \(js) -> \($0)") }
+            RunLoop.main.run(until: Date().addingTimeInterval(1.2))
+        }
+        PetWindowController.shared.vrmDebugState { print("state: \($0)") }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        PetWindowController.shared.captureVrmPNG(to: installArgs[3]) { ok in
+            print("capture ok=\(ok)")
+            exit(0)
+        }
+        RunLoop.main.run()
+        exit(0)
+
     case "--pet-demo":
         PluginStore.seedBundledPacks()
         let packId = installArgs.count > 2 ? installArgs[2] : ""
@@ -588,12 +609,16 @@ if installArgs.count > 1 {
                 images.append(image)
             }
             let idle = images[0]
-            for i in images.indices.dropFirst() { images[i].align = PuppetImage.autoAlign(images[i], to: idle) }
+            for (i, aligned) in PuppetImage.alignAll(images, idle: idle).enumerated() where i > 0 {
+                images[i].align = aligned.align
+                images[i].canvasAligned = aligned.canvas
+            }
             for image in images {
                 let a = image.align
-                print(String(format: "%-10@ %4.0f×%-4.0f 脸:%@ 眼:%d 对齐 s=%.2f dx=%+.2f dy=%+.2f %@",
+                print(String(format: "%-10@ %4.0f×%-4.0f 脸:%@ 眼:%d 对齐%@ s=%.2f dx=%+.2f dy=%+.2f %@",
                              image.role.rawValue as NSString, image.pixelSize.width, image.pixelSize.height,
                              (image.rig.face == nil ? "无" : "有") as NSString, image.rig.eyes.count,
+                             (image.canvasAligned ? "(画布)" : "") as NSString,
                              a.scale, a.dx, a.dy, (image.role == .idle ? "" : (PuppetImage.mismatch(image, idle: idle).map { "⚠️ " + $0 } ?? "✓")) as NSString))
             }
             // 对齐检查图：每格 = 平时（半透明）+ 该表情按对齐参数叠上去（与渲染器同一套坐标）
