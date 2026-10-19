@@ -205,6 +205,9 @@ final class LianaInputController: IMKInputController {
         let settings = NSMenuItem(title: "松萝设置…", action: #selector(openSettingsCenter(_:)), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
+        let update = NSMenuItem(title: "检查更新…", action: #selector(openUpdates(_:)), keyEquivalent: "")
+        update.target = self
+        menu.addItem(update)
         return menu
     }
 
@@ -292,6 +295,10 @@ final class LianaInputController: IMKInputController {
 
     @objc private func openSettingsCenter(_ sender: Any) {
         SettingsCenter.shared.show()
+    }
+
+    @objc private func openUpdates(_ sender: Any) {
+        SettingsCenter.shared.show(section: .about)
     }
 
     /// 功能面板贴着光标弹出，带上本会话的语音 / 同传 / 模式状态。

@@ -1200,13 +1200,121 @@ struct AboutPage: View {
                 .font(.system(size: 24, weight: .bold))
             Text("版本 \(version)")
                 .foregroundStyle(.secondary)
-            Text("Rust 内核 + 原生外壳 · AGPL-3.0\n词库：rime-ice（GPL-3.0）· 词频：wordfreq（CC BY-SA 4.0）· 简繁：OpenCC")
+            Text("Rust 内核 + 原生外壳 · AGPL-3.0\n词库：rime-ice（GPL-3.0）· 词包：THUOCL、chinese-xinhua（MIT）· 词频：wordfreq（CC BY-SA 4.0）\n整句搭配：万象 LMDG（CC BY 4.0）· 简繁：OpenCC")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+            UpdatePanel()
+                .frame(maxWidth: 420)
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(24)
+    }
+}
+
+/// 在线更新：点了才联网检查；发现新版本后点「立即更新」下载、校验并替换，输入法自动重启。
+struct UpdatePanel: View {
+    enum Phase {
+        case idle, checking, upToDate, found(LianaUpdater.Release), downloading(Double), installing
+        case done(String), failed(String)
+    }
+
+    @State private var phase: Phase = .idle
+    @State private var nightly = LianaUpdater.includeNightly
+
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack {
+                Toggle("也接收 Nightly（每日构建）", isOn: $nightly)
+                    .toggleStyle(.checkbox)
+                    .font(.system(size: 12))
+                    .onChange(of: nightly) { LianaUpdater.includeNightly = $0 }
+                Spacer()
+                Button(checking ? "正在检查…" : "检查更新") { check() }
+                    .disabled(busy)
+                    .lianaGlassButton()
+            }
+            status
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.08)))
+    }
+
+    private var checking: Bool { if case .checking = phase { return true }; return false }
+    private var busy: Bool {
+        switch phase {
+        case .checking, .downloading, .installing: return true
+        default: return false
+        }
+    }
+
+    @ViewBuilder private var status: some View {
+        switch phase {
+        case .idle:
+            Text("只在你点「检查更新」时连接 GitHub，安装包会做 sha256 校验").font(.system(size: 11)).foregroundStyle(.secondary)
+        case .checking:
+            ProgressView().controlSize(.small)
+        case .upToDate:
+            Label("已是最新版本（\(LianaUpdater.currentVersion)）", systemImage: "checkmark.circle.fill")
+                .font(.system(size: 12)).foregroundStyle(.green)
+        case .found(let release):
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("发现新版本 \(release.version)").font(.system(size: 13, weight: .semibold))
+                    if release.size > 0 {
+                        Text(ByteCountFormatter.string(fromByteCount: release.size, countStyle: .file))
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Link("更新说明", destination: release.page).font(.system(size: 12))
+                    Button("立即更新") { install(release) }.lianaGlassButton()
+                }
+                if !release.notes.isEmpty {
+                    ScrollView {
+                        Text(release.notes.prefix(1500))
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(maxHeight: 110)
+                }
+            }
+        case .downloading(let value):
+            ProgressView(value: value) { Text("正在下载… \(Int(value * 100))%").font(.system(size: 11)) }
+        case .installing:
+            HStack { ProgressView().controlSize(.small); Text("正在校验并安装…").font(.system(size: 12)) }
+        case .done(let message):
+            Label(message, systemImage: "checkmark.circle.fill").font(.system(size: 12)).foregroundStyle(.green)
+        case .failed(let message):
+            Label(message, systemImage: "exclamationmark.triangle.fill").font(.system(size: 12)).foregroundStyle(.orange)
+        }
+    }
+
+    private func check() {
+        phase = .checking
+        LianaUpdater.check { result in
+            switch result {
+            case .success(let release?): phase = .found(release)
+            case .success(nil): phase = .upToDate
+            case .failure(let error): phase = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    private func install(_ release: LianaUpdater.Release) {
+        phase = .downloading(0)
+        LianaUpdater.install(release, progress: { value in
+            phase = value >= 1 ? .installing : .downloading(value)
+        }, completion: { result in
+            switch result {
+            case .success(.installed(let version)):
+                phase = .done("已更新到 \(version)，输入法马上重启")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { LianaUpdater.relaunch() }
+            case .success(.manual(let reason)):
+                phase = .done(reason)
+            case .failure(let error):
+                phase = .failed(error.localizedDescription)
+            }
+        })
     }
 }

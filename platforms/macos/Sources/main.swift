@@ -96,6 +96,33 @@ private func dedupeInputSourcePersistence() -> (hitoolboxRemoved: Int, thirdPart
 let installArgs = CommandLine.arguments
 if installArgs.count > 1 {
     switch installArgs[1] {
+    case "--update-check":
+        // 开发用：检查更新（不下载）；--nightly 同时看 Nightly
+        LianaUpdater.includeNightly = installArgs.contains("--nightly")
+        print("当前版本 \(LianaUpdater.currentVersion)")
+        LianaUpdater.check { result in
+            switch result {
+            case .success(let release?):
+                print("有更新：\(release.version) \(release.dmg.lastPathComponent) \(release.size) 字节")
+                if installArgs.contains("--install") {
+                    LianaUpdater.install(release, progress: { _ in }, completion: { result in
+                        switch result {
+                        case .success(.installed(let v)): print("已安装 \(v)")
+                        case .success(.manual(let reason)): print(reason)
+                        case .failure(let error): print("安装失败：\(error.localizedDescription)")
+                        }
+                        exit(0)
+                    })
+                    return
+                }
+            case .success(nil): print("已是最新")
+            case .failure(let error): print("失败：\(error.localizedDescription)")
+            }
+            exit(0)
+        }
+        NSApplication.shared.run()
+        exit(0)
+
     case "--rerank-test":
         // 开发用：按输入法的真实链路（解码 → 整句候选 → 本机模型打分）跑几串按键，打印重排结果与耗时
         let inputs = Array(installArgs.dropFirst(2))
