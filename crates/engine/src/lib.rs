@@ -325,6 +325,24 @@ impl Session {
         Some(cand.text)
     }
 
+    /// 把第 `index` 个候选提到第一位（前端用本机模型重排长句时调用）。
+    ///
+    /// 只在同一等价层内换位（覆盖的按键数相同、都不是原样上屏），不改学习记录；
+    /// 返回是否换了位置。
+    pub fn promote(&mut self, index: usize) -> bool {
+        let cands = &self.comp.candidates;
+        if index == 0 || index >= cands.len() || !same_tier(&cands[0], &cands[index]) {
+            return false;
+        }
+        let cand = self.comp.candidates.remove(index);
+        self.comp.candidates.insert(0, cand);
+        if index < self.origins.len() {
+            let origin = self.origins.remove(index);
+            self.origins.insert(0, origin);
+        }
+        true
+    }
+
     /// 原样上屏当前缓冲。
     pub fn commit_raw(&mut self) -> Option<String> {
         if self.buffer.is_empty() {
@@ -873,6 +891,29 @@ mod tests {
         assert_eq!(s.select(0).as_deref(), Some("你好"));
         assert!(s.buffer().is_empty());
         assert!(s.composition().is_empty());
+    }
+
+    #[test]
+    fn promote_moves_within_tier_only() {
+        let mut s = session(Mode::Pinyin);
+        type_str(&mut s, "shi");
+        let comp = s.composition().clone();
+        let same = comp
+            .candidates
+            .iter()
+            .position(|c| {
+                c.consumed == comp.candidates[0].consumed
+                    && c.text != comp.candidates[0].text
+                    && c.kind != CandidateKind::Literal
+            });
+        let i = same.expect("shi 应有同层的其他候选");
+        {
+            let text = comp.candidates[i].text.clone();
+            assert!(s.promote(i));
+            assert_eq!(s.composition().candidates[0].text, text);
+            assert_eq!(s.select(0).as_deref(), Some(text.as_str()));
+        }
+        assert!(!s.promote(0));
     }
 
     #[test]

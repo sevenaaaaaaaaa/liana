@@ -29,6 +29,9 @@ LianaSession *liana_new_with_dict(const char *mode, const char *dict_path);
  * 没写拼音的自动注音）。进程内共享同一份词库；任一参数为 NULL 时跳过该层。 */
 LianaSession *liana_new_with_layers(const char *mode, const char *dict_path, const char *layers_dir);
 
+/* 把第 index 个候选提到第一位（同层内换位，不改学习记录；前端本机模型重排长句用）。返回 1 表示换了位置。 */
+int32_t liana_promote(LianaSession *session, uint32_t index);
+
 void liana_free(LianaSession *session);
 
 /* 输入一个字符（UTF-8，单个码点）。返回 1 表示被接受。 */

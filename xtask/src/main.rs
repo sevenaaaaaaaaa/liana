@@ -897,12 +897,15 @@ fn accuracy_hard_cmd(args: &[String]) -> Result<(), String> {
     let mut cases_path = "xtask/data/accuracy-hard.tsv".to_string();
     let mut dict_path = "crates/dict/data/base-large.tsv".to_string();
     let mut lm_path: Option<String> = None;
+    // 把每条用例的前 5 个候选（文本 + 类型）导出成 TSV，给外部重排实验用
+    let mut dump_path: Option<String> = None;
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
             "--cases" => cases_path = args.get(i + 1).ok_or("--cases 缺值")?.clone(),
             "--dict" => dict_path = args.get(i + 1).ok_or("--dict 缺值")?.clone(),
             "--lm" => lm_path = Some(args.get(i + 1).ok_or("--lm 缺值")?.clone()),
+            "--dump" => dump_path = Some(args.get(i + 1).ok_or("--dump 缺值")?.clone()),
             other => return Err(format!("未知参数: {other}")),
         }
         i += 2;
@@ -925,7 +928,8 @@ fn accuracy_hard_cmd(args: &[String]) -> Result<(), String> {
     let cases_src =
         std::fs::read_to_string(&cases_path).map_err(|e| format!("读不到 {cases_path}: {e}"))?;
 
-    let run = |keys: &str| -> Vec<String> {
+    let mut dump = String::new();
+    let run = |keys: &str| -> Vec<(String, String)> {
         let mut s = Session::with_mode(dict.clone(), Mode::Pinyin);
         for ch in keys.chars() {
             s.feed(ch);
@@ -934,7 +938,7 @@ fn accuracy_hard_cmd(args: &[String]) -> Result<(), String> {
             .candidates
             .iter()
             .take(5)
-            .map(|c| c.text.clone())
+            .map(|c| (c.text.clone(), format!("{:?}", c.kind)))
             .collect()
     };
 
@@ -950,7 +954,12 @@ fn accuracy_hard_cmd(args: &[String]) -> Result<(), String> {
             continue;
         }
         let (g, keys, want) = (f[0], f[1], f[2]);
-        let got = run(keys);
+        let got_kinds = run(keys);
+        if dump_path.is_some() {
+            let cands: Vec<String> = got_kinds.iter().map(|(t, k)| format!("{t}:{k}")).collect();
+            dump.push_str(&format!("{g}\t{keys}\t{want}\t{}\n", cands.join("|")));
+        }
+        let got: Vec<String> = got_kinds.into_iter().map(|(t, _)| t).collect();
         let e = groups.entry(g.to_string()).or_insert((0, 0, 0));
         e.2 += 1;
         n += 1;
@@ -964,6 +973,10 @@ fn accuracy_hard_cmd(args: &[String]) -> Result<(), String> {
             e.1 += 1;
             t5 += 1;
         }
+    }
+
+    if let Some(path) = &dump_path {
+        std::fs::write(path, &dump).map_err(|e| format!("写入 {path} 失败: {e}"))?;
     }
 
     // 学习能力：在 setup 按键下选中一次目标词后，test 按键的首选应体现它。

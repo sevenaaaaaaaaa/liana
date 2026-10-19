@@ -96,6 +96,30 @@ private func dedupeInputSourcePersistence() -> (hitoolboxRemoved: Int, thirdPart
 let installArgs = CommandLine.arguments
 if installArgs.count > 1 {
     switch installArgs[1] {
+    case "--rerank-test":
+        // 开发用：按输入法的真实链路（解码 → 整句候选 → 本机模型打分）跑几串按键，打印重排结果与耗时
+        let inputs = Array(installArgs.dropFirst(2))
+        var index = 0
+        func next() {
+            guard index < inputs.count else { exit(0) }
+            let keys = inputs[index]
+            index += 1
+            let engine = LianaEngine(mode: "pinyin")
+            for ch in keys { _ = engine.feed(ch) }
+            let comp = engine.composition
+            let sentences = comp.candidates.prefix(5).filter { $0.kind == "sentence" }.map(\.text)
+            let started = Date()
+            SentenceRerank.pick(sentences) { best in
+                let ms = Int(Date().timeIntervalSince(started) * 1000)
+                let picked = best.map { sentences[$0] } ?? "（不可用）"
+                print("\(keys)：\(sentences.joined(separator: " / ")) → \(picked)（\(ms)ms）")
+                next()
+            }
+        }
+        DispatchQueue.main.async { next() }
+        NSApplication.shared.run()
+        exit(0)
+
     case "--engine-query":
         // 开发用：走和输入法相同的加载路径（base.ifd + base.lm + dicts/ 词包），打印每串按键的前 5 个候选
         for keys in installArgs.dropFirst(2) {

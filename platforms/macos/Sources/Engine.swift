@@ -129,6 +129,13 @@ final class LianaEngine {
         return takeString(liana_select(h, UInt32(index)))
     }
 
+    /// 把第 index 个候选提到第一位（同层内换位，不改学习记录）。
+    @discardableResult
+    func promote(_ index: Int) -> Bool {
+        guard let h = handle else { return false }
+        return liana_promote(h, UInt32(index)) == 1
+    }
+
     func commitRaw() -> String? {
         guard let h = handle else { return nil }
         return takeString(liana_commit_raw(h))

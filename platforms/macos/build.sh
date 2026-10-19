@@ -69,6 +69,7 @@ SWIFT_SOURCES=("$HERE/Sources/main.swift" "$HERE/Sources/Engine.swift" \
     "$HERE/Sources/PermissionCenter.swift" "$HERE/Sources/PetStats.swift" \
     "$HERE/Sources/FeedWindow.swift" \
     "$HERE/Sources/AppNameLexicon.swift" \
+    "$HERE/Sources/SentenceRerank.swift" \
     "$HERE/Sources/VRMPetView.swift" \
     "$HERE/Sources/PetWebView.swift" \
     "$HERE/Sources/Live2DPetView.swift" \

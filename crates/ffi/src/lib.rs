@@ -376,6 +376,18 @@ pub unsafe extern "C" fn liana_composition_json(session: *mut LianaSession) -> *
     })
 }
 
+/// 把第 `index` 个候选提到第一位（同层内换位，不改学习记录）；返回 1 表示换了位置。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn liana_promote(session: *mut LianaSession, index: u32) -> i32 {
+    if session.is_null() {
+        return 0;
+    }
+    guard_int(|| {
+        let session = unsafe { &mut *session };
+        i32::from(session.inner.promote(index as usize))
+    })
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn liana_select(
     session: *mut LianaSession,

@@ -993,6 +993,7 @@ final class AISettingsBridge: ObservableObject {
 struct AIPage: View {
     @ObservedObject var model: SettingsModel
     @StateObject private var ai = AISettingsBridge()
+    @State private var rerank = SentenceRerank.enabled
 
     var body: some View {
         let store = ai.store
@@ -1001,6 +1002,15 @@ struct AIPage: View {
             Section("内置") {
                 StatusRow(title: "统计语言模型", detail: "用户词 + 上下词 + 自动短语，内存 < 1 MB，随输入学习",
                           ok: true, okText: "运行中", badText: "")
+                ToggleRow(title: "长句 AI 重排",
+                          detail: TranslateClient.rerankModelPath() == nil
+                              ? "打长句停顿时，用本机模型挑更通顺的整句。需要下方的 Qwen2.5 0.5B（推荐）或 1.5B 和 llama.cpp"
+                              : "打长句停顿时，用本机模型挑更通顺的整句（句子只在本机处理，空闲 5 分钟自动释放内存）",
+                          isOn: $rerank)
+                    .onChange(of: rerank) { on in
+                        SentenceRerank.enabled = on
+                        if !on { TranslateClient.rerank.stop() }
+                    }
             }
             Section("本机") {
                 LabeledContent("内存") {

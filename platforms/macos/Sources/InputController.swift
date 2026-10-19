@@ -17,6 +17,9 @@ final class LianaInputController: IMKInputController {
     private var voiceMarked = false
     /// 同声传译目标（"en"/"ja"）；nil = 普通语音。武装后跨语句保持，直到关闭/纯语音启动。
     private var translateTarget: String?
+    /// 长句 AI 重排：停顿后才发起；同一串输入只排一次
+    private var rerankWork: DispatchWorkItem?
+    private var rerankedRaw = ""
     /// 识别 final 已到、原文待确认上屏（同传译文异步生成中/已生成）。
     private var voiceSettledSource: String?
     private var translatedText: String?
@@ -1695,6 +1698,32 @@ final class LianaInputController: IMKInputController {
             self.select(index: index, client: client)
         }
         page = window.page
+        scheduleRerank(comp, client: client)
+    }
+
+    /// 长句 AI 重排（见 SentenceRerank）：首选是长整句、有几条整句可比时，停顿 0.25 秒后让本机模型挑一次；
+    /// 结果回来时输入没变才生效。
+    private func scheduleRerank(_ comp: Composition, client: IMKTextInput) {
+        rerankWork?.cancel()
+        guard translateTarget == nil, page == 0, comp.raw != rerankedRaw,
+              let first = comp.candidates.first, first.kind == "sentence",
+              first.text.count >= SentenceRerank.minChars else { return }
+        let sentences = comp.candidates.prefix(5).enumerated()
+            .filter { $0.element.kind == "sentence" && $0.element.consumed == first.consumed }
+        guard sentences.count >= 2, SentenceRerank.available else { return }
+        let raw = comp.raw
+        let work = DispatchWorkItem { [weak self, weak client] in
+            guard let self, self.engine.composition.raw == raw else { return }
+            SentenceRerank.pick(sentences.map(\.element.text)) { [weak self, weak client] best in
+                guard let self, let client, let best, self.engine.composition.raw == raw else { return }
+                self.rerankedRaw = raw
+                if best > 0, self.engine.promote(sentences[best].offset) {
+                    self.update(client)
+                }
+            }
+        }
+        rerankWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
     }
 
     private func clearMarkedText(_ client: IMKTextInput) {
