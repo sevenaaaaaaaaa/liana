@@ -55,6 +55,29 @@ cargo run --release -p xtask -- dict import-rime-multi \
 cargo run --release -p liana-pinyin --example dump -- /tmp/base-large.ifd
 ```
 
+## `packs/`（官方词包）
+
+`packs/default/*.tsv` 在构建 `base.ifd` 时自动合并进基础词库（`xtask dict build` 读取输入文件同目录的
+`packs/default`，同词同音取较大词频——词包只补词、抬词频，不压低已有词；`--no-packs` 可关闭）。
+`packs/optional/*.tsv`（人名、诗词、法律、医学、动物）暂不合并，留给用户按需开启。
+
+| 词包 | 来源 | 许可 |
+|---|---|---|
+| apps / companies / slang / places-extra | `packs/src/*.txt`：本项目人工维护的应用、公司品牌、口语新词、商圈景点与多音字地名，按档位给词频 | AGPL-3.0-only |
+| idioms | [chinese-xinhua](https://github.com/pwxcoo/chinese-xinhua) 成语表（含拼音）+ THUOCL 成语频次 | MIT（`packs/LICENSE-chinese-xinhua.txt`） |
+| it / finance / places / food / car，optional/* | [清华 THUOCL](https://github.com/thunlp/THUOCL) 各领域词表，只取基础词库没有的词，按重合词把文档频次校准到同一尺度后打 6 折 | MIT（`packs/LICENSE-THUOCL.txt`） |
+
+重新生成（需要 `pip install pypinyin`）：
+
+```bash
+git clone --depth 1 https://github.com/thunlp/THUOCL /tmp/THUOCL
+curl -sSL -o /tmp/idiom.json https://raw.githubusercontent.com/pwxcoo/chinese-xinhua/master/data/idiom.json
+python3 tools/build_vocab_packs.py --thuocl /tmp/THUOCL/data --idioms /tmp/idiom.json
+cargo run --release -p xtask -- accuracy --hard --cases xtask/data/accuracy-vocab.tsv
+```
+
+常用简拼先验（`crates/pinyin/data/jianpin.tsv`，本项目维护）不在词库里，由解码器内置。
+
 ## `base.tsv`（内置兜底词库）
 
 本项目人工维护的 367 条高频词/短语，供 `cargo test`、无外部词典的兜底场景使用，

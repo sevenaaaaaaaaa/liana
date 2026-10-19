@@ -1,0 +1,52 @@
+# 常用简拼先验（本项目维护，AGPL-3.0-only）：只打首字母时，这些词排在同类候选最前面。
+# 只收「打这几个字母时绝大多数人想要的就是它」的组合；有歧义的（xs 学生/先生）不收，交给个人学习。
+# 格式：简拼<TAB>词<TAB>拼音（空格分隔，须与词库读音一致）；同一简拼按行序排先后。
+mt	明天	ming tian
+jt	今天	jin tian
+zt	昨天	zuo tian
+ht	后天	hou tian
+sj	时间	shi jian
+hd	好的	hao de
+zg	中国	zhong guo
+zgr	中国人	zhong guo ren
+wm	我们	wo men
+nm	你们	ni men
+tm	他们	ta men
+zj	自己	zi ji
+dj	大家	da jia
+nh	你好	ni hao
+xz	现在	xian zai
+ks	开始	kai shi
+gz	工作	gong zuo
+dh	电话	dian hua
+kd	看到	kan dao
+ys	意思	yi si
+ms	马上	ma shang
+ls	老师	lao shi
+sm	什么	shen me
+zm	怎么	zen me
+wsm	为什么	wei shen me
+zmy	怎么样	zen me yang
+bzd	不知道	bu zhi dao
+mgx	没关系	mei guan xi
+mwt	没问题	mei wen ti
+hh	哈哈	ha ha
+hhh	哈哈哈	ha ha ha
+yg	应该	ying gai
+kn	可能	ke neng
+yd	一定	yi ding
+xh	喜欢	xi huan
+jd	觉得	jue de
+zd	知道	zhi dao
+dbq	对不起	dui bu qi
+xd	兄弟	xiong di
+zb	准备	zhun bei
+gs	公司	gong si
+hs	还是	hai shi
+ty	同意	tong yi
+qr	确认	que ren
+dd	等等	deng deng
+wt	问题	wen ti
+xy	需要	xu yao
+ds	但是	dan shi
+dsh	但是	dan shi

@@ -1,0 +1,316 @@
+# 松萝官方词包 · finance（清华 THUOCL_caijing，MIT；只含基础词库没有的词）
+# 格式：词<TAB>拼音（空格分隔）<TAB>词频（与 base-large.tsv 同尺度）
+商会	shang hui	2216
+机电	ji dian	1033
+同级	tong ji	1004
+复核	fu he	937
+分红	fen hong	917
+会计师	kuai ji shi	688
+万科	wan ke	517
+海尔	hai er	438
+东航	dong hang	429
+翻一番	fan yi fan	296
+联办	lian ban	266
+放量	fang liang	255
+高盛	gao sheng	232
+宝钢	bao gang	223
+中远	zhong yuan	222
+永安	yong an	220
+金桥	jin qiao	219
+银山	yin shan	191
+金杯	jin bei	187
+中国人民银行	zhong guo ren min yin hang	166
+盗刷	dao shua	164
+三联	san lian	160
+中银	zhong yin	160
+金城	jin cheng	158
+风控	feng kong	153
+京西	jing xi	146
+代销	dai xiao	131
+承兑	cheng dui	123
+每日经济新闻	mei ri jing ji xin wen	121
+联华	lian hua	119
+长阳	zhang yang	115
+领票	ling piao	115
+张裕	zhang yu	114
+亚信	ya xin	112
+空头	kong tou	111
+汇市	hui shi	108
+普涨	pu zhang	105
+金融城	jin rong cheng	105
+汇兑	hui dui	103
+停板	ting ban	96
+网商	wang shang	93
+放高利贷	fang gao li dai	91
+监事长	jian shi zhang	87
+兼营	jian ying	86
+鞍钢	an gang	85
+无息贷款	wu xi dai kuan	81
+税基	shui ji	81
+结汇	jie hui	81
+安信	an xin	80
+规划委	gui hua wei	78
+全面发力	quan mian fa li	73
+公募	gong mu	73
+韵达	yun da	73
+中国经营报	zhong guo jing ying bao	72
+乐视网	le shi wang	72
+新卡	xin ka	70
+经济基本面	jing ji ji ben mian	69
+币种	bi zhong	68
+银元	yin yuan	68
+截止日	jie zhi ri	66
+债权国	zhai quan guo	65
+华新	hua xin	64
+商誉	shang yu	62
+奇虎	qi hu	62
+国华	guo hua	58
+领跌	ling die	58
+包钢	bao gang	57
+包销	bao xiao	56
+方兴	fang xing	56
+嘉实	jia shi	55
+长岭	zhang ling	55
+新城市	xin cheng shi	54
+组选	zu xuan	54
+城投	cheng tou	53
+文峰	wen feng	53
+中国国航	zhong guo guo hang	52
+保护价	bao hu jia	52
+大东海	da dong hai	52
+信达	xin da	51
+杜邦	du bang	50
+老凤祥	lao feng xiang	49
+中北	zhong bei	48
+商业城	shang ye cheng	48
+百大	bai da	48
+仁和	ren he	47
+流标	liu biao	46
+追涨	zhui zhang	46
+加仓	jia cang	45
+日经指数	ri jing zhi shu	45
+中化	zhong hua	44
+南网	nan wang	44
+万华	wan hua	43
+金鼎	jin ding	43
+苏泊尔	su po er	42
+天弘	tian hong	41
+安永	an yong	41
+华信	hua xin	40
+抢单	qiang dan	40
+滞胀	zhi zhang	40
+狂跌	kuang die	40
+硬通货	ying tong huo	40
+金泰	jin tai	40
+长运	zhang yun	40
+中铁二局	zhong tie er ju	39
+中集	zhong ji	39
+产成品	chan cheng pin	39
+华源	hua yuan	39
+吴中	wu zhong	39
+担保费	dan bao fei	38
+群聚	qun ju	37
+交银	jiao yin	36
+风险系数	feng xian xi shu	36
+创智	chuang zhi	35
+实体经济	shi ti jing ji	34
+财智	cai zhi	34
+购汇	gou hui	34
+康达	kang da	33
+证券日报	zheng quan ri bao	33
+递延	di yan	33
+三立	san li	32
+民丰	min feng	31
+中小盘股	zhong xiao pan gu	30
+中投公司	zhong tou gong si	30
+昌河	chang he	30
+缩量	suo liang	30
+资本密集型	zi ben mi ji xing	30
+优酷网	you ku wang	29
+华光	hua guang	29
+混业	hun ye	29
+外管局	wai guan ju	28
+纸钞	zhi chao	28
+货币流通	huo bi liu tong	28
+九龙山	jiu long shan	27
+商网	shang wang	27
+基期	ji qi	27
+建信	jian xin	27
+晨鸣	chen ming	27
+艺龙	yi long	27
+办税厅	ban shui ting	26
+外盘	wai pan	26
+实盘	shi pan	26
+山航	shan hang	26
+持币	chi bi	26
+长盛	zhang sheng	26
+鸿基	hong ji	26
+东阿阿胶	dong e e jiao	25
+大化	da hua	25
+天士力	tian shi li	25
+安联	an lian	25
+海纳	hai na	25
+绿景	lv jing	25
+金陵饭店	jin ling fan dian	25
+黑卡	hei ka	25
+创投公司	chuang tou gong si	24
+售汇	shou hui	24
+新材	xin cai	24
+春兰	chun lan	24
+缴足	jiao zu	24
+耀华	yao hua	24
+股利	gu li	24
+龙卡	long ka	24
+华讯	hua xun	23
+祥龙	xiang long	23
+精算师	jing suan shi	23
+质押物	zhi ya wu	23
+领军者	ling jun zhe	23
+国际银行	guo ji yin hang	22
+宁波港	ning bo gang	22
+定投	ding tou	22
+普跌	pu die	22
+邵氏	shao shi	22
+东盛	dong sheng	21
+丰华	feng hua	21
+具结	ju jie	21
+华鼎	hua ding	21
+对赌	dui du	21
+尾市	wei shi	21
+扛住	kang zhu	21
+易宝	yi bao	21
+科达	ke da	21
+东信	dong xin	20
+天海	tian hai	20
+宏业	hong ye	20
+发行额	fa xing e	19
+小阳	xiao yang	19
+担保金	dan bao jin	19
+波谷	bo gu	19
+泰格	tai ge	19
+湖山	hu shan	19
+英达	ying da	19
+金融部	jin rong bu	19
+雷伊	lei yi	19
+交易税	jiao yi shui	18
+伪钞	wei chao	18
+健民	jian min	18
+华富	hua fu	18
+南化	nan hua	18
+国民银行	guo min yin hang	18
+外汇资产	wai hui zi chan	18
+大元	da yuan	18
+淡马锡	dan ma xi	18
+金瑞	jin rui	18
+三力	san li	17
+侨汇	qiao hui	17
+坏账率	huai zhang lv	17
+抬轿	tai jiao	17
+新高点	xin gao dian	17
+正常性	zheng chang xing	17
+港铁公司	gang tie gong si	17
+诺安	nuo an	17
+中国太保	zhong guo tai bao	16
+亚星	ya xing	16
+冲高	chong gao	16
+出口业	chu kou ye	16
+国际金融报	guo ji jin rong bao	16
+地量	di liang	16
+大摩	da mo	16
+新天	xin tian	16
+租购	zu gou	16
+纪念钞	ji nian chao	16
+追收	zhui shou	16
+金果	jin guo	16
+黄金储备	huang jin chu bei	16
+厦华	sha hua	15
+发行期	fa xing qi	15
+国资局	guo zi ju	15
+复权	fu quan	15
+天香	tian xiang	15
+富国银行	fu guo yin hang	15
+抗跌	kang die	15
+摩根斯坦利	mo gen si tan li	15
+至高点	zhi gao dian	15
+金融史	jin rong shi	15
+中国经济时报	zhong guo jing ji shi bao	14
+中恒	zhong heng	14
+卡包	ka bao	14
+国通	guo tong	14
+法币	fa bi	14
+簿册	bu ce	14
+达标者	da biao zhe	14
+金帝	jin di	14
+东软集团	dong ruan ji tuan	13
+中恒集团	zhong heng ji tuan	13
+中润	zhong run	13
+中联重科	zhong lian zhong ke	13
+削价	xue jia	13
+国富论	guo fu lun	13
+大降	da jiang	13
+投资业	tou zi ye	13
+新大洲	xin da zhou	13
+普卡	pu ka	13
+景顺长城	jing shun chang cheng	13
+物物交换	wu wu jiao huan	13
+申报率	shen bao lv	13
+申赎	shen shu	13
+货币战争	huo bi zhan zheng	13
+金交所	jin jiao suo	13
+银泰百货	yin tai bai huo	13
+集资额	ji zi e	13
+中华工商时报	zhong hua gong shang shi bao	12
+中小散户	zhong xiao san hu	12
+加拿大元	jia na da yuan	12
+南京港	nan jing gang	12
+即期	ji qi	12
+海泰	hai tai	12
+百花村	bai hua cun	12
+营口港	ying kou gang	12
+融资性	rong zi xing	12
+金岭	jin ling	12
+金盘	jin pan	12
+零存整取	ling cun zheng qu	12
+七乐彩	qi le cai	11
+上海机场	shang hai ji chang	11
+中青宝	zhong qing bao	11
+云天化	yun tian hua	11
+人头税	ren tou shui	11
+伊泰	yi tai	11
+保函	bao han	11
+信诺	xin nuo	11
+全局观	quan ju guan	11
+华南城	hua nan cheng	11
+君子协定	jun zi xie ding	11
+垃圾股	la ji gu	11
+存定期	cun ding qi	11
+宏盛	hong sheng	11
+定税	ding shui	11
+封盘	feng pan	11
+展讯	zhan xun	11
+惠天	hui tian	11
+承销团	cheng xiao tuan	11
+正兴	zheng xing	11
+瑞银集团	rui yin ji tuan	11
+联电	lian dian	11
+销卡	xiao ka	11
+雅虎公司	ya hu gong si	11
+万通地产	wan tong di chan	10
+中侨	zhong qiao	10
+交易厅	jiao yi ting	10
+六渡桥	liu du qiao	10
+南方公司	nan fang gong si	10
+卡种	ka zhong	10
+唐山港	tang shan gang	10
+国发	guo fa	10
+国瓷	guo ci	10
+大通银行	da tong yin hang	10
+威达	wei da	10
+宜华	yi hua	10
+投资量	tou zi liang	10
+掉期	diao qi	10
+新黄浦	xin huang pu	10
+海富通	hai fu tong	10
+海普瑞	hai pu rui	10
+首局	shou ju	10
+黄金宝	huang jin bao	10

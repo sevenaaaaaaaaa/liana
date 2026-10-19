@@ -25,7 +25,8 @@ lipo -create \
 echo "==> 2/4 生成词典（Resources/base.ifd）"
 DICT_OUT="$HERE/Resources/base.ifd"
 DICT_SRC="$ROOT/crates/dict/data/base-large.tsv"
-if [[ ! -f "$DICT_OUT" || "$DICT_SRC" -nt "$DICT_OUT" ]]; then
+# 基础词库或官方词包（同目录 packs/default，构建时自动合并）有变化就重建
+if [[ ! -f "$DICT_OUT" || -n "$(find "$(dirname "$DICT_SRC")" -name "*.tsv" -newer "$DICT_OUT" -print -quit)" ]]; then
     mkdir -p "$HERE/Resources"
     cargo run --quiet --manifest-path "$ROOT/Cargo.toml" -p xtask -- \
         dict build "$DICT_SRC" -o "$DICT_OUT"

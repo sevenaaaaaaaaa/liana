@@ -55,8 +55,14 @@ final class LianaEngine {
     }()
 
     init(mode: String = "pinyin") {
-        if let dict = Self.externalDict {
-            handle = dict.withCString { path in mode.withCString { m in liana_new_with_dict(m, path) } }
+        // 基础词库 + 词包目录（本机应用名等）；进程内共享同一份，词包变化后新会话自动用上
+        handle = mode.withCString { m in
+            AppNameLexicon.directory.withCString { layers in
+                if let dict = Self.externalDict {
+                    return dict.withCString { path in liana_new_with_layers(m, path, layers) }
+                }
+                return liana_new_with_layers(m, nil, layers)
+            }
         }
         if handle == nil {
             handle = mode.withCString { liana_new($0) }

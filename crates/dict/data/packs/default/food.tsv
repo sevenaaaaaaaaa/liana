@@ -1,0 +1,67 @@
+# 松萝官方词包 · food（清华 THUOCL_food，MIT；只含基础词库没有的词）
+# 格式：词<TAB>拼音（空格分隔）<TAB>词频（与 base-large.tsv 同尺度）
+健力	jian li	152
+桔子	ju zi	148
+寸金	cun jin	89
+天麻	tian ma	88
+白果	bai guo	88
+富春	fu chun	87
+老酒	lao jiu	87
+油茶	you cha	86
+明胶	ming jiao	79
+杜康	du kang	79
+柑桔	gan ju	78
+源通	yuan tong	78
+炸食	zha shi	69
+白油	bai you	66
+石蜡	shi la	51
+猪血	zhu xue	47
+国珍	guo zhen	45
+鱼生	yu sheng	45
+海红	hai hong	43
+伯顿	bo dun	42
+西兰花	xi lan hua	42
+黄粉	huang fen	42
+双鹤	shuang he	41
+汤包	tang bao	38
+银鱼	yin yu	37
+螺蛳	luo si	36
+华凌	hua ling	34
+鹿肉	lu rou	34
+龙丹	long dan	29
+吐温	tu wen	28
+薄饼	bao bing	28
+赤豆	chi dou	25
+基摩	ji mo	24
+张记	zhang ji	24
+爆肚	bao du	24
+甲壳素	jia qiao su	24
+眼肉	yan rou	24
+糌粑	zan ba	23
+果佳	guo jia	22
+天仁	tian ren	21
+面鲜	mian xian	21
+利嘉	li jia	19
+芸豆	yun dou	19
+菠萝蜜	bo luo mi	19
+道酒	dao jiu	19
+麦饭	mai fan	18
+酶制剂	mei zhi ji	17
+薄荷叶	bo he ye	16
+金桔	jin ju	16
+抗坏血酸	kang huai xue suan	15
+沙士	sha shi	15
+蓝城	lan cheng	15
+鲥鱼	shi yu	15
+卡赛	ka sai	13
+长豆	zhang dou	13
+干丝	gan si	12
+白肚	bai du	12
+莜面	you mian	12
+诺丽	nuo li	12
+嘉吉	jia ji	11
+煎饼果子	jian bing guo zi	11
+甜茶	tian cha	11
+丁酮	ding tong	10
+刀狼	dao lang	10
+肌醇	ji chun	10

@@ -1,0 +1,1339 @@
+# 松萝官方词包 · medical（清华 THUOCL_medical，MIT；只含基础词库没有的词）
+# 格式：词<TAB>拼音（空格分隔）<TAB>词频（与 base-large.tsv 同尺度）
+检疫	jian yi	1984
+高血压	gao xue ya	1802
+负荷	fu he	1245
+白血病	bai xue bing	1115
+心血管	xin xue guan	605
+无偿献血	wu chang xian xie	476
+心脑血管疾病	xin nao xue guan ji bing	398
+核酸	he suan	318
+造血干细胞	zao xue gan xi bao	303
+血站	xue zhan	278
+优生	you sheng	272
+脑出血	nao chu xie	271
+心脑血管	xin nao xue guan	264
+血小板	xue xiao ban	249
+哺乳期	bu ru qi	241
+综合症	zong he zheng	223
+腹腔	fu qiang	223
+菌落总数	jun luo zong shu	217
+梗阻	geng zu	216
+失血性休克	shi xue xing xiu ke	215
+疾患	ji huan	215
+手足口病	shou zu kou bing	214
+肋骨骨折	lei gu gu zhe	208
+肺部感染	fei bu gan ran	206
+窗口期	chuang kou qi	199
+成熟期	cheng shu qi	198
+张璐	zhang lu	188
+脑血管	nao xue guan	179
+毛细血管	mao xi xue guan	178
+高血压患者	gao xue ya huan zhe	176
+告知义务	gao zhi yi wu	175
+对症治疗	dui zheng zhi liao	175
+疫情监测	yi qing jian ce	170
+健康促进	jian kang cu jin	169
+病程	bing cheng	166
+烧伤面积	shao shang mian ji	165
+颅内出血	lu nei chu xue	164
+脑死亡	nao si wang	163
+淤血	yu xue	156
+大肠菌群	da chang jun qun	154
+慢病	man bing	153
+医风	yi feng	148
+低血糖	di xue tang	147
+生物安全	sheng wu an quan	144
+高位截瘫	gao wei jie tan	144
+医院感染	yi yuan gan ran	141
+血常规	xue chang gui	141
+心肺功能	xin fei gong neng	140
+氯胺酮	lv an tong	133
+抗病毒药物	kang bing du yao wu	132
+粘膜	zhan mo	130
+中心卫生院	zhong xin wei sheng yuan	125
+碘盐	dian yan	124
+免疫规划	mian yi gui hua	123
+白加黑	bai jia hei	122
+血液透析	xue ye tou xi	122
+市立医院	shi li yi yuan	121
+再生障碍性贫血	zai sheng zhang ai xing pin xue	120
+抗菌药物	kang jun yao wu	120
+拉塞尔	la sai er	119
+社区康复	she qu kang fu	115
+高血糖	gao xue tang	115
+枇杷	pi pa	114
+过敏体质	guo min ti zhi	113
+软组织损伤	ruan zu zhi sun shang	112
+桑国卫	sang guo wei	110
+远程会诊	yuan cheng hui zhen	109
+血友病	xue you bing	108
+败血症	bai xue zheng	107
+心理科	xin li ke	105
+心血管内科	xin xue guan nei ke	105
+王卫平	wang wei ping	104
+食源性疾病	shi yuan xing ji bing	104
+黄疸	huang dan	104
+不明原因肺炎	bu ming yuan yin fei yan	103
+脑病	nao bing	103
+早期诊断	zao qi zhen duan	102
+归口管理	gui kou guan li	100
+混浊	hun zhuo	99
+葛兰素史克	ge lan su shi ke	99
+金黄色葡萄球菌	jin huang se pu tao qiu jun	99
+后放	hou fang	98
+感染性疾病	gan ran xing ji bing	96
+血压计	xue ya ji	94
+高永文	gao yong wen	94
+改水	gai shui	93
+起病	qi bing	93
+安全范围	an quan fan wei	91
+西京医院	xi jing yi yuan	91
+嘉德	jia de	90
+心血管系统	xin xue guan xi tong	90
+股骨头	gu gu tou	90
+埃博拉出血热	ai bo la chu xie re	88
+机械性窒息	ji xie xing zhi xi	88
+肉毒杆菌	rou du gan jun	88
+婴儿死亡率	ying er si wang lv	87
+院前急救	yuan qian ji jiu	86
+母婴传播	mu ying chuan bo	85
+咽拭子	yan shi zi	84
+康复护理	kang fu hu li	84
+上吐下泻	shang tu xia xie	83
+急性白血病	ji xing bai xue bing	83
+肠道传染病	chang dao chuan ran bing	83
+病征	bing zheng	82
+乙类传染病	yi lei chuan ran bing	81
+咳痰	ke tan	80
+血红蛋白	xue hong dan bai	79
+医用耗材	yi yong hao cai	77
+高气压	gao qi ya	77
+血管收缩	xue guan shou suo	76
+颅骨骨折	lu gu gu zhe	76
+先天性疾病	xian tian xing ji bing	75
+基底	ji di	75
+椎间盘	chui jian pan	75
+尸体解剖	shi ti jie pou	74
+感染性腹泻	gan ran xing fu xie	74
+血液制品	xue ye zhi pin	74
+辅助生殖技术	fu zhu sheng zhi ji shu	72
+常山	chang shan	71
+张琦	zhang qi	71
+整形科	zheng xing ke	70
+气管插管	qi guan cha guan	70
+狂犬病疫苗	kuang quan bing yi miao	70
+骨病	gu bing	70
+大血管	da xue guan	69
+急性传染病	ji xing chuan ran bing	69
+上星	shang xing	68
+大钟	da zhong	68
+干咳	gan ke	67
+急性淋巴细胞白血病	ji xing lin ba xi bao bai xue bing	67
+医疗垃圾	yi liao la ji	66
+斑块	ban kuai	66
+血吸虫病	xue xi chong bing	66
+椎体	chui ti	65
+诊断试剂	zhen duan shi ji	65
+椎骨	chui gu	64
+白果	bai guo	64
+原种	yuan zhong	63
+肠出血性大肠杆菌	chang chu xie xing da chang gan jun	63
+心肺复苏术	xin fei fu su shu	62
+样本量	yang ben liang	62
+活血化瘀	huo xue hua yu	62
+海星	hai xing	62
+生命质量	sheng ming zhi liang	62
+鼠药	shu yao	62
+内出血	nei chu xue	61
+医案	yi an	61
+现场研究	xian chang yan jiu	61
+痤疮	cuo chuang	61
+腰椎骨折	yao zhui gu zhe	61
+速效救心丸	su xiao jiu xin wan	61
+周一岳	zhou yi yue	60
+帕金森病	pa jin sen bing	60
+心电监护	xin dian jian hu	60
+感染源	gan ran yuan	60
+流行性腮腺炎	liu xing xing sai xian yan	60
+节律	jie lv	60
+过敏性休克	guo min xing xiu ke	59
+数据整理	shu ju zheng li	58
+望闻问切	wang wen wen qie	58
+艾叶	ai ye	58
+预防接种异常反应	yu fang jie zhong yi chang fan ying	58
+风湿性关节炎	feng shi xing guan jie yan	58
+低血压	di xue ya	57
+天麻	tian ma	57
+疝气	shan qi	56
+瘢痕	ban hen	56
+罂粟壳	ying su ke	56
+阳虚	yang xu	56
+麻疹疫苗	ma zhen yi miao	56
+丙类传染病	bing lei chuan ran bing	55
+哨点医院	shao dian yi yuan	55
+撕裂伤	si lie shang	55
+总氮	zong dan	54
+牙槽骨	ya cao gu	54
+多器官功能衰竭	duo qi guan gong neng shuai jie	53
+水疱	shui pao	53
+病毒病	bing du bing	53
+耳鼻咽喉	er bi yan hou	53
+被动吸烟	bei dong xi yan	53
+前列腺增生	qian lie xian zeng sheng	52
+脑积水	nao ji shui	52
+血管瘤	xue guan liu	52
+神经系统疾病	shen jing xi tong ji bing	51
+笑靥	xiao ye	51
+脐带血	qi dai xue	51
+腹水	fu shui	51
+虚汗	xu han	51
+石蜡	shi la	50
+静脉输液	jing mai shu ye	50
+位点	wei dian	49
+健康评估	jian kang ping gu	49
+危害因素	wei hai yin su	49
+应激反应	ying ji fan ying	49
+溶化	rong hua	49
+甲类传染病	jia lei chuan ran bing	49
+红眼病	hong yan bing	49
+自发行为	zi fa xing wei	49
+虚寒	xu han	49
+靶点	ba dian	49
+骨龄	gu ling	49
+前庭	qian ting	48
+拔火罐	ba huo guan	48
+脑萎缩	nao wei suo	48
+血小板减少	xue xiao ban jian shao	48
+高脂血症	gao zhi xue zheng	48
+伊蚊	yi wen	47
+关节点	guan jie dian	47
+小卫星	xiao wei xing	47
+慢性非传染性疾病	man xing fei chuan ran xing ji bing	47
+母婴护理	mu ying hu li	47
+空心胶囊	kong xin jiao nang	47
+血细胞	xue xi bao	47
+阻遏	zu e	47
+乙肝表面抗原	yi gan biao mian kang yuan	46
+克伦特罗	ke lun te luo	46
+基因变异	ji yin bian yi	46
+急性胃肠炎	ji xing wei chang yan	46
+过敏性疾病	guo min xing ji bing	46
+遗传疾病	yi chuan ji bing	46
+银翘片	yin qiao pian	46
+静脉血	jing mai xue	46
+麝香	she xiang	46
+走行	zou xing	45
+锁骨骨折	suo gu gu zhe	45
+亚种	ya zhong	44
+全身麻醉	quan shen ma zui	44
+感冒咳嗽	gan mao ke sou	44
+抓痕	zhua hen	44
+消化道出血	xiao hua dao chu xie	44
+瓷牙	ci ya	44
+背板	bei ban	44
+血流量	xue liu liang	44
+许强	xu qiang	44
+酒友	jiu you	44
+强化免疫	qiang hua mian yi	43
+桔梗	jie geng	43
+牙龈出血	ya yin chu xie	43
+白术	bai zhu	43
+肠胃病	chang wei bing	43
+艾草	ai cao	43
+黄柏	huang bai	43
+三阳	san yang	42
+丘疹	qiu zhen	42
+牙齿松动	ya chi song dong	42
+疫苗注射	yi miao zhu she	42
+肾功能不全	shen gong neng bu quan	42
+胃胀	wei zhang	42
+胃镜检查	wei jing jian cha	42
+创伤后应激障碍	chuang shang hou ying ji zhang ai	41
+学校卫生	xue xiao wei sheng	41
+小海	xiao hai	41
+成瘾性	cheng yin xing	41
+淮山	huai shan	41
+相互交叉	xiang hu jiao cha	41
+致病微生物	zhi bing wei sheng wu	41
+藏医	cang yi	41
+西布曲明	xi bu qu ming	41
+十滴水	shi di shui	40
+基板	ji ban	40
+小儿外科	xiao er wai ke	40
+心理评估	xin li ping gu	40
+心肌缺血	xin ji que xue	40
+熟地	shu di	40
+角膜移植	jiao mo yi zhi	40
+鼻骨	bi gu	40
+临床死亡	lin chuang si wang	39
+二代病例	er dai bing li	39
+出血点	chu xie dian	39
+前瞻性研究	qian zhan xing yan jiu	39
+核子	he zi	39
+神经损伤	shen jing sun shang	39
+神经氨酸酶	shen jing an suan mei	39
+血气胸	xue qi xiong	39
+血液传播	xue ye chuan bo	39
+急性胰腺炎	ji xing yi xian yan	38
+急性阑尾炎	ji xing lan wei yan	38
+情绪反应	qing xu fan ying	38
+王台	wang tai	38
+疾病监测	ji bing jian ce	38
+肠道病毒	chang dao bing du	38
+视网膜病变	shi wang mo bing bian	38
+阑尾	lan wei	38
+代谢性疾病	dai xie xing ji bing	37
+出血热	chu xie re	37
+十二指肠溃疡	shi er zhi chang kui yang	37
+发色	fa se	37
+李斯特	li si te	37
+水解蛋白	shui jie dan bai	37
+病媒生物	bing mei sheng wu	37
+紧密连接	jin mi lian jie	37
+肝衰竭	gan shuai jie	37
+鼻骨骨折	bi gu gu zhe	37
+再生能力	zai sheng neng li	36
+加碘盐	jia dian yan	36
+实验室检查	shi yan shi jian cha	36
+异型	yi xing	36
+意识丧失	yi shi sang shi	36
+执业助理医师	zhi ye zhu li yi shi	36
+救护站	jiu hu zhan	36
+末梢神经	mo shao shen jing	36
+槐花	huai hua	36
+激光手术	ji guang shou shu	36
+瘀血	yu xue	36
+类风湿关节炎	lei feng shi guan jie yan	36
+肺挫伤	fei cuo shang	36
+腰膝酸软	yao xi suan ruan	36
+药物滥用	yao wu lan yong	36
+过渡带	guo du dai	36
+接触传播	jie chu chuan bo	35
+煤尘	mei chen	35
+疫点	yi dian	35
+白纹伊蚊	bai wen yi wen	35
+蛇咬伤	she yao shang	35
+补中益气	bu zhong yi qi	35
+铸件	zhu jian	35
+骨外科	gu wai ke	35
+共培养	gong pei yang	34
+刘沅	liu yuan	34
+吸收剂量率	xi shou ji liang lv	34
+尿痛	niao tong	34
+川芎	chuan qiong	34
+开放性骨折	kai fang xing gu zhe	34
+成熟阶段	cheng shu jie duan	34
+搏动	bo dong	34
+润肠通便	run chang tong bian	34
+热价	re jia	34
+生活力	sheng huo li	34
+碘缺乏病	dian que fa bing	34
+缺铁性贫血	que tie xing pin xue	34
+苯丙酮尿症	ben bing tong niao zheng	34
+荣枯	rong ku	34
+鉴真	jian zhen	34
+乙型肝炎疫苗	yi xing gan yan yi miao	33
+医学隔离	yi xue ge li	33
+双性恋	shuang xing lian	33
+拔管	ba guan	33
+氧饱和度	yang bao he du	33
+茎叶	jing ye	33
+运动区	yun dong qu	33
+防护口罩	fang hu kou zhao	33
+乳清蛋白粉	ru qing dan bai fen	32
+依从性	yi cong xing	32
+冷冻保存	leng dong bao cun	32
+吴孟超	wu meng chao	32
+吴谦	wu qian	32
+心包	xin bao	32
+染色体异常	ran se ti yi chang	32
+止点	zhi dian	32
+热射病	re she bing	32
+热带农业	re dai nong ye	32
+牙冠	ya guan	32
+电解质紊乱	dian jie zhi wen luan	32
+百日咳	bai ri ke	32
+脊柱炎	ji zhu yan	32
+芡实	qian shi	32
+药物不良反应	yao wu bu liang fan ying	32
+营养支持	ying yang zhi chi	32
+血色素	xue se su	32
+风寒感冒	feng han gan mao	32
+风蚀	feng shi	32
+偏航	pian hang	31
+思想道德修养	si xiang dao de xiu yang	31
+感染性休克	gan ran xing xiu ke	31
+教育部重点实验室	jiao yu bu zhong dian shi yan shi	31
+皮肤感染	pi fu gan ran	31
+碘缺乏	dian que fa	31
+肺动脉高压	fei dong mai gao ya	31
+胸腔积液	xiong qiang ji ye	31
+脑干出血	nao gan chu xie	31
+脑疝	nao shan	31
+药品标准	yao pin biao zhun	31
+重大传染病疫情	zhong da chuan ran bing yi qing	31
+骨性	gu xing	31
+骨盆骨折	gu pen gu zhe	31
+亚硝酸盐中毒	ya xiao suan yan zhong du	30
+吸入性损伤	xi ru xing sun shang	30
+复壮	fu zhuang	30
+大长今	da zhang jin	30
+抽样误差	chou yang wu cha	30
+放射性活度	fang she xing huo du	30
+曲美	qu mei	30
+炎症反应	yan zheng fan ying	30
+狂犬病毒	kuang quan bing du	30
+猩红热	xing hong re	30
+过氧化苯甲酰	guo yang hua ben jia xian	30
+重症肌无力	zhong zheng ji wu li	30
+颈椎骨折	jing chui gu zhe	30
+飞沫传播	fei mo chuan bo	30
+麻风	ma feng	30
+黄皮	huang pi	30
+乳腺外科	ru xian wai ke	29
+人事不省	ren shi bu xing	29
+八段锦	ba duan jin	29
+可待因	ke dai yin	29
+吐温	tu wen	29
+室间隔缺损	shi jian ge que sun	29
+新康泰克	xin kang tai ke	29
+病毒携带者	bing du xie dai zhe	29
+眼疲劳	yan pi lao	29
+神仙水	shen xian shui	29
+肝功能异常	gan gong neng yi chang	29
+股骨骨折	gu gu gu zhe	29
+胎位	tai wei	29
+致癌作用	zhi ai zuo yong	29
+艾滋病防治条例	ai zi bing fang zhi tiao li	29
+血清学	xue qing xue	29
+造血系统	zao xue xi tong	29
+作用机制	zuo yong ji zhi	28
+健康行为	jian kang xing wei	28
+化疗药物	hua liao yao wu	28
+填塞	tian se	28
+宫腔	gong qiang	28
+崩解	beng jie	28
+康复工程	kang fu gong cheng	28
+心脏破裂	xin zang po lie	28
+急救员	ji jiu yuan	28
+性成熟	xing cheng shu	28
+核素	he su	28
+滑膜炎	hua mo yan	28
+线虫	xian chong	28
+肾积水	shen ji shui	28
+胆囊结石	dan nang jie shi	28
+顶骨	ding gu	28
+髌骨	bin gu	28
+鼓胀	gu zhang	28
+净化水	jing hua shui	27
+创伤性休克	chuang shang xing xiu ke	27
+动脉导管未闭	dong mai dao guan wei bi	27
+哨点监测	shao dian jian ce	27
+太子参	tai zi shen	27
+引流管	yin liu guan	27
+急性病	ji xing bing	27
+急性肾衰竭	ji xing shen shuai jie	27
+慢性鼻炎	man xing bi yan	27
+畏光	wei guang	27
+病毒性感冒	bing du xing gan mao	27
+皮下出血	pi xia chu xie	27
+紫外线消毒	zi wai xian xiao du	27
+细菌性食物中毒	xi jun xing shi wu zhong du	27
+职业暴露	zhi ye bao lu	27
+肌瘤	ji liu	27
+肝功能衰竭	gan gong neng shuai jie	27
+薏苡仁	yi yi ren	27
+血容量	xue rong liang	27
+乙醇中毒	yi chun zhong du	26
+寒湿	han shi	26
+慢性肾病	man xing shen bing	26
+慢性阻塞性肺疾病	man xing zu se xing fei ji bing	26
+松解	song jie	26
+毒刺	du ci	26
+气血运行	qi xue yun xing	26
+湿邪	shi xie	26
+灭活疫苗	mie huo yi miao	26
+精神症状	jing shen zheng zhuang	26
+职业康复	zhi ye kang fu	26
+胶原	jiao yuan	26
+脑血管意外	nao xue guan yi wai	26
+葛洪	ge hong	26
+血液内科	xue ye nei ke	26
+补牙	bu ya	26
+辨证论治	bian zheng lun zhi	26
+阿尔茨海默病	a er ci hai mo bing	26
+骨伤医院	gu shang yi yuan	26
+先兆流产	xian zhao liu chan	25
+动物化石	dong wu hua shi	25
+叶黄素	ye huang su	25
+吴阶平	wu jie ping	25
+吸入性肺炎	xi ru xing fei yan	25
+基因缺陷	ji yin que xian	25
+妇婴医院	fu ying yi yuan	25
+子宫内膜癌	zi gong nei mo ai	25
+子宫收缩	zi gong shou suo	25
+尿毒	niao du	25
+心电图机	xin dian tu ji	25
+指腹	zhi fu	25
+挤压伤	ji ya shang	25
+润肺止咳	run fei zhi ke	25
+留鸟	liu niao	25
+登革热病毒	deng ge re bing du	25
+硬结	ying jie	25
+羊水栓塞	yang shui shuan se	25
+耳鼻咽喉头颈外科	er bi yan hou tou jing wai ke	25
+肢体麻木	zhi ti ma mu	25
+苍术	cang zhu	25
+贝母	bei mu	25
+隔离服	ge li fu	25
+颅底骨折	lu di gu zhe	25
+颞叶	nie ye	25
+黄热病	huang re bing	25
+中冲	zhong chong	24
+主动脉夹层	zhu dong mai jia ceng	24
+产卵场	chan luan chang	24
+关节软骨	guan jie ruan gu	24
+卫生检验	wei sheng jian yan	24
+卫生统计	wei sheng tong ji	24
+呕血	ou xue	24
+头皮血肿	tou pi xue zhong	24
+头皮裂伤	tou pi lie shang	24
+孢子	bao zi	24
+心因性	xin yin xing	24
+汞中毒	gong zhong du	24
+痰湿	tan shi	24
+穴位按摩	xue wei an mo	24
+窝沟封闭	wo gou feng bi	24
+肾透析	shen tou xi	24
+腹膜透析	fu mo tou xi	24
+血吸虫	xue xi chong	24
+血液学	xue ye xue	24
+躁狂	zao kuang	24
+钢牙	gang ya	24
+健身跑	jian shen pao	23
+先天性白内障	xian tian xing bai nei zhang	23
+免疫屏障	mian yi ping zhang	23
+免疫程序	mian yi cheng xu	23
+凝血因子	ning xue yin zi	23
+同源性	tong yuan xing	23
+基因诊断	ji yin zhen duan	23
+太阳黑子	tai yang hei zi	23
+学习障碍	xue xi zhang ai	23
+房间隔缺损	fang jian ge que sun	23
+抗肿瘤药物	kang zhong liu yao wu	23
+无欲无求	wu yu wu qiu	23
+杜冷丁	du leng ding	23
+氧含量	yang han liang	23
+沙丁胺醇	sha ding an chun	23
+王振义	wang zhen yi	23
+红参	hong shen	23
+继发感染	ji fa gan ran	23
+肝腹水	gan fu shui	23
+股动脉	gu dong mai	23
+股骨颈骨折	gu gu jing gu zhe	23
+肺纤维化	fei xian wei hua	23
+脾破裂	pi po lie	23
+血管痉挛	xue guan jing luan	23
+解热镇痛药	jie re zhen tong yao	23
+解郁	jie yu	23
+运动处方	yun dong chu fang	23
+间接接触	jian jie jie chu	23
+随诊	sui zhen	23
+骨肉瘤	gu rou liu	23
+一级预防	yi ji yu fang	22
+体温过低	ti wen guo di	22
+减毒活疫苗	jian du huo yi miao	22
+助行器	zhu xing qi	22
+合剂	he ji	22
+四免一关怀	si mian yi guan huai	22
+回游	hui you	22
+安全性行为	an quan xing xing wei	22
+巨大儿	ju da er	22
+慢性前列腺炎	man xing qian lie xian yan	22
+慢性肾功能衰竭	man xing shen gong neng shuai jie	22
+救心丸	jiu xin wan	22
+植物界	zhi wu jie	22
+深静脉	shen jing mai	22
+牙线	ya xian	22
+电击伤	dian ji shang	22
+神经性耳聋	shen jing xing er long	22
+神经根	shen jing gen	22
+老烟枪	lao yan qiang	22
+联合用药	lian he yong yao	22
+肖传国	xiao chuan guo	22
+肺移植	fei yi zhi	22
+脱屑	tuo xie	22
+自身免疫性疾病	zi shen mian yi xing ji bing	22
+血瘀	xue yu	22
+酚酞	fen tai	22
+除颤器	chu chan qi	22
+高压氧治疗	gao ya yang zhi liao	22
+鸡胸	ji xiong	22
+龋病	qu bing	22
+动物疾病	dong wu ji bing	21
+咽喉痛	yan hou tong	21
+大医精诚	da yi jing cheng	21
+天听	tian ting	21
+小脑萎缩	xiao nao wei suo	21
+巴伯	ba bo	21
+感染期	gan ran qi	21
+慢性疼痛	man xing teng tong	21
+慢性肾脏病	man xing shen zang bing	21
+控制传染源	kong zhi chuan ran yuan	21
+支气管扩张	zhi qi guan kuo zhang	21
+易感性	yi gan xing	21
+春小麦	chun xiao mai	21
+柯棣华	ke di hua	21
+椎管狭窄	chui guan xia zhai	21
+牙菌斑	ya jun ban	21
+特殊检查	te shu jian cha	21
+疟原虫	nve yuan chong	21
+皮管	pi guan	21
+磁共振成像	ci gong zhen cheng xiang	21
+糖丸	tang wan	21
+腓骨	fei gu	21
+药物反应	yao wu fan ying	21
+诊脉	zhen mai	21
+贪食	tan shi	21
+近亲结婚	jin qin jie hun	21
+阴虚火旺	yin xu huo wang	21
+除极	chu ji	21
+风热感冒	feng re gan mao	21
+鱼精蛋白	yu jing dan bai	21
+鼻息肉	bi xi rou	21
+一次性口罩	yi ci xing kou zhao	20
+互交	hu jiao	20
+人血白蛋白	ren xue bai dan bai	20
+代谢综合征	dai xie zong he zheng	20
+传染病学	chuan ran bing xue	20
+克罗斯	ke luo si	20
+免疫疗法	mian yi liao fa	20
+养心安神	yang xin an shen	20
+埃及伊蚊	ai ji yi wen	20
+宣肺	xuan fei	20
+扑热息痛	pu re xi tong	20
+抑郁状态	yi yu zhuang tai	20
+支气管肺炎	zhi qi guan fei yan	20
+无尿	wu niao	20
+核磁共振成像	he ci gong zhen cheng xiang	20
+沙参	sha shen	20
+泰诺	tai nuo	20
+深海鱼油	shen hai yu you	20
+炭疽杆菌	tan ju gan jun	20
+甲状腺结节	jia zhuang xian jie jie	20
+皮肤黏膜	pi fu nian mo	20
+眼结膜	yan jie mo	20
+砷中毒	shen zhong du	20
+神农本草经	shen nong ben cao jing	20
+穿透性	chuan tou xing	20
+系带	ji dai	20
+细菌性痢疾	xi jun xing li ji	20
+肩胛	jian jia	20
+肺炎疫苗	fei yan yi miao	20
+花柱	hua zhu	20
+行为障碍	xing wei zhang ai	20
+质谱仪	zhi pu yi	20
+运动神经元	yun dong shen jing yuan	20
+金莲花	jin lian hua	20
+陈国栋	chen guo dong	20
+韦尔斯	wei er si	20
+额叶	e ye	20
+骨关节病	gu guan jie bing	20
+骨骺	gu hou	20
+髋骨	kuan gu	20
+高危妊娠	gao wei ren shen	20
+高原病	gao yuan bing	20
+三叉神经痛	san cha shen jing tong	19
+五禽戏	wu qin xi	19
+卫生法	wei sheng fa	19
+唾液分泌	tuo ye fen mi	19
+山中伸弥	shan zhong shen mi	19
+常居	chang ju	19
+护理技术	hu li ji shu	19
+最大效能	zui da xiao neng	19
+止血带	zhi xue dai	19
+毒性反应	du xing fan ying	19
+泌尿系	mi niao xi	19
+法属波利尼西亚	fa shu bo li ni xi ya	19
+活动性肺结核	huo dong xing fei jie he	19
+爆炸伤	bao zha shang	19
+生长迟缓	sheng zhang chi huan	19
+白化病	bai hua bing	19
+直接死因	zhi jie si yin	19
+神经组织	shen jing zu zhi	19
+类病毒	lei bing du	19
+糖尿病肾病	tang niao bing shen bing	19
+胆管癌	dan guan ai	19
+脑动脉	nao dong mai	19
+脑动脉硬化	nao dong mai ying hua	19
+落枕	lao zhen	19
+被害妄想	bei hai wang xiang	19
+误吸	wu xi	19
+跟腱断裂	gen jian duan lie	19
+转换率	zhuan huan lv	19
+颞部	nie bu	19
+高尿酸血症	gao niao suan xue zheng	19
+黄斑变性	huang ban bian xing	19
+鼓膜穿孔	gu mo chuan kong	19
+鼾症	han zheng	19
+三级预防	san ji yu fang	18
+丽达	li da	18
+乳中	ru zhong	18
+切断传播途径	qie duan chuan bo tu jing	18
+嗳气	ai qi	18
+复合伤	fu he shang	18
+多发性骨折	duo fa xing gu zhe	18
+多囊卵巢综合征	duo nang luan chao zong he zheng	18
+大骨节病	da gu jie bing	18
+委中	wei zhong	18
+尚佳	shang jia	18
+尿道下裂	niao dao xia lie	18
+工业粉尘	gong ye fen chen	18
+急性出血性结膜炎	ji xing chu xie xing jie mo yan	18
+泄泻	xie xie	18
+消渴	xiao ke	18
+滋补肝肾	zi bu gan shen	18
+焦虑状态	jiao lv zhuang tai	18
+牙龈肿痛	ya yin zhong tong	18
+玳瑁	dai mao	18
+甲状腺激素	jia zhuang xian ji su	18
+病机	bing ji	18
+矽肺	xi fei	18
+积热	ji re	18
+肠穿孔	chang chuan kong	18
+肺出血	fei chu xie	18
+胃肠功能紊乱	wei chang gong neng wen luan	18
+胖大海	pang da hai	18
+脂肪代谢	zhi fang dai xie	18
+虫媒传染病	chong mei chuan ran bing	18
+血液循环系统	xue ye xun huan xi tong	18
+血管造影	xue guan zao ying	18
+调经	tiao jing	18
+踝骨	huai gu	18
+适应证	shi ying zheng	18
+金属支架	jin shu zhi jia	18
+阿莫西林胶囊	a mo xi lin jiao nang	18
+中药汤剂	zhong yao tang ji	17
+乙型病毒性肝炎	yi xing bing du xing gan yan	17
+催产素	cui chan su	17
+关节僵硬	guan jie jiang ying	17
+前置胎盘	qian zhi tai pan	17
+双胎	shuang tai	17
+反社会行为	fan she hui xing wei	17
+变异性	bian yi xing	17
+基因重组	ji yin chong zu	17
+开放性颅脑损伤	kai fang xing lu nao sun shang	17
+形势与政策	xing shi yu zheng ce	17
+急性早幼粒细胞白血病	ji xing zao you li xi bao bai xue bing	17
+扎那米韦	zha na mi wei	17
+拉钩	la gou	17
+掌骨	zhang gu	17
+新生儿肺炎	xin sheng er fei yan	17
+样地	yang di	17
+植入物	zhi ru wu	17
+正常菌群	zheng chang jun qun	17
+毛细血管扩张	mao xi xue guan kuo zhang	17
+流行性出血热	liu xing xing chu xie re	17
+溶血性贫血	rong xue xing pin xue	17
+潮间带	chao jian dai	17
+烦渴	fan ke	17
+皮质醇	pi zhi chun	17
+砂仁	sha ren	17
+祛邪	qu xie	17
+空间定位	kong jian ding wei	17
+红药水	hong yao shui	17
+缓解期	huan jie qi	17
+肾脏损害	shen zang sun hai	17
+艾滋病疫苗	ai zi bing yi miao	17
+芦根	lu gen	17
+蝗灾	huang zai	17
+视神经萎缩	shi shen jing wei suo	17
+轮状病毒	lun zhuang bing du	17
+远程医学	yuan cheng yi xue	17
+阴道出血	yin dao chu xie	17
+阿斯利康	a si li kang	17
+马偕	ma xie	17
+主任药师	zhu ren yao shi	16
+乙脑疫苗	yi nao yi miao	16
+二甲双胍	er jia shuang gua	16
+低体重儿	di ti zhong er	16
+低密度脂蛋白	di mi du zhi dan bai	16
+健脾益气	jian pi yi qi	16
+克尔	ke er	16
+全冠	quan guan	16
+冷却剂	leng que ji	16
+发育生物学	fa yu sheng wu xue	16
+口舌生疮	kou she sheng chuang	16
+周荣	zhou rong	16
+围产期	wei chan qi	16
+坏疽	huai ju	16
+坏胆固醇	huai dan gu chun	16
+坐骨神经	zuo gu shen jing	16
+基线调查	ji xian diao cha	16
+大脑半球	da nao ban qiu	16
+安宫牛黄丸	an gong niu huang wan	16
+带菌者	dai jun zhe	16
+性征	xing zheng	16
+性欲减退	xing yu jian tui	16
+慢性肝病	man xing gan bing	16
+慢性腹泻	man xing fu xie	16
+抗蛇毒血清	kang she du xue qing	16
+指骨	zhi gu	16
+斯塔尔	si ta er	16
+新生儿破伤风	xin sheng er po shang feng	16
+林顺潮	lin shun chao	16
+桥基	qiao ji	16
+死产	si chan	16
+气中	qi zhong	16
+气滞血瘀	qi zhi xue yu	16
+流量表	liu liang biao	16
+焦亚硫酸钠	jiao ya liu suan na	16
+牙釉质	ya you zhi	16
+玄参	xuan can	16
+王正敏	wang zheng min	16
+甲肝疫苗	jia gan yi miao	16
+瘀斑	yu ban	16
+白细胞减少	bai xi bao jian shao	16
+碘伏	dian fu	16
+移植术	yi zhi shu	16
+糖尿病前期	tang niao bing qian qi	16
+老年性白内障	lao nian xing bai nei zhang	16
+肝病科	gan bing ke	16
+胃痉挛	wei jing luan	16
+胎生	tai sheng	16
+脑挫伤	nao cuo shang	16
+褪黑素	tui hei su	16
+视网膜脱离	shi wang mo tuo li	16
+视觉障碍	shi jue zhang ai	16
+运动疗法	yun dong liao fa	16
+长头	zhang tou	16
+陈建仁	chen jian ren	16
+非小细胞肺癌	fei xiao xi bao fei ai	16
+顺峰	shun feng	16
+麻疹病毒	ma zhen bing du	16
+上颌骨	shang he gu	15
+下肢静脉	xia zhi jing mai	15
+人乳头瘤病毒	ren ru tou liu bing du	15
+人体模型	ren ti mo xing	15
+代谢障碍	dai xie zhang ai	15
+仪式化	yi shi hua	15
+修复体	xiu fu ti	15
+傅山	fu shan	15
+免疫效果	mian yi xiao guo	15
+冷链系统	leng lian xi tong	15
+剥脱	bao tuo	15
+化生	hua sheng	15
+医和	yi he	15
+印模	yin mo	15
+发绀	fa gan	15
+右心室	you xin shi	15
+合谷	he gu	15
+多不饱和脂肪酸	duo bu bao he zhi fang suan	15
+大青叶	da qing ye	15
+媒介生物	mei jie sheng wu	15
+尺骨	chi gu	15
+巴德	ba de	15
+布病	bu bing	15
+平流	ping liu	15
+急性酒精中毒	ji xing jiu jing zhong du	15
+感觉神经	gan jue shen jing	15
+戒断症状	jie duan zheng zhuang	15
+手骨	shou gu	15
+抗疟药	kang nve yao	15
+探子	tan zi	15
+旱獭	han ta	15
+板蓝根颗粒	ban lan gen ke li	15
+标记物	biao ji wu	15
+梁卓伟	liang zhuo wei	15
+椎动脉	chui dong mai	15
+正营	zheng ying	15
+水痘疫苗	shui dou yi miao	15
+沈祖尧	shen zu yao	15
+淋巴细胞白血病	lin ba xi bao bai xue bing	15
+灌洗	guan xi	15
+玉堂	yu tang	15
+王忠诚	wang zhong cheng	15
+甲状腺功能减退	jia zhuang xian gong neng jian tui	15
+男性性功能障碍	nan xing xing gong neng zhang ai	15
+病毒性肺炎	bing du xing fei yan	15
+盆腔囊肿	pen qiang nang zhong	15
+眼底出血	yan di chu xie	15
+眼球破裂	yan qiu po lie	15
+神经生物学	shen jing sheng wu xue	15
+糖化血红蛋白	tang hua xue hong dan bai	15
+红花油	hong hua you	15
+组织修复	zu zhi xiu fu	15
+结膜充血	jie mo chong xue	15
+肉毒毒素	rou du du su	15
+肌萎缩侧索硬化	ji wei suo ce suo ying hua	15
+肱骨骨折	gong gu gu zhe	15
+胸膜	xiong mo	15
+脑血管破裂	nao xue guan po lie	15
+腰背痛	yao bei tong	15
+范明	fan ming	15
+菌群失调	jun qun shi tiao	15
+血清型	xue qing xing	15
+表证	biao zheng	15
+转译	zhuan yi	15
+近中	jin zhong	15
+雪盲	xue mang	15
+风门	feng men	15
+髌骨骨折	bin gu gu zhe	15
+鸡蛋花	ji dan hua	15
+黑麦	hei mai	15
+鼻中隔	bi zhong ge	15
+乙型肝炎病毒	yi xing gan yan bing du	14
+二级预防	er ji yu fang	14
+儿童护理	er tong hu li	14
+先天性耳聋	xian tian xing er long	14
+关节镜	guan jie jing	14
+再通	zai tong	14
+卵巢早衰	luan chao zao shuai	14
+合谷穴	he gu xue	14
+喉镜	hou jing	14
+回肠	hui chang	14
+土茯苓	tu fu ling	14
+尸斑	shi ban	14
+尼美舒利	ni mei shu li	14
+尾椎	wei chui	14
+希波克拉底	xi bo ke la di	14
+战伤	zhan shang	14
+挤压综合征	ji ya zong he zheng	14
+支具	zhi ju	14
+支沟	zhi gou	14
+斑丘疹	ban qiu zhen	14
+新生儿窒息	xin sheng er zhi xi	14
+无菌操作	wu jun cao zuo	14
+有机磷农药	you ji lin nong yao	14
+机械性损伤	ji xie xing sun shang	14
+横切面	heng qie mian	14
+治则	zhi ze	14
+流行性乙型脑炎	liu xing xing yi xing nao yan	14
+淡竹叶	dan zhu ye	14
+淤滞	yu zhi	14
+溃疡性结肠炎	kui yang xing jie chang yan	14
+牙尖	ya jian	14
+病原携带者	bing yuan xie dai zhe	14
+病毒性心肌炎	bing du xing xin ji yan	14
+皮肤移植	pi fu yi zhi	14
+盐酸克仑特罗	yan suan ke lun te luo	14
+相对数	xiang dui shu	14
+碘化钾	dian hua jia	14
+种畜	zhong chu	14
+纵膈	zong ge	14
+维生素片	wei sheng su pian	14
+耳鸣耳聋	er ming er long	14
+肿瘤发生	zhong liu fa sheng	14
+腱鞘炎	jian qiao yan	14
+膀胱结石	pang guang jie shi	14
+艾滋病抗体	ai zi bing kang ti	14
+芬必得	fen bi dei	14
+虫媒	chong mei	14
+趾甲	zhi jia	14
+躁狂症	zao kuang zheng	14
+辐射损伤	fu she sun shang	14
+迎香穴	ying xiang xue	14
+锚定	mao ding	14
+骨转移	gu zhuan yi	14
+鸡冠花	ji guan hua	14
+丙肝抗体	bing gan kang ti	13
+丰隆	feng long	13
+临床药学	lin chuang yao xue	13
+乌头碱	wu tou jian	13
+亚科	ya ke	13
+人中穴	ren zhong xue	13
+人畜共患传染病	ren chu gong huan chuan ran bing	13
+体表面积	ti biao mian ji	13
+侯凡凡	hou fan fan	13
+修复术	xiu fu shu	13
+健胃消食片	jian wei xiao shi pian	13
+免疫抗体	mian yi kang ti	13
+全身感染	quan shen gan ran	13
+化学疗法	hua xue liao fa	13
+单果	dan guo	13
+发作期	fa zuo qi	13
+含氟牙膏	han fu ya gao	13
+吴昆	wu kun	13
+喉头水肿	hou tou shui zhong	13
+复方丹参片	fu fang dan shen pian	13
+多发性骨髓瘤	duo fa xing gu sui liu	13
+子宫出血	zi gong chu xie	13
+少尿	shao niao	13
+布鲁氏菌病	bu lu shi jun bing	13
+帕金森综合征	pa jin sen zong he zheng	13
+平衡器	ping heng qi	13
+开塞露	kai sai lu	13
+形态发生	xing tai fa sheng	13
+心身医学	xin shen yi xue	13
+思密达	si mi da	13
+慢性气管炎	man xing qi guan yan	13
+拜尔	bai er	13
+智能障碍	zhi neng zhang ai	13
+枇杷叶	pi pa ye	13
+检疫期	jian yi qi	13
+椎管	chui guan	13
+毛囊炎	mao nang yan	13
+毛糙	mao cao	13
+水溶性维生素	shui rong xing wei sheng su	13
+洗剂	xi ji	13
+清热化痰	qing re hua tan	13
+清热泻火	qing re xie huo	13
+湿敷	shi fu	13
+牙结石	ya jie shi	13
+生活事件	sheng huo shi jian	13
+生物反应器	sheng wu fan ying qi	13
+界标	jie biao	13
+病毒性疾病	bing du xing ji bing	13
+痛风性关节炎	tong feng xing guan jie yan	13
+白扁豆	bai bian dou	13
+百会穴	bai hui xue	13
+睾丸癌	gao wan ai	13
+社区卫生服务管理	she qu wei sheng fu wu guan li	13
+社区护理	she qu hu li	13
+神经母细胞瘤	shen jing mu xi bao liu	13
+神经毒素	shen jing du su	13
+突发性耳聋	tu fa xing er long	13
+紫苑	zi yuan	13
+肝肿大	gan zhong da	13
+肝脾肿大	gan pi zhong da	13
+肝血	gan xue	13
+胎盘早剥	tai pan zao bo	13
+腹围	fu wei	13
+膝关节病	xi guan jie bing	13
+自身调节	zi shen tiao jie	13
+融解	rong jie	13
+袁国勇	yuan guo yong	13
+角化	jiao hua	13
+记忆障碍	ji yi zhang ai	13
+贯通伤	guan tong shang	13
+运动神经元病	yun dong shen jing yuan bing	13
+远中	yuan zhong	13
+郁金	yu jin	13
+金刚烷胺	jin gang wan an	13
+钝器伤	dun qi shang	13
+防风林	fang feng lin	13
+霍乱弧菌	huo luan hu jun	13
+霍奇金	huo qi jin	13
+面色萎黄	mian se wei huang	13
+面部烧伤	mian bu shao shang	13
+颈椎间盘	jing chui jian pan	13
+马鞭草	ma bian cao	13
+髓核	sui he	13
+高丽参	gao li shen	13
+高盐饮食	gao yan yin shi	13
+鼻唇沟	bi chun gou	13
+二次感染	er ci gan ran	12
+亚硫酸盐	ya liu suan yan	12
+伪麻黄碱	wei ma huang jian	12
+低密度脂蛋白胆固醇	di mi du zhi dan bai dan gu chun	12
+共运输	gong yun shu	12
+养血安神	yang xue an shen	12
+内照射	nei zhao she	12
+分子遗传学	fen zi yi chuan xue	12
+副主任药师	fu zhu ren yao shi	12
+包茎	bao jing	12
+化瘀	hua yu	12
+医学影像学	yi xue ying xiang xue	12
+医学模式	yi xue mo shi	12
+原发性高血压	yuan fa xing gao xue ya	12
+反射弧	fan she hu	12
+外感风寒	wai gan feng han	12
+天泉	tian quan	12
+宋慈	song ci	12
+定量研究	ding liang yan jiu	12
+小头畸形	xiao tou ji xing	12
+尿糖	niao tang	12
+应激状态	ying ji zhuang tai	12
+急性支气管炎	ji xing zhi qi guan yan	12
+急诊医学	ji zhen yi xue	12
+性比	xing bi	12
+恶性疟疾	e xing nve ji	12
+扼死	e si	12
+放射医学	fang she yi xue	12
+新生儿筛查	xin sheng er shai cha	12
+杂病	za bing	12
+李斯特菌	li si te jun	12
+棘突	ji tu	12
+横突	heng tu	12
+沉水植物	chen shui zhi wu	12
+海底火山	hai di huo shan	12
+海藻酸钠	hai zao suan na	12
+淋巴组织	lin ba zu zhi	12
+滋肾	zi shen	12
+热症	re zheng	12
+牛黄解毒片	niu huang jie du pian	12
+环中	huan zhong	12
+疥疮	jie chuang	12
+白茅根	bai mao gen	12
+皮肤炭疽	pi fu tan ju	12
+益虫	yi chong	12
+矫正术	jiao zheng shu	12
+穴位注射	xue wei zhu she	12
+立体视觉	li ti shi jue	12
+羚羊角	ling yang jiao	12
+肱二头肌	gong er tou ji	12
+肾损伤	shen sun shang	12
+胆囊癌	dan nang ai	12
+脂溶性维生素	zhi rong xing wei sheng su	12
+脂肪层	zhi fang ceng	12
+脊髓炎	ji sui yan	12
+脑性瘫痪	nao xing tan huan	12
+脑栓塞	nao shuan se	12
+脑膜瘤	nao mo liu	12
+脑血管畸形	nao xue guan ji xing	12
+腺瘤	xian liu	12
+草乌	cao wu	12
+营养神经	ying yang shen jing	12
+血凝素	xue ning su	12
+诺氟沙星	nuo fu sha xing	12
+跟骨	gen gu	12
+辣椒素	la jiao su	12
+遗传咨询	yi chuan zi xun	12
+铁蛋白	tie dan bai	12
+防护手套	fang hu shou tao	12
+靶器官	ba qi guan	12
+风池穴	feng chi xue	12
+麻醉机	ma zui ji	12
+丝虫病	si chong bing	11
+中间宿主	zhong jian su zhu	11
+丹宁	dan ning	11
+人为灾害	ren wei zai hai	11
+人体解剖学	ren ti jie pou xue	11
+人工泪液	ren gong lei ye	11
+伦琴	lun qin	11
+低盐饮食	di yan yin shi	11
+保守性	bao shou xing	11
+先天性巨结肠	xian tian xing ju jie chang	11
+内关	nei guan	11
+冷藏运输	leng cang yun shu	11
+出血倾向	chu xie qing xiang	11
+卫生经济学	wei sheng jing ji xue	11
+即早	ji zao	11
+去痛片	qu tong pian	11
+双黄连	shuang huang lian	11
+合子	he zi	11
+后叶	hou ye	11
+命名性失语	ming ming xing shi yu	11
+基因位点	ji yin wei dian	11
+基托	ji tuo	11
+基本组织	ji ben zu zhi	11
+复视	fu shi	11
+外科疾病	wai ke ji bing	11
+天然维生素	tian ran wei sheng su	11
+子痫	zi xian	11
+安全注射	an quan zhu she	11
+射频消融术	she pin xiao rong shu	11
+小便不利	xiao bian bu li	11
+尾羽	wei yu	11
+尿碘	niao dian	11
+左氧氟沙星	zuo yang fu sha xing	11
+干部病房	gan bu bing fang	11
+幻视	huan shi	11
+广谱抗生素	guang pu kang sheng su	11
+心境障碍	xin jing zhang ai	11
+心理疗法	xin li liao fa	11
+心脏停搏	xin zang ting bo	11
+心血管病学	xin xue guan bing xue	11
+急性淋巴细胞性白血病	ji xing lin ba xi bao xing bai xue bing	11
+急性肝炎	ji xing gan yan	11
+恒河猴	heng he hou	11
+慢性盆腔炎	man xing pen qiang yan	11
+扶正固本	fu zheng gu ben	11
+抑郁发作	yi yu fa zuo	11
+抗病毒口服液	kang bing du kou fu ye	11
+整体观念	zheng ti guan nian	11
+文眉	wen mei	11
+时标	shi biao	11
+枕骨	zhen gu	11
+次氯酸钠	ci lv suan na	11
+氟中毒	fu zhong du	11
+氨基比林	an ji bi lin	11
+法医病理学	fa yi bing li xue	11
+流脑疫苗	liu nao yi miao	11
+混合痔	hun he zhi	11
+清热凉血	qing re liang xue	11
+清热生津	qing re sheng jin	11
+湿重	shi zhong	11
+漏尿	lou niao	11
+灵芝孢子粉	ling zhi bao zi fen	11
+熟地黄	shu di huang	11
+燥湿	zao shi	11
+牙周组织	ya zhou zu zhi	11
+生物节律	sheng wu jie lv	11
+甲胎蛋白	jia tai dan bai	11
+疲劳综合征	pi lao zong he zheng	11
+病毒抗体	bing du kang ti	11
+白藜芦醇	bai li lu chun	11
+百白破疫苗	bai bai po yi miao	11
+盐酸伪麻黄碱	yan suan wei ma huang jian	11
+硬脑膜	ying nao mo	11
+系统发育	xi tong fa yu	11
+素问	su wen	11
+紫苏叶	zi su ye	11
+终末消毒	zhong mo xiao du	11
+维生素缺乏	wei sheng su que fa	11
+缺硒	que xi	11
+罗红霉素	luo hong mei su	11
+羊胎素	yang tai su	11
+耳痛	er tong	11
+联合疫苗	lian he yi miao	11
+肛周脓肿	gang zhou nong zhong	11
+背侧	bei ce	11
+胎膜早破	tai mo zao po	11
+脂肪瘤	zhi fang liu	11
+脑干损伤	nao gan sun shang	11
+腹主动脉	fu zhu dong mai	11
+自限性	zi xian xing	11
+药物吸收	yao wu xi shou	11
+蜱叮咬	pi ding yao	11
+蝉蜕	chan tui	11
+血栓通	xue shuan tong	11
+血流速度	xue liu su du	11
+血液凝固	xue ye ning gu	11
+血管支架	xue guan zhi jia	11
+贲门	ben men	11
+过敏性紫癜	guo min xing zi dian	11
+通草	tong cao	11
+遗传密码	yi chuan mi ma	11
+镇静药	zhen jing yao	11
+静脉穿刺	jing mai chuan ci	11
+韧带损伤	ren dai sun shang	11
+颊部	jia bu	11
+额骨	e gu	11
+马来酸氯苯那敏	ma lai suan lv ben na min	11
+骨细胞	gu xi bao	11
+骨髓增生异常综合征	gu sui zeng sheng yi chang zong he zheng	11
+高血压防治	gao xue ya fang zhi	11
+鹰嘴	ying zui	11
+黑死病	hei si bing	11
+龙胆	long dan	11
+三尖瓣	san jian ban	10
+三阴交	san yin jiao	10
+上消化道出血	shang xiao hua dao chu xie	10
+丙型肝炎病毒	bing xing gan yan bing du	10
+中医诊断	zhong yi zhen duan	10
+中毒性休克	zhong du xing xiu ke	10
+主动脉瓣	zhu dong mai ban	10
+二氯乙烷	er lv yi wan	10
+人工肺	ren gong fei	10
+人类免疫缺陷病毒	ren lei mian yi que xian bing du	10
+保守疗法	bao shou liao fa	10
+偏执型精神分裂症	pian zhi xing jing shen fen lie zheng	10
+健脾祛湿	jian pi qu shi	10
+催眠药	cui mian yao	10
+光导	guang dao	10
+关节畸形	guan jie ji xing	10
+军团菌	jun tuan jun	10
+刺激反应	ci ji fan ying	10
+前列腺肿瘤	qian lie xian zhong liu	10
+副溶血性弧菌	fu rong xue xing hu jun	10
+动态心电图	dong tai xin dian tu	10
+医源性感染	yi yuan xing gan ran	10
+卫生法学	wei sheng fa xue	10
+双一	shuang yi	10
+发展心理学	fa zhan xin li xue	10
+后牙	hou ya	10
+吗丁啉	ma ding lin	10
+呃逆	e ni	10
+命名性失语症	ming ming xing shi yu zheng	10
+哲学基础	zhe xue ji chu	10
+垂直分布	chui zhi fen bu	10
+基础代谢	ji chu dai xie	10
+复方丹参滴丸	fu fang dan shen di wan	10
+外阴瘙痒	wai yin sao yang	10
+多发伤	duo fa shang	10
+多氯联苯	duo lv lian ben	10
+多胎妊娠	duo tai ren shen	10
+大便失禁	da bian shi jin	10
+大椎穴	da chui xue	10
+天坛生物	tian tan sheng wu	10
+奎宁	kui ning	10
+子宫内膜炎	zi gong nei mo yan	10
+子宫脱垂	zi gong tuo chui	10
+寄生虫感染	ji sheng chong gan ran	10
+尿常规检查	niao chang gui jian cha	10
+川贝母	chuan bei mu	10
+干混悬剂	gan hun xuan ji	10
+心包炎	xin bao yan	10
+心源性休克	xin yuan xing xiu ke	10
+必需脂肪酸	bi xu zhi fang suan	10
+急性肾损伤	ji xing shen sun shang	10
+急性胆囊炎	ji xing dan nang yan	10
+掌骨骨折	zhang gu gu zhe	10
+放射病	fang she bing	10
+放松训练	fang song xun lian	10
+斑疹伤寒	ban zhen shang han	10
+断指再植	duan zhi zai zhi	10
+新生儿期	xin sheng er qi	10
+新生儿黄疸	xin sheng er huang dan	10
+植物状态	zhi wu zhuang tai	10
+气管切开术	qi guan qie kai shu	10
+气郁	qi yu	10
+氟哌酸	fu pai suan	10
+氧化应激	yang hua ying ji	10
+水电解质	shui dian jie zhi	10
+泌尿系结石	mi niao xi jie shi	10
+注射用血栓通	zhu she yong xue shuan tong	10
+活体解剖	huo ti jie pou	10
+深二度烧伤	shen er du shao shang	10
+混悬液	hun xuan ye	10
+温凉	wen liang	10
+灸法	jiu fa	10
+片仔癀	pian zai huang	10
+特罗凯	te luo kai	10
+王浆	wang jiang	10
+玻璃化	bo li hua	10
+生地黄	sheng di huang	10
+生物反馈	sheng wu fan kui	10
+甲醛溶液	jia quan rong ye	10
+畸胎瘤	ji tai liu	10
+皮癣	pi xuan	10
+皮纹	pi wen	10
+突变基因	tu bian ji yin	10
+精索静脉曲张	jing suo jing mai qu zhang	10
+纤维蛋白原	xian wei dan bai yuan	10
+细菌性感染	xi jun xing gan ran	10
+结核性脑膜炎	jie he xing nao mo yan	10
+耐寒性	nai han xing	10
+肝气郁结	gan qi yu jie	10
+肺功能检查	fei gong neng jian cha	10
+肾盂	shen yu	10
+胆管结石	dan guan jie shi	10
+胎儿期	tai er qi	10
+胎粪	tai fen	10
+胸椎骨折	xiong zhui gu zhe	10
+脑血栓后遗症	nao xue shuan hou yi zheng	10
+脱敏治疗	tuo min zhi liao	10
+腹腔感染	fu qiang gan ran	10
+自限性疾病	zi xian xing ji bing	10
+舌癌	she ai	10
+药学服务	yao xue fu wu	10
+蛛网膜下腔	zhu wang mo xia qiang	10
+血脑屏障	xue nao ping zhang	10
+行气活血	xing qi huo xue	10
+表皮细胞	biao pi xi bao	10
+视网膜母细胞瘤	shi wang mo mu xi bao liu	10
+角膜溃疡	jiao mo kui yang	10
+解痉	jie jing	10
+论治	lun zhi	10
+诱变	you bian	10
+诺氟沙星胶囊	nuo fu sha xing jiao nang	10
+踝骨骨折	huai gu gu zhe	10
+过饱和	guo bao he	10
+运动系统	yun dong xi tong	10
+遗传背景	yi chuan bei jing	10
+钝痛	dun tong	10
+铅尘	qian chen	10
+间质性肺炎	jian zhi xing fei yan	10
+降香	jiang xiang	10
+隐性感染	yin xing gan ran	10
+非那西丁	fei na xi ding	10
+音乐疗法	yin yue liao fa	10
+颈内动脉	jing nei dong mai	10
+骶骨	di gu	10
+高密度脂蛋白	gao mi du zhi dan bai	10
+鱼腹	yu fu	10
+鸡尾酒疗法	ji wei jiu liao fa	10
+黄甲	huang jia	10
+黑色素细胞	hei se su xi bao	10

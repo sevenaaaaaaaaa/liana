@@ -1,0 +1,41 @@
+# 松萝官方词包 · poem（清华 THUOCL_poem，MIT；只含基础词库没有的词）
+# 格式：词<TAB>拼音（空格分隔）<TAB>词频（与 base-large.tsv 同尺度）
+咬定青山不放松	yao ding qing shan bu fang song	32
+一年之计在于春	yi nian zhi ji zai yu chun	29
+弹指一挥间	dan zhi yi hui jian	28
+老吾老以及人之老	lao wu lao yi ji ren zhi lao	26
+雄关漫道真如铁	xiong guan man dao zhen ru tie	20
+术业有专攻	shu ye you zhuan gong	18
+飞入寻常百姓家	fei ru xun chang bai xing jia	18
+勿以善小而不为	wu yi shan xiao er bu wei	17
+学而优则仕	xue er you ze shi	17
+清明时节雨纷纷	qing ming shi jie yu fen fen	17
+养在深闺人未识	yang zai shen gui ren wei shi	16
+而今迈步从头越	er jin mai bu cong tou yue	16
+人间正道是沧桑	ren jian zheng dao shi cang sang	15
+幼吾幼以及人之幼	you wu you yi ji ren zhi you	15
+语不惊人死不休	yu bu jing ren si bu xiu	15
+风景这边独好	feng jing zhe bian du hao	15
+不拘一格降人才	bu ju yi ge jiang ren cai	14
+勿以恶小而为之	wu yi e xiao er wei zhi	14
+春江水暖鸭先知	chun jiang shui nuan ya xian zhi	14
+解铃还须系铃人	jie ling hai xu xi ling ren	14
+君子之交淡如水	jun zi zhi jiao dan ru shui	13
+春风吹又生	chun feng chui you sheng	13
+行百里者半九十	xing bai li zhe ban jiu shi	13
+为有源头活水来	wei you yuan tou huo shui lai	12
+天堑变通途	tian qian bian tong tu	12
+忽如一夜春风来	hu ru yi ye chun feng lai	12
+本是同根生	ben shi tong gen sheng	12
+粒粒皆辛苦	li li jie xin ku	12
+铁肩担道义	tie jian dan dao yi	12
+长风破浪会有时	chang feng po lang hui you shi	12
+乱花渐欲迷人眼	luan hua jian yu mi ren yan	11
+天涯共此时	tian ya gong ci shi	11
+相煎何太急	xiang jian he tai ji	11
+风物长宜放眼量	feng wu zhang yi fang yan liang	11
+不患寡而患不均	bu huan gua er huan bu jun	10
+几家欢乐几家愁	ji jia huan le ji jia chou	10
+学而不思则罔	xue er bu si ze wang	10
+思而不学则殆	si er bu xue ze dai	10
+直挂云帆济沧海	zhi gua yun fan ji cang hai	10

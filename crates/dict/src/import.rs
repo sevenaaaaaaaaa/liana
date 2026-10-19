@@ -154,6 +154,55 @@ pub fn parse_tsv(s: &str) -> (Dictionary, ImportReport) {
     (dict, report)
 }
 
+/// 词表：一行一个词，可选「词<TAB>拼音<TAB>词频」；拼音留空时按 `base` 自动注音，
+/// 没写词频时用 `default_freq`。返回只含这些词的小词典（之后与基础词库合并）。
+pub fn parse_word_list(s: &str, base: &Dictionary, default_freq: u32) -> (Dictionary, ImportReport) {
+    let mut dict = Dictionary::new();
+    let mut report = ImportReport::default();
+    let mut pending: Vec<(usize, &str, u32)> = Vec::new();
+    for (i, raw) in s.lines().enumerate() {
+        let line_no = i + 1;
+        let line = raw.trim_end_matches(['\r', '\n']);
+        if line.trim().is_empty() || line.trim_start().starts_with('#') {
+            continue;
+        }
+        report.total += 1;
+        let mut fields = line.split('\t');
+        let word = fields.next().unwrap_or("").trim();
+        if word.is_empty() {
+            report.skip(line_no, "词为空");
+            continue;
+        }
+        let pinyin = fields.next().unwrap_or("").trim();
+        let freq = fields
+            .next()
+            .and_then(|f| f.trim().parse::<u32>().ok())
+            .filter(|f| *f > 0)
+            .unwrap_or(default_freq);
+        if pinyin.is_empty() {
+            pending.push((line_no, word, freq));
+            continue;
+        }
+        let Some(key) = normalize_pinyin(pinyin) else {
+            report.skip(line_no, "拼音含非法音节");
+            continue;
+        };
+        dict.insert(&key, word, freq);
+        report.imported += 1;
+    }
+    let words: Vec<&str> = pending.iter().map(|(_, w, _)| *w).collect();
+    for ((line_no, word, freq), key) in pending.iter().zip(base.annotate(&words)) {
+        match key {
+            Some(key) => {
+                dict.insert(&key, word, *freq);
+                report.imported += 1;
+            }
+            None => report.skip(*line_no, "有字不在词库里，无法自动注音"),
+        }
+    }
+    (dict, report)
+}
+
 /// Rime `.dict.yaml` 正文导入。
 ///
 /// 只解析条目行（`词\t拼音\t权重`），跳过 YAML 头部；遇到 `...` 视为进入词库正文后的终止符。
@@ -347,5 +396,25 @@ mod tests {
         ];
         let (d, _) = parse_rime_dicts(&sources);
         assert!(d.lookup("yi")[0].freq > d.lookup("jia")[0].freq);
+    }
+
+    #[test]
+    fn word_list_annotates_by_known_words() {
+        let mut base = Dictionary::new();
+        base.insert("yin'hang", "银行", 5000);
+        base.insert("zhao'shang", "招商", 800);
+        base.insert("yin", "银", 300);
+        base.insert("xing", "行", 9000);
+        base.insert("hang", "行", 2000);
+        base.insert("ding", "钉", 50);
+        let src = "# 注释\n招商银行\n钉钉\t\t3000\n飞书\tfei shu\t800\n𠀀字\n";
+        let (d, r) = parse_word_list(src, &base, 100);
+        assert_eq!(r.imported, 3);
+        assert_eq!(r.skipped, 1);
+        // 多音字跟着词走：银行读 hang，不是逐字最高频的 xing
+        assert_eq!(d.lookup("zhao'shang'yin'hang")[0].word, "招商银行");
+        assert_eq!(d.lookup("zhao'shang'yin'hang")[0].freq, 100);
+        assert_eq!(d.lookup("ding'ding")[0].freq, 3000);
+        assert_eq!(d.lookup("fei'shu")[0].word, "飞书");
     }
 }

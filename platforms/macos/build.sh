@@ -68,6 +68,7 @@ SWIFT_SOURCES=("$HERE/Sources/main.swift" "$HERE/Sources/Engine.swift" \
     "$HERE/Sources/AppModeMemory.swift" "$HERE/Sources/Theme.swift" \
     "$HERE/Sources/PermissionCenter.swift" "$HERE/Sources/PetStats.swift" \
     "$HERE/Sources/FeedWindow.swift" \
+    "$HERE/Sources/AppNameLexicon.swift" \
     "$HERE/Sources/VRMPetView.swift" \
     "$HERE/Sources/PetWebView.swift" \
     "$HERE/Sources/Live2DPetView.swift" \
@@ -170,10 +171,11 @@ EOF
 write_strings "$CONTENTS/Resources/zh-Hans.lproj/InfoPlist.strings" "松萝"
 write_strings "$CONTENTS/Resources/Base.lproj/InfoPlist.strings" "松萝"
 
-echo "==> 3/5 生成外部词典（base.ifd，20 万词条）"
+echo "==> 3/5 生成外部词典（base.ifd：基础词库 + 官方词包）"
 DICT_OUT="$HERE/build/base.ifd"
 DICT_SRC="$ROOT/crates/dict/data/base-large.tsv"
-if [[ ! -f "$DICT_OUT" || "$DICT_SRC" -nt "$DICT_OUT" ]]; then
+# 基础词库或官方词包（同目录 packs/default，构建时自动合并）有变化就重建
+if [[ ! -f "$DICT_OUT" || -n "$(find "$(dirname "$DICT_SRC")" -name "*.tsv" -newer "$DICT_OUT" -print -quit)" ]]; then
     cargo run --quiet --manifest-path "$ROOT/Cargo.toml" -p xtask -- \
         dict build "$DICT_SRC" -o "$DICT_OUT"
 else

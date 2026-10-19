@@ -1,0 +1,691 @@
+# 松萝官方词包 · it（清华 THUOCL_IT，MIT；只含基础词库没有的词）
+# 格式：词<TAB>拼音（空格分隔）<TAB>词频（与 base-large.tsv 同尺度）
+类名	lei ming	321
+堆栈	dui zhan	222
+标识符	biao shi fu	173
+加锁	jia suo	102
+子树	zi shu	96
+内存泄露	nei cun xie lou	92
+唯一标识	wei yi biao shi	86
+模版	mo ban	67
+取模	qu mo	51
+开发板	kai fa ban	43
+栈内存	zhan nei cun	35
+多重继承	duo zhong ji cheng	32
+位系统	wei xi tong	29
+检查和	jian cha he	27
+自动换行	zi dong huan hang	27
+程序设计语言	cheng xu she ji yu yan	26
+补码	bu ma	25
+置位	zhi wei	21
+重定位	zhong ding wei	21
+用户登陆	yong hu deng lu	20
+运算符重载	yun suan fu zhong zai	19
+执行状态	zhi xing zhuang tai	18
+删除行	shan chu xing	17
+年在	nian zai	17
+代码测试	dai ma ce shi	15
+保存状态	bao cun zhuang tai	15
+元素节点	yuan su jie dian	15
+分布式事务	fen bu shi shi wu	15
+分类算法	fen lei suan fa	15
+命名管道	ming ming guan dao	15
+工作队列	gong zuo dui lie	15
+数据冗余	shu ju rong yu	15
+环境变量设置	huan jing bian liang she zhi	15
+矩阵相乘	ju zhen xiang cheng	15
+硬链接	ying lian jie	15
+软件开发过程	ruan jian kai fa guo cheng	15
+软件源	ruan jian yuan	15
+远程分支	yuan cheng fen zhi	15
+饼图	bing tu	15
+不启用	bu qi yong	14
+中断请求	zhong duan qing qiu	14
+乐观锁	le guan suo	14
+二进制流	er jin zhi liu	14
+代码复用	dai ma fu yong	14
+共享存储	gong xiang cun chu	14
+共享锁	gong xiang suo	14
+关联对象	guan lian dui xiang	14
+内存管理机制	nei cun guan li ji zhi	14
+内核启动	nei he qi dong	14
+内核线程	nei he xian cheng	14
+内连接	nei lian jie	14
+前序	qian xu	14
+功能点	gong neng dian	14
+动态更新	dong tai geng xin	14
+单向链表	dan xiang lian biao	14
+友元函数	you yuan han shu	14
+变量命名	bian liang ming ming	14
+可变数组	ke bian shu zu	14
+可重入	ke zhong ru	14
+回滚事务	hui gun shi wu	14
+图像识别	tu xiang shi bie	14
+基本组件	ji ben zu jian	14
+基础类	ji chu lei	14
+复制构造函数	fu zhi gou zao han shu	14
+外观模式	wai guan mo shi	14
+多版本	duo ban ben	14
+字符匹配	zi fu pi pei	14
+字符指针	zi fu zhi zhen	14
+字符输入	zi fu shu ru	14
+存储类型	cun chu lei xing	14
+存取速度	cun qu su du	14
+实时系统	shi shi xi tong	14
+对象池	dui xiang chi	14
+导包	dao bao	14
+屏幕适配	ping mu shi pei	14
+帧动画	zhen dong hua	14
+并行化	bing xing hua	14
+广度优先搜索	guang du you xian sou suo	14
+应用名称	ying yong ming cheng	14
+应用框架	ying yong kuang jia	14
+延迟执行	yan chi zhi xing	14
+异或运算	yi huo yun suan	14
+异步线程	yi bu xian cheng	14
+手机应用	shou ji ying yong	14
+批量处理	pi liang chu li	14
+技术架构	ji shu jia gou	14
+指示符	zhi shi fu	14
+插入节点	cha ru jie dian	14
+搜索文件	sou suo wen jian	14
+数据导出	shu ju dao chu	14
+数据库备份	shu ju ku bei fen	14
+数据编码	shu ju bian ma	14
+数据表示	shu ju biao shi	14
+方法重写	fang fa zhong xie	14
+无法安装	wu fa an zhuang	14
+无符号数	wu fu hao shu	14
+日志系统	ri zhi xi tong	14
+暂存区	zan cun qu	14
+暴力枚举	bao li mei ju	14
+服务器应用	fu wu qi ying yong	14
+服务提供者	fu wu ti gong zhe	14
+机器语言	ji qi yu yan	14
+查询语言	cha xun yu yan	14
+样本集	yang ben ji	14
+模块加载	mo kuai jia zai	14
+模板方法	mu ban fang fa	14
+瀑布流	pu bu liu	14
+灰度图	hui du tu	14
+登陆界面	deng lu jie mian	14
+目标程序	mu biao cheng xu	14
+程序出错	cheng xu chu cuo	14
+第三方框架	di san fang kuang jia	14
+第三方类库	di san fang lei ku	14
+类成员函数	lei cheng yuan han shu	14
+类目	lei mu	14
+系统库	xi tong ku	14
+缓存服务器	huan cun fu wu qi	14
+编程能力	bian cheng neng li	14
+自动布局	zi dong bu ju	14
+自增长	zi zeng zhang	14
+自定义标签	zi ding yi biao qian	14
+获取时间	huo qu shi jian	14
+解题报告	jie ti bao gao	14
+计算表达式	ji suan biao da shi	14
+设备节点	she bei jie dian	14
+进程控制	jin cheng kong zhi	14
+进程退出	jin cheng tui chu	14
+远程过程调用	yuan cheng guo cheng diao yong	14
+连通图	lian tong tu	14
+退出应用	tui chu ying yong	14
+配置使用	pei zhi shi yong	14
+错误类型	cuo wu lei xing	14
+非对称加密	fei dui chen jia mi	14
+项目经验	xiang mu jing yan	14
+顺序查找	shun xu cha zhao	14
+驱动开发	qu dong kai fa	14
+三元组	san yuan zu	13
+中文编码	zhong wen bian ma	13
+事务控制	shi wu kong zhi	13
+任务分配	ren wu fen pei	13
+会话层	hui hua ceng	13
+全连接	quan lian jie	13
+关闭按钮	guan bi an niu	13
+兼容模式	jian rong mo shi	13
+内存结构	nei cun jie gou	13
+内部错误	nei bu cuo wu	13
+函数模板	han shu mu ban	13
+加载更多	jia zai geng duo	13
+动态注册	dong tai zhu ce	13
+匿名对象	ni ming dui xiang	13
+单进程	dan jin cheng	13
+原型对象	yuan xing dui xiang	13
+原理分析	yuan li fen xi	13
+叉积	cha ji	13
+反码	fan ma	13
+向下转型	xiang xia zhuan xing	13
+启动流程	qi dong liu cheng	13
+命令操作	ming ling cao zuo	13
+团队协作	tuan dui xie zuo	13
+坐标转换	zuo biao zhuan huan	13
+基本介绍	ji ben jie shao	13
+声明周期	sheng ming zhou qi	13
+多参数	duo can shu	13
+大数据分析	da shu ju fen xi	13
+字符串指针	zi fu chuan zhi zhen	13
+存储管理	cun chu guan li	13
+实例名	shi li ming	13
+常用功能	chang yong gong neng	13
+平衡树	ping heng shu	13
+建造者模式	jian zao zhe mo shi	13
+开源中国	kai yuan zhong guo	13
+开源工具	kai yuan gong ju	13
+异常处理机制	yi chang chu li ji zhi	13
+异步消息	yi bu xiao xi	13
+归档文件	gui dang wen jian	13
+循环播放	xun huan bo fang	13
+折半查找	zhe ban cha zhao	13
+折线图	zhe xian tu	13
+拒绝访问	ju jue fang wen	13
+按键事件	an jian shi jian	13
+控制结构	kong zhi jie gou	13
+控制语句	kong zhi yu ju	13
+散列函数	san lie han shu	13
+数据库链接	shu ju ku lian jie	13
+数据驱动	shu ju qu dong	13
+文件合并	wen jian he bing	13
+文件管理器	wen jian guan li qi	13
+文件选择	wen jian xuan ze	13
+无参构造函数	wu can gou zao han shu	13
+无法加载	wu fa jia zai	13
+日志分析	ri zhi fen xi	13
+服务器软件	fu wu qi ruan jian	13
+本地图片	ben di tu pian	13
+朴素贝叶斯	pu su bei ye si	13
+条件概率	tiao jian gai lv	13
+核函数	he han shu	13
+模板函数	mu ban han shu	13
+测试脚本	ce shi jiao ben	13
+深复制	shen fu zhi	13
+特征点	te zheng dian	13
+生存周期	sheng cun zhou qi	13
+直接映射	zhi jie ying she	13
+相对地址	xiang dui di zhi	13
+码流	ma liu	13
+碎片化	sui pian hua	13
+碰撞检测	peng zhuang jian ce	13
+第三方工具	di san fang gong ju	13
+类型转化	lei xing zhuan hua	13
+系统错误	xi tong cuo wu	13
+线程间通信	xian cheng jian tong xin	13
+经典算法	jing dian suan fa	13
+结构体数组	jie gou ti shu zu	13
+缓冲区溢出	huan chong qu yi chu	13
+编码方法	bian ma fang fa	13
+编程经验	bian cheng jing yan	13
+编译器优化	bian yi qi you hua	13
+老年代	lao nian dai	13
+自动挂载	zi dong gua zai	13
+自动释放池	zi dong shi fang chi	13
+致命错误	zhi ming cuo wu	13
+苹果开发	ping guo kai fa	13
+表连接	biao lian jie	13
+视图解析器	shi tu jie xi qi	13
+读锁	du suo	13
+资源下载	zi yuan xia zai	13
+跨浏览器	kua liu lan qi	13
+跳转页面	tiao zhuan ye mian	13
+转换方法	zhuan huan fang fa	13
+输出重定向	shu chu zhong ding xiang	13
+运行时库	yun xing shi ku	13
+运行级别	yun xing ji bie	13
+运行错误	yun xing cuo wu	13
+进程组	jin cheng zu	13
+造轮子	zao lun zi	13
+避免死锁	bi mian si suo	13
+钥匙串	yao shi chuan	13
+阴影效果	yin ying xiao guo	13
+集群环境	ji qun huan jing	13
+静态链接库	jing tai lian jie ku	13
+非法字符	fei fa zi fu	13
+音乐播放	yin yue bo fang	13
+项目创建	xiang mu chuang jian	13
+颜色空间	yan se kong jian	13
+不一致性	bu yi zhi xing	12
+不可变对象	bu ke bian dui xiang	12
+不可重复读	bu ke chong fu du	12
+中文分词	zhong wen fen ci	12
+中间代码	zhong jian dai ma	12
+事件机制	shi jian ji zhi	12
+二叉排序树	er cha pai xu shu	12
+代码编辑器	dai ma bian ji qi	12
+代码设计	dai ma she ji	12
+全局设置	quan ju she zhi	12
+全文索引	quan wen suo yin	12
+内存数据库	nei cun shu ju ku	12
+内容提供者	nei rong ti gong zhe	12
+内建函数	nei jian han shu	12
+内部对象	nei bu dui xiang	12
+分页显示	fen ye xian shi	12
+列表显示	lie biao xian shi	12
+创建型模式	chuang jian xing mo shi	12
+初始化顺序	chu shi hua shun xu	12
+删除线	shan chu xian	12
+删除结点	shan chu jie dian	12
+区间和	qu jian he	12
+十进制数字	shi jin zhi shu zi	12
+协方差矩阵	xie fang cha ju zhen	12
+单例设计模式	dan li she ji mo shi	12
+原代码	yuan dai ma	12
+原型链	yuan xing lian	12
+双端队列	shuang duan dui lie	12
+变量初始化	bian liang chu shi hua	12
+各种技术	ge zhong ji shu	12
+后缀数组	hou zhui shu zu	12
+启动代码	qi dong dai ma	12
+命令行界面	ming ling xing jie mian	12
+四次握手	si ci wo shou	12
+回调机制	hui diao ji zhi	12
+图像分割	tu xiang fen ge	12
+图片压缩	tu pian ya suo	12
+域名服务器	yu ming fu wu qi	12
+基础功能	ji chu gong neng	12
+基础概念	ji chu gai nian	12
+声明式事务	sheng ming shi shi wu	12
+备忘录模式	bei wang lu mo shi	12
+多条语句	duo tiao yu ju	12
+字符串分割	zi fu chuan fen ge	12
+字符常量	zi fu chang liang	12
+安卓系统	an zhuo xi tong	12
+完全背包	wan quan bei bao	12
+实时处理	shi shi chu li	12
+富文本	fu wen ben	12
+对象图	dui xiang tu	12
+导出函数	dao chu han shu	12
+屏幕密度	ping mu mi du	12
+屏幕旋转	ping mu xuan zhuan	12
+嵌入式开发	qian ru shi kai fa	12
+嵌套循环	qian tao xun huan	12
+嵌套类	qian tao lei	12
+工具使用	gong ju shi yong	12
+工具方法	gong ju fang fa	12
+布局管理器	bu ju guan li qi	12
+常量指针	chang liang zhi zhen	12
+广搜	guang sou	12
+开发测试	kai fa ce shi	12
+开机自启动	kai ji zi qi dong	12
+异常终止	yi chang zhong zhi	12
+微信公众平台	wei xin gong zhong ping tai	12
+手游	shou you	12
+批量删除	pi liang shan chu	12
+批量操作	pi liang cao zuo	12
+拼接字符串	pin jie zi fu chuan	12
+持久化存储	chi jiu hua cun chu	12
+按序	an xu	12
+搭建环境	da jian huan jing	12
+操作码	cao zuo ma	12
+敏感数据	min gan shu ju	12
+数据排序	shu ju pai xu	12
+数据验证	shu ju yan zheng	12
+数组初始化	shu zu chu shi hua	12
+文件传输协议	wen jian chuan shu xie yi	12
+文本输入框	wen ben shu ru kuang	12
+断点调试	duan dian tiao shi	12
+旋转动画	xuan zhuan dong hua	12
+无密码	wu mi ma	12
+时间管理	shi jian guan li	12
+时间转换	shi jian zhuan huan	12
+最小二乘法	zui xiao er cheng fa	12
+有向无环图	you xiang wu huan tu	12
+有序表	you xu biao	12
+服务器设置	fu wu qi she zhi	12
+标准库函数	biao zhun ku han shu	12
+框图	kuang tu	12
+梯度下降法	ti du xia jiang fa	12
+正则化	zheng ze hua	12
+汇编程序	hui bian cheng xu	12
+泛型方法	fan xing fang fa	12
+浅复制	qian fu zhi	12
+测试运行	ce shi yun xing	12
+深度优先	shen du you xian	12
+状态保存	zhuang tai bao cun	12
+百度网盘	bai du wang pan	12
+监督学习	jian du xue xi	12
+相对定位	xiang dui ding wei	12
+短连接	duan lian jie	12
+科学计数法	ke xue ji shu fa	12
+程序块	cheng xu kuai	12
+程序异常	cheng xu yi chang	12
+程序生成	cheng xu sheng cheng	12
+算法原理	suan fa yuan li	12
+线程组	xian cheng zu	12
+继承方式	ji cheng fang shi	12
+编译速度	bian yi su du	12
+缩点	suo dian	12
+网络模型	wang luo mo xing	12
+自动滚动	zi dong gun dong	12
+自动装配	zi dong zhuang pei	12
+自定义布局	zi ding yi bu ju	12
+虚方法	xu fang fa	12
+虚表	xu biao	12
+行间距	hang jian ju	12
+触屏	chu ping	12
+访问者模式	fang wen zhe mo shi	12
+贝塞尔曲线	bei sai er qu xian	12
+责任链模式	ze ren lian mo shi	12
+资源加载	zi yuan jia zai	12
+资源释放	zi yuan shi fang	12
+输入缓冲区	shu ru huan chong qu	12
+远程库	yuan cheng ku	12
+连接查询	lian jie cha xun	12
+递归方法	di gui fang fa	12
+通用方法	tong yong fang fa	12
+随机存取	sui ji cun qu	12
+集群管理	ji qun guan li	12
+静态化	jing tai hua	12
+面向服务	mian xiang fu wu	12
+项目部署	xiang mu bu shu	12
+高负载	gao fu zai	12
+一般函数	yi ban han shu	11
+三层架构	san ceng jia gou	11
+上升沿	shang sheng yan	11
+下标越界	xia biao yue jie	11
+中文文档	zhong wen wen dang	11
+主文件	zhu wen jian	11
+事件流	shi jian liu	11
+事件队列	shi jian dui lie	11
+二分搜索	er fen sou suo	11
+二分答案	er fen da an	11
+二进制日志	er jin zhi ri zhi	11
+云存储	yun cun chu	11
+互联网时代	hu lian wang shi dai	11
+交互设计	jiao hu she ji	11
+交叉验证	jiao cha yan zheng	11
+任务处理	ren wu chu li	11
+任务栈	ren wu zhan	11
+优先级队列	you xian ji dui lie	11
+侧滑菜单	ce hua cai dan	11
+僵尸进程	jiang shi jin cheng	11
+先序	xian xu	11
+公司项目	gong si xiang mu	11
+内存优化	nei cun you hua	11
+内存警告	nei cun jing gao	11
+内核对象	nei he dui xiang	11
+内核配置	nei he pei zhi	11
+函数返回值	han shu fan hui zhi	11
+分割字符串	fen ge zi fu chuan	11
+分屏	fen ping	11
+删除文件夹	shan chu wen jian jia	11
+前台进程	qian tai jin cheng	11
+前台页面	qian tai ye mian	11
+前端工程师	qian duan gong cheng shi	11
+加载网络图片	jia zai wang luo tu pian	11
+加载顺序	jia zai shun xu	11
+单节点	dan jie dian	11
+卷积神经网络	juan ji shen jing wang luo	11
+压缩图片	ya suo tu pian	11
+后验概率	hou yan gai lv	11
+启动顺序	qi dong shun xu	11
+回溯法	hui su fa	11
+图形库	tu xing ku	11
+圆角矩形	yuan jiao ju xing	11
+基本运算	ji ben yun suan	11
+外链	wai lian	11
+多线程安全	duo xian cheng an quan	11
+大小写转换	da xiao xie zhuan huan	11
+大数据处理	da shu ju chu li	11
+大数据时代	da shu ju shi dai	11
+字符集编码	zi fu ji bian ma	11
+安卓手机	an zhuo shou ji	11
+实例分析	shi li fen xi	11
+实时计算	shi shi ji suan	11
+客户端开发	ke hu duan kai fa	11
+对象比较	dui xiang bi jiao	11
+导入工程	dao ru gong cheng	11
+导出文件	dao chu wen jian	11
+屏幕截图	ping mu jie tu	11
+屏幕高度	ping mu gao du	11
+属性页	shu xing ye	11
+常用快捷键	chang yong kuai jie jian	11
+应用性能	ying yong xing neng	11
+应用逻辑	ying yong luo ji	11
+异步编程	yi bu bian cheng	11
+异步通信	yi bu tong xin	11
+循环节	xun huan jie	11
+微信支付	wei xin zhi fu	11
+性能对比	xing neng dui bi	11
+成员对象	cheng yuan dui xiang	11
+手机系统	shou ji xi tong	11
+打包工具	da bao gong ju	11
+打开菜单	da kai cai dan	11
+执行引擎	zhi xing yin qing	11
+指针传递	zhi zhen chuan di	11
+按位异或	an wei yi huo	11
+按钮点击事件	an niu dian ji shi jian	11
+接口设计	jie kou she ji	11
+接口隔离原则	jie kou ge li yuan ze	11
+数据存取	shu ju cun qu	11
+数据库管理员	shu ju ku guan li yuan	11
+文本域	wen ben yu	11
+文档流	wen dang liu	11
+时间处理	shi jian chu li	11
+最小割	zui xiao ge	11
+有符号数	you fu hao shu	11
+本地服务	ben di fu wu	11
+本类对象	ben lei dui xiang	11
+杀死进程	sha si jin cheng	11
+架构模式	jia gou mo shi	11
+查找算法	cha zhao suan fa	11
+栈指针	zhan zhi zhen	11
+框架使用	kuang jia shi yong	11
+段地址	duan di zhi	11
+流操作	liu cao zuo	11
+消息响应	xiao xi xiang ying	11
+消息框	xiao xi kuang	11
+消息系统	xiao xi xi tong	11
+消息转发	xiao xi zhuan fa	11
+深度优先遍历	shen du you xian bian li	11
+添加节点	tian jia jie dian	11
+物理引擎	wu li yin qing	11
+特征空间	te zheng kong jian	11
+特征选择	te zheng xuan ze	11
+状态图	zhuang tai tu	11
+生命周期管理	sheng ming zhou qi guan li	11
+生成图片	sheng cheng tu pian	11
+目标路径	mu biao lu jing	11
+矩阵快速幂	ju zhen kuai su mi	11
+矩阵运算	ju zhen yun suan	11
+窗口标题	chuang kou biao ti	11
+窗口管理器	chuang kou guan li qi	11
+类装载器	lei zhuang zai qi	11
+纯代码	chun dai ma	11
+线程管理	xian cheng guan li	11
+经典问题	jing dian wen ti	11
+结构型模式	jie gou xing mo shi	11
+编译报错	bian yi bao cuo	11
+网络文件系统	wang luo wen jian xi tong	11
+联合查询	lian he cha xun	11
+聚集索引	ju ji suo yin	11
+自动填充	zi dong tian chong	11
+自定义样式	zi ding yi yang shi	11
+虚拟文件系统	xu ni wen jian xi tong	11
+行内元素	xing nei yuan su	11
+角点	jiao dian	11
+解释器模式	jie shi qi mo shi	11
+计算几何	ji suan ji he	11
+计算复杂度	ji suan fu za du	11
+计算机图形学	ji suan ji tu xing xue	11
+词法分析	ci fa fen xi	11
+语法糖	yu fa tang	11
+调度策略	diao du ce lve	11
+谷歌浏览器	gu ge liu lan qi	11
+边缘检测	bian yuan jian ce	11
+运算符优先级	yun suan fu you xian ji	11
+进程上下文	jin cheng shang xia wen	11
+进程地址空间	jin cheng di zhi kong jian	11
+远程调试	yuan cheng tiao shi	11
+连通分量	lian tong fen liang	11
+选择图片	xuan ze tu pian	11
+通用寄存器	tong yong ji cun qi	11
+通知机制	tong zhi ji zhi	11
+逻辑表达式	luo ji biao da shi	11
+重排序	zhong pai xu	11
+锁表	suo biao	11
+键盘录入	jian pan lu ru	11
+长整数	zhang zheng shu	11
+零基础	ling ji chu	11
+静态分析	jing tai fen xi	11
+静态数据成员	jing tai shu ju cheng yuan	11
+静态编译	jing tai bian yi	11
+面向对象思想	mian xiang dui xiang si xiang	11
+音频播放	yin pin bo fang	11
+预分配	yu fen pei	11
+驱动模块	qu dong mo kuai	11
+黑盒	hei he	11
+中介者模式	zhong jie zhe mo shi	10
+串行队列	chuan xing dui lie	10
+事件模型	shi jian mo xing	10
+人脸检测	ren lian jian ce	10
+代码仓库	dai ma cang ku	10
+传递函数	chuan di han shu	10
+位操作系统	wei cao zuo xi tong	10
+保留两位小数	bao liu liang wei xiao shu	10
+全文搜索	quan wen sou suo	10
+关于数据库	guan yu shu ju ku	10
+内存对齐	nei cun dui qi	10
+写文档	xie wen dang	10
+函数表达式	han shu biao da shi	10
+分布式处理	fen bu shi chu li	10
+切图	qie tu	10
+切换动画	qie huan dong hua	10
+刷新数据	shua xin shu ju	10
+前端框架	qian duan kuang jia	10
+前端页面	qian duan ye mian	10
+动态规划算法	dong tai gui hua suan fa	10
+十六进制数字	shi liu jin zhi shu zi	10
+协同过滤	xie tong guo lv	10
+协方差	xie fang cha	10
+双链表	shuang lian biao	10
+反引号	fan yin hao	10
+反编译工具	fan bian yi gong ju	10
+变量作用域	bian liang zuo yong yu	10
+可复用性	ke fu yong xing	10
+各种错误	ge zhong cuo wu	10
+后台服务器	hou tai fu wu qi	10
+响应报文	xiang ying bao wen	10
+回归测试	hui gui ce shi	10
+基准测试	ji zhun ce shi	10
+外部中断	wai bu zhong duan	10
+多实例	duo shi li	10
+多线程同步	duo xian cheng tong bu	10
+多线程技术	duo xian cheng ji shu	10
+大整数	da zheng shu	10
+子任务	zi ren wu	10
+字符串类	zi fu chuan lei	10
+安装教程	an zhuang jiao cheng	10
+官方教程	guan fang jiao cheng	10
+客户端测试	ke hu duan ce shi	10
+宽字符	kuan zi fu	10
+导出表	dao chu biao	10
+层次遍历	ceng ci bian li	10
+屏幕坐标	ping mu zuo biao	10
+左外连接	zuo wai lian jie	10
+常用类	chang yong lei	10
+广播接收者	guang bo jie shou zhe	10
+开发工程师	kai fa gong cheng shi	10
+开发者工具	kai fa zhe gong ju	10
+开发者账号	kai fa zhe zhang hao	10
+开发调试	kai fa tiao shi	10
+循环链表	xun huan lian biao	10
+性能监控	xing neng jian kong	10
+慢查询	man cha xun	10
+手势识别	shou shi shi bie	10
+打开程序	da kai cheng xu	10
+扫描二维码	sao miao er wei ma	10
+批量插入	pi liang cha ru	10
+批量更新	pi liang geng xin	10
+拥塞控制	yong se kong zhi	10
+括号匹配	kuo hao pi pei	10
+持久层框架	chi jiu ceng kuang jia	10
+挂起状态	gua qi zhuang tai	10
+指针的指针	zhi zhen de zhi zhen	10
+控制变量	kong zhi bian liang	10
+推送通知	tui song tong zhi	10
+插件开发	cha jian kai fa	10
+文件搜索	wen jian sou suo	10
+文档注释	wen dang zhu shi	10
+新建用户	xin jian yong hu	10
+日志打印	ri zhi da yin	10
+时间同步	shi jian tong bu	10
+晶振	jing zhen	10
+有效位	you xiao wei	10
+有效数字	you xiao shu zi	10
+机房收费系统	ji fang shou fei xi tong	10
+条件运算符	tiao jian yun suan fu	10
+查询优化	cha xun you hua	10
+树莓派	shu mei pai	10
+样式属性	yang shi shu xing	10
+框架设计	kuang jia she ji	10
+桌面环境	zhuo mian huan jing	10
+欢迎界面	huan ying jie mian	10
+流控制	liu kong zhi	10
+测试驱动开发	ce shi qu dong kai fa	10
+消息映射	xiao xi ying she	10
+混合编程	hun he bian cheng	10
+渲染引擎	xuan ran yin qing	10
+源代码分析	yuan dai ma fen xi	10
+滚动数组	gun dong shu zu	10
+版本兼容	ban ben jian rong	10
+状态压缩	zhuang tai ya suo	10
+环境设置	huan jing she zhi	10
+现代操作系统	xian dai cao zuo xi tong	10
+生成函数	sheng cheng han shu	10
+用例图	yong li tu	10
+用户反馈	yong hu fan kui	10
+界面效果	jie mian xiao guo	10
+监控工具	jian kong gong ju	10
+真机测试	zhen ji ce shi	10
+硬件地址	ying jian di zhi	10
+稀疏矩阵	xi shu ju zhen	10
+程序模块	cheng xu mo kuai	10
+简单实例	jian dan shi li	10
+简单工厂	jian dan gong chang	10
+算术表达式	suan shu biao da shi	10
+类扩展	lei kuo zhan	10
+粗粒度	cu li du	10
+系统框架	xi tong kuang jia	10
+组合数学	zu he shu xue	10
+终端命令	zhong duan ming ling	10
+结束进程	jie shu jin cheng	10
+编址	bian zhi	10
+编程技巧	bian cheng ji qiao	10
+编程方法	bian cheng fang fa	10
+编程模式	bian cheng mo shi	10
+编程环境	bian cheng huan jing	10
+缺页	que ye	10
+网易新闻	wang yi xin wen	10
+网络类型	wang luo lei xing	10
+自定义事件	zi ding yi shi jian	10
+自定义方法	zi ding yi fang fa	10
+自定义视图	zi ding yi shi tu	10
+虚基类	xu ji lei	10
+虚拟化技术	xu ni hua ji shu	10
+行为型模式	xing wei xing mo shi	10
+表关联	biao guan lian	10
+语义分析	yu yi fen xi	10
+语义化	yu yi hua	10
+输入模式	shu ru mo shi	10
+输入验证	shu ru yan zheng	10
+远程方法调用	yuan cheng fang fa diao yong	10
+迪米特法则	di mi te fa ze	10
+迭代器模式	die dai qi mo shi	10
+逆序数	ni xu shu	10
+递归遍历	di gui bian li	10
+递推关系	di tui guan xi	10
+通知中心	tong zhi zhong xin	10
+配置问题	pei zhi wen ti	10
+重载运算符	zhong zai yun suan fu	10
+链接错误	lian jie cuo wu	10
+随机字符串	sui ji zi fu chuan	10
+隐式类型转换	yin shi lei xing zhuan huan	10
+隐藏域	yin cang yu	10
+集群配置	ji qun pei zhi	10
+静态全局变量	jing tai quan ju bian liang	10
+项目构建	xiang mu gou jian	10
+项目设置	xiang mu she zhi	10
+顺序存储结构	shun xu cun chu jie gou	10
+预处理指令	yu chu li zhi ling	10
+频域	pin yu	10
+鼠标悬停	shu biao xuan ting	10

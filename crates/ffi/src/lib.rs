@@ -167,6 +167,87 @@ pub unsafe extern "C" fn liana_new_with_dict(
     .unwrap_or(std::ptr::null_mut())
 }
 
+/// 词包里没写词频的词给的默认词频（与 base-large.tsv 同尺度，约等于中等常用词）。
+const LAYER_DEFAULT_FREQ: u32 = 1000;
+
+/// 进程级词库缓存：基础词库与词包文件（路径 + 大小 + 修改时间）都没变就复用同一份，
+/// 每个输入会话不必各自重新解析几 MB 的词库。
+static DICT_CACHE: Mutex<Option<(String, Arc<Dictionary>)>> = Mutex::new(None);
+
+/// 词包目录里的 `*.tsv` / `*.txt`（按文件名排序）。
+fn layer_files(dir: Option<&str>) -> Vec<std::path::PathBuf> {
+    let Some(dir) = dir else { return Vec::new() };
+    let Ok(read_dir) = std::fs::read_dir(dir) else { return Vec::new() };
+    let mut files: Vec<_> = read_dir
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.extension().is_some_and(|x| x == "tsv" || x == "txt"))
+        .collect();
+    files.sort();
+    files
+}
+
+fn file_signature(path: &Path) -> String {
+    let meta = std::fs::metadata(path).ok();
+    let len = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+    let modified = meta
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    format!("{}:{len}:{modified}", path.display())
+}
+
+/// 基础词库 + 词包目录：词包一行一个词（可选「词<TAB>拼音<TAB>词频」），没写拼音的自动注音，
+/// 同词同音取较大词频（词包只补词、抬词频）。
+fn load_layered(base_path: Option<&str>, layers_dir: Option<&str>) -> Arc<Dictionary> {
+    let files = layer_files(layers_dir);
+    let mut signature = base_path.map(|p| file_signature(Path::new(p))).unwrap_or_default();
+    for f in &files {
+        signature.push('|');
+        signature.push_str(&file_signature(f));
+    }
+    if let Ok(cache) = DICT_CACHE.lock() {
+        if let Some((sig, dict)) = cache.as_ref() {
+            if *sig == signature {
+                return dict.clone();
+            }
+        }
+    }
+    let mut dict = base_path
+        .and_then(|p| std::fs::read(p).ok())
+        .and_then(|b| Dictionary::from_bytes(&b).ok())
+        .unwrap_or_else(Dictionary::embedded);
+    for f in &files {
+        if let Ok(text) = std::fs::read_to_string(f) {
+            let (layer, _) = liana_dict::import::parse_word_list(&text, &dict, LAYER_DEFAULT_FREQ);
+            dict.merge(&layer);
+        }
+    }
+    let dict = Arc::new(dict);
+    if let Ok(mut cache) = DICT_CACHE.lock() {
+        *cache = Some((signature, dict.clone()));
+    }
+    dict
+}
+
+/// 基础词库 + 词包目录（如 `~/Library/Application Support/Liana/dicts`，里面是本机应用名等词包）。
+/// 进程内共享同一份词库，文件变化后新建的会话自动用上新词库。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn liana_new_with_layers(
+    mode: *const c_char,
+    dict_path: *const c_char,
+    layers_dir: *const c_char,
+) -> *mut LianaSession {
+    let mode = unsafe { cstr(mode) };
+    let path = unsafe { cstr(dict_path) };
+    let layers = unsafe { cstr(layers_dir) };
+    catch_unwind(AssertUnwindSafe(|| {
+        let dict = load_layered(path.as_deref(), layers.as_deref());
+        Box::into_raw(Box::new(LianaSession::new(dict, mode_of(mode))))
+    }))
+    .unwrap_or(std::ptr::null_mut())
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn liana_free(session: *mut LianaSession) {
     if session.is_null() {
@@ -1498,5 +1579,20 @@ mod tests {
         let empty = unsafe { call_str(|| liana_plugin_scan_json(c_missing.as_ptr())) }.unwrap();
         assert!(empty.contains("\"packs\":[]"), "{empty}");
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn layered_dict_adds_words_and_is_shared() {
+        let dir = std::env::temp_dir().join(format!("liana-layers-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("apps.tsv"), "钉钉\tding ding\t3000\n你好世界\n").unwrap();
+        let d = dir.to_str().unwrap();
+        let a = load_layered(None, Some(d));
+        assert!(a.lookup("ding'ding").iter().any(|e| e.word == "钉钉" && e.freq == 3000));
+        assert!(a.lookup("ni'hao'shi'jie").iter().any(|e| e.word == "你好世界"));
+        // 文件没变：同一份词库
+        let b = load_layered(None, Some(d));
+        assert!(Arc::ptr_eq(&a, &b));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

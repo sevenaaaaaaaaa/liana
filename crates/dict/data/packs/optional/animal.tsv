@@ -1,0 +1,46 @@
+# 松萝官方词包 · animal（清华 THUOCL_animal，MIT；只含基础词库没有的词）
+# 格式：词<TAB>拼音（空格分隔）<TAB>词频（与 base-large.tsv 同尺度）
+萨摩	sa mo	263
+夜鹰	ye ying	62
+目鱼	mu yu	55
+九间	jiu jian	47
+鹡鸰	ji ling	44
+全蝎	quan xie	36
+小鲤	xiao li	26
+鹩哥	liao ge	25
+台鸽	tai ge	19
+狮子狗	shi zi gou	19
+苏格兰牧羊犬	su ge lan mu yang quan	19
+抹香鲸	mo xiang jing	18
+桃花水母	tao hua shui mu	18
+五步蛇	wu bu she	17
+小野猪	xiao ye zhu	17
+小鸥	xiao ou	17
+花寨	hua zhai	17
+克隆牛	ke long niu	16
+濒危野生动物	bin wei ye sheng dong wu	16
+珠鸡	zhu ji	16
+疟原虫	nve yuan chong	16
+野生大熊猫	ye sheng da xiong mao	16
+青波	qing bo	16
+木回	mu hui	15
+猫鱼	mao yu	15
+种公猪	zhong gong zhu	15
+鱼胆	yu dan	15
+灰鹤	hui he	14
+雄蜂	xiong feng	14
+中白鹭	zhong bai lu	13
+卷尾	juan wei	13
+杜宾犬	du bin quan	13
+纯种波尔山羊	chun zhong bo er shan yang	13
+阴道毛滴虫	yin dao mao di chong	13
+紫贝	zi bei	12
+萨摩耶犬	sa mo ye quan	12
+鮰鱼	hui yu	12
+杜泊羊	du po yang	11
+滩羊	tan yang	11
+元谋人	yuan mou ren	10
+浮游动物	fu you dong wu	10
+生牡蛎	sheng mu li	10
+轮虫	lun chong	10
+钱鼠	qian shu	10

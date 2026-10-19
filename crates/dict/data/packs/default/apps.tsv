@@ -1,0 +1,114 @@
+# 松萝官方词包 · apps（本项目维护，AGPL-3.0-only）
+# 格式：词<TAB>拼音（空格分隔）<TAB>词频（与 base-large.tsv 同尺度）
+京东	jing dong	20000
+公众号	gong zhong hao	20000
+小程序	xiao cheng xu	20000
+小红书	xiao hong shu	20000
+抖音	dou yin	20000
+支付宝	zhi fu bao	20000
+朋友圈	peng you quan	20000
+淘宝	tao bao	20000
+企业微信	qi ye wei xin	8000
+哔哩哔哩	bi li bi li	8000
+天猫	tian mao	8000
+微博	wei bo	8000
+快手	kuai shou	8000
+拼多多	pin duo duo	8000
+日历	ri li	8000
+照片	zhao pian	8000
+美团外卖	mei tuan wai mai	8000
+腾讯会议	teng xun hui yi	8000
+腾讯视频	teng xun shi pin	8000
+视频号	shi pin hao	8000
+豆包	dou bao	8000
+钉钉	ding ding	8000
+飞书	fei shu	8000
+饿了么	e le me	8000
+高德地图	gao de di tu	8000
+今日头条	jin ri tou tiao	3000
+优酷	you ku	3000
+余额宝	yu e bao	3000
+剪映	jian ying	3000
+叮咚买菜	ding dong mai cai	3000
+喜马拉雅	xi ma la ya	3000
+备忘录	bei wang lu	3000
+大众点评	da zhong dian ping	3000
+夸克	kua ke	3000
+得物	de wu	3000
+微信支付	wei xin zhi fu	3000
+微信读书	wei xin du shu	3000
+携程	xie cheng	3000
+文心一言	wen xin yi yan	3000
+滴滴出行	di di chu xing	3000
+爱奇艺	ai qi yi	3000
+百度地图	bai du di tu	3000
+百度网盘	bai du wang pan	3000
+盒马	he ma	3000
+知乎	zhi hu	3000
+系统设置	xi tong she zhi	3000
+终端	zhong duan	3000
+网易云音乐	wang yi yun yin yue	3000
+美图秀秀	mei tu xiu xiu	3000
+腾讯文档	teng xun wen dang	3000
+花呗	hua bei	3000
+计算器	ji suan qi	3000
+豆瓣	dou ban	3000
+通义千问	tong yi qian wen	3000
+通讯录	tong xun lu	3000
+闲鱼	xian yu	3000
+隔空投送	ge kong tou song	3000
+预览	yu lan	3000
+云闪付	yun shan fu	1000
+京东到家	jing dong dao jia	1000
+借呗	jie bei	1000
+元宝	yuan bao	1000
+印象笔记	yin xiang bi ji	1000
+即梦	ji meng	1000
+去哪儿	qu na er	1000
+可灵	ke ling	1000
+启动台	qi dong tai	1000
+唯品会	wei pin hui	1000
+天工	tian gong	1000
+屏幕使用时间	ping mu shi yong shi jian	1000
+快捷指令	kuai jie zhi ling	1000
+扣子	kou zi	1000
+控制中心	kong zhi zhong xin	1000
+提醒事项	ti xing shi xiang	1000
+搜狗输入法	sou gou shu ru fa	1000
+支付宝支付	zhi fu bao zhi fu	1000
+文心	wen xin	1000
+时间机器	shi jian ji qi	1000
+智谱清言	zhi pu qing yan	1000
+有道云笔记	you dao yun bi ji	1000
+有道词典	you dao ci dian	1000
+朴朴超市	pu pu chao shi	1000
+汽水音乐	qi shui yin yue	1000
+活动监视器	huo dong jian shi qi	1000
+海螺	hai luo	1000
+番茄小说	fan qie xiao shuo	1000
+石墨文档	shi mo wen dang	1000
+系统偏好设置	xi tong pian hao she zhi	1000
+聚焦搜索	ju jiao sou suo	1000
+腾讯元宝	teng xun yuan bao	1000
+腾讯地图	teng xun di tu	1000
+菜鸟裹裹	cai niao guo guo	1000
+西瓜视频	xi gua shi pin	1000
+讯飞输入法	xun fei shu ru fa	1000
+访达	fang da	1000
+起点读书	qi dian du shu	1000
+通义	tong yi	1000
+通知中心	tong zhi zhong xin	1000
+酷我音乐	ku wo yin yue	1000
+酷狗音乐	ku gou yin yue	1000
+醒图	xing tu	1000
+金山文档	jin shan wen dang	1000
+钥匙串	yao shi chuan	1000
+阿里云盘	a li yun pan	1000
+飞猪	fei zhu	1000
+企鹅号	qi e hao	300
+头条号	tou tiao hao	300
+夸克网盘	kua ke wang pan	300
+百家号	bai jia hao	300
+秘塔	mi ta	300
+纳米搜索	na mi sou suo	300
+自动操作	zi dong cao zuo	300

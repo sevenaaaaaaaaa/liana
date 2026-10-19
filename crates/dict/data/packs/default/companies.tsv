@@ -1,0 +1,102 @@
+# 松萝官方词包 · companies（本项目维护，AGPL-3.0-only）
+# 格式：词<TAB>拼音（空格分隔）<TAB>词频（与 base-large.tsv 同尺度）
+华为	hua wei	8000
+字节跳动	zi jie tiao dong	8000
+小米	xiao mi	8000
+百度	bai du	8000
+网易	wang yi	8000
+腾讯	teng xun	8000
+阿里	a li	8000
+阿里巴巴	a li ba ba	8000
+三星	san xing	3000
+中国电信	zhong guo dian xin	3000
+中国移动	zhong guo yi dong	3000
+中国联通	zhong guo lian tong	3000
+中国银行	zhong guo yin hang	3000
+亚马逊	ya ma xun	3000
+农业银行	nong ye yin hang	3000
+大疆	da jiang	3000
+字节	zi jie	3000
+宁德时代	ning de shi dai	3000
+小鹏汽车	xiao peng qi che	3000
+工商银行	gong shang yin hang	3000
+建设银行	jian she yin hang	3000
+微软	wei ruan	3000
+招商银行	zhao shang yin hang	3000
+星巴克	xing ba ke	3000
+比亚迪	bi ya di	3000
+海底捞	hai di lao	3000
+特斯拉	te si la	3000
+理想汽车	li xiang qi che	3000
+瑞幸	rui xing	3000
+瑞幸咖啡	rui xing ka fei	3000
+科大讯飞	ke da xun fei	3000
+索尼	suo ni	3000
+联想	lian xiang	3000
+肯德基	ken de ji	3000
+英伟达	ying wei da	3000
+茅台	mao tai	3000
+谷歌	gu ge	3000
+顺丰	shun feng	3000
+麦当劳	mai dang lao	3000
+中兴	zhong xing	1000
+中国平安	zhong guo ping an	1000
+中通快递	zhong tong kuai di	1000
+五粮液	wu liang ye	1000
+交通银行	jiao tong yin hang	1000
+京东方	jing dong fang	1000
+京东物流	jing dong wu liu	1000
+兴业银行	xing ye yin hang	1000
+台积电	tai ji dian	1000
+名创优品	ming chuang you pin	1000
+商汤	shang tang	1000
+商汤科技	shang tang ke ji	1000
+喜茶	xi cha	1000
+圆通快递	yuan tong kuai di	1000
+奈雪的茶	nai xue de cha	1000
+安踏	an ta	1000
+小鹏	xiao peng	1000
+平安银行	ping an yin hang	1000
+库迪咖啡	ku di ka fei	1000
+必胜客	bi sheng ke	1000
+智谱	zhi pu	1000
+月之暗面	yue zhi an mian	1000
+李宁	li ning	1000
+极兔速递	ji tu su di	1000
+泡泡玛特	pao pao ma te	1000
+浦发银行	pu fa yin hang	1000
+海信	hai xin	1000
+海尔	hai er	1000
+深度求索	shen du qiu suo	1000
+申通快递	shen tong kuai di	1000
+米哈游	mi ha you	1000
+网易游戏	wang yi you xi	1000
+腾讯游戏	teng xun you xi	1000
+英特尔	ying te er	1000
+苹果公司	ping guo gong si	1000
+茶百道	cha bai dao	1000
+蔚来	wei lai	1000
+蚂蚁金服	ma yi jin fu	1000
+蚂蚁集团	ma yi ji tuan	1000
+蜜雪冰城	mi xue bing cheng	1000
+讯飞	xun fei	1000
+邮政快递	you zheng kuai di	1000
+长虹	chang hong	1000
+问界	wen jie	1000
+霸王茶姬	ba wang cha ji	1000
+韵达快递	yun da kuai di	1000
+顺丰速运	shun feng su yun	1000
+高通	gao tong	1000
+古茗	gu ming	300
+岚图	lan tu	300
+快手科技	kuai shou ke ji	300
+拼多多集团	pin duo duo ji tuan	300
+旷视	kuang shi	300
+极氪	ji ke	300
+格力	ge li	300
+沪上阿姨	hu shang a yi	300
+特步	te bu	300
+美团点评	mei tuan dian ping	300
+美的	mei de	300
+阿维塔	a wei ta	300
+零跑	ling pao	300

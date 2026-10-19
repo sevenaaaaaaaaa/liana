@@ -44,6 +44,34 @@ const SYL_MISMATCH_PENALTY: f64 = 6.0;
 /// 零模糊且全覆盖候选的加分：精确读音永远压过同覆盖的模糊读音
 /// （`nve` 的「虐」不许被模糊 `lve` 的高频「略」劫持）。
 const EXACT_FULL_BONUS: f64 = 2.5;
+/// 常用简拼先验：表里的词比同层最高分再高这么多（个人学习的加分仍可反超）。
+const JIANPIN_PRIOR_BONUS: f64 = 1.5;
+/// 常用简拼表（`data/jianpin.tsv`）。
+const JIANPIN_TSV: &str = include_str!("../data/jianpin.tsv");
+
+/// 某个简拼的先验词：`(词, 词库 key)`，按表里的先后。
+fn jianpin_priors(abbr: &str) -> Vec<(&'static str, String)> {
+    static TABLE: std::sync::OnceLock<std::collections::HashMap<&'static str, Vec<(&'static str, String)>>> =
+        std::sync::OnceLock::new();
+    TABLE
+        .get_or_init(|| {
+            let mut map: std::collections::HashMap<&'static str, Vec<(&'static str, String)>> =
+                std::collections::HashMap::new();
+            for line in JIANPIN_TSV.lines() {
+                if line.starts_with('#') || line.trim().is_empty() {
+                    continue;
+                }
+                let mut f = line.split('\t');
+                if let (Some(abbr), Some(word), Some(py)) = (f.next(), f.next(), f.next()) {
+                    map.entry(abbr).or_default().push((word, py.split_whitespace().collect::<Vec<_>>().join("'")));
+                }
+            }
+            map
+        })
+        .get(abbr)
+        .cloned()
+        .unwrap_or_default()
+}
 /// 简拼候选的惩罚：低于同长度的完整拼音，避免抢占正常输入。
 const ABBR_PENALTY: f64 = 2.5;
 /// 混拼候选的惩罚（命中更具体，惩罚略小）。
@@ -386,6 +414,29 @@ impl PinyinDecoder {
                         score,
                     )
                     .with_reading(hit.key.replace('\'', " ")),
+                );
+            }
+        }
+
+        // 常用简拼先验：整段输入正好是表里的简拼时，表里的词排到同层候选最前面
+        // （只调层内顺序；词必须在词库里、读音一致，个人学习仍可覆盖）
+        let raw: String = chars.iter().collect();
+        let priors = jianpin_priors(&raw);
+        if !priors.is_empty() && consumed == chars.len() {
+            let top = out
+                .iter()
+                .filter(|c| c.consumed == consumed)
+                .map(|c| c.score)
+                .fold(f64::NEG_INFINITY, f64::max);
+            let base = if top.is_finite() { top } else { 0.0 };
+            for (rank, (word, key)) in priors.iter().enumerate() {
+                let Some(entry) = self.dict.lookup(key).iter().find(|e| e.word == *word) else {
+                    continue;
+                };
+                out.retain(|c| !(c.text == *word && c.consumed == consumed));
+                out.push(
+                    Candidate::new(*word, consumed, word_kind(entry), base + JIANPIN_PRIOR_BONUS - rank as f64 * 0.1)
+                        .with_reading(key.replace('\'', " ")),
                 );
             }
         }
@@ -909,6 +960,19 @@ mod tests {
 
     fn first(decode: &PinyinDecoder, input: &str) -> String {
         decode.candidates(input)[0].text.clone()
+    }
+
+    #[test]
+    fn jianpin_prior_beats_raw_frequency() {
+        let mut dict = Dictionary::new();
+        dict.insert("mei'ti", "媒体", 42000);
+        dict.insert("ming'tian", "明天", 31000);
+        dict.insert("dong'shi'hui", "董事会", 6000);
+        dict.insert("dan'shi", "但是", 170000);
+        let d = PinyinDecoder::new(Arc::new(dict), Layout::Full);
+        assert_eq!(first(&d, "mt"), "明天");
+        // sh 当作一个声母：dsh → 但是（纯首字母查询本身找不到它）
+        assert_eq!(first(&d, "dsh"), "但是");
     }
 
     #[test]

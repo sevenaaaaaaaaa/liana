@@ -177,6 +177,51 @@ impl Dictionary {
         })
     }
 
+    /// 给一批没有拼音的词自动注音，返回词库 key（`yin'hang`）；有字不在词库里时为 None。
+    ///
+    /// 先按词库里已有的词切分（「招商银行」→ 招商 + 银行，多音字跟着词走），
+    /// 切不出来的部分逐字取最高频读音；切分取段数最少的方案。
+    pub fn annotate(&self, words: &[&str]) -> Vec<Option<String>> {
+        // 词 → 最高词频的读音（只借用词库里的字符串，不复制）
+        let mut readings: HashMap<&str, (&str, u32)> = HashMap::with_capacity(self.entries);
+        for (key, list) in &self.map {
+            for e in list {
+                let slot = readings.entry(e.word.as_str()).or_insert((key.as_str(), 0));
+                if e.freq > slot.1 {
+                    *slot = (key.as_str(), e.freq);
+                }
+            }
+        }
+        const MAX_PIECE: usize = 8;
+        words
+            .iter()
+            .map(|word| {
+                let chars: Vec<(usize, char)> = word.char_indices().collect();
+                let n = chars.len();
+                if n == 0 {
+                    return None;
+                }
+                let byte_at = |i: usize| if i == n { word.len() } else { chars[i].0 };
+                // best[i] = 前 i 个字的 (段数, 读音列表)
+                let mut best: Vec<Option<(usize, Vec<&str>)>> = vec![None; n + 1];
+                best[0] = Some((0, Vec::new()));
+                for end in 1..=n {
+                    for start in end.saturating_sub(MAX_PIECE)..end {
+                        let Some((segs, keys)) = &best[start] else { continue };
+                        let piece = &word[byte_at(start)..byte_at(end)];
+                        let Some(&(key, _)) = readings.get(piece) else { continue };
+                        if best[end].as_ref().is_none_or(|(s, _)| segs + 1 < *s) {
+                            let mut next = keys.clone();
+                            next.push(key);
+                            best[end] = Some((segs + 1, next));
+                        }
+                    }
+                }
+                best[n].take().map(|(_, keys)| keys.join("'"))
+            })
+            .collect()
+    }
+
     fn prefix_index(&self) -> &[(Box<str>, Box<str>)] {
         self.prefix.get_or_init(|| {
             let mut idx: Vec<(Box<str>, Box<str>)> = self

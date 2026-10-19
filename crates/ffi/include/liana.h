@@ -25,6 +25,10 @@ LianaSession *liana_new(const char *mode);
 /* 使用外部 IFD1 词典文件创建会话；失败时回退内置词典。 */
 LianaSession *liana_new_with_dict(const char *mode, const char *dict_path);
 
+/* 基础词库 + 词包目录（目录里的 *.tsv / *.txt：一行一个词，可选「词\t拼音\t词频」，
+ * 没写拼音的自动注音）。进程内共享同一份词库；任一参数为 NULL 时跳过该层。 */
+LianaSession *liana_new_with_layers(const char *mode, const char *dict_path, const char *layers_dir);
+
 void liana_free(LianaSession *session);
 
 /* 输入一个字符（UTF-8，单个码点）。返回 1 表示被接受。 */

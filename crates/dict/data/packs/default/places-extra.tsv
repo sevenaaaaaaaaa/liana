@@ -1,0 +1,52 @@
+# 松萝官方词包 · places-extra（本项目维护，AGPL-3.0-only）
+# 格式：词<TAB>拼音（空格分隔）<TAB>词频（与 base-large.tsv 同尺度）
+三里屯	san li tun	3000
+中关村	zhong guan cun	3000
+丽江	li jiang	3000
+义乌	yi wu	3000
+九寨沟	jiu zhai gou	3000
+南山区	nan shan qu	3000
+国贸	guo mao	3000
+外滩	wai tan	3000
+大理	da li	3000
+布达拉宫	bu da la gong	3000
+张家界	zhang jia jie	3000
+景德镇	jing de zhen	3000
+望京	wang jing	3000
+洱海	er hai	3000
+珠穆朗玛峰	zhu mu lang ma feng	3000
+福田区	fu tian qu	3000
+科技园	ke ji yuan	3000
+蚌埠	beng bu	3000
+西双版纳	xi shuang ban na	3000
+西湖	xi hu	3000
+陆家嘴	lu jia zui	3000
+香格里拉	xiang ge li la	3000
+黄浦江	huang pu jiang	3000
+鼓浪屿	gu lang yu	3000
+丽水	li shui	1000
+乐清	yue qing	1000
+五道口	wu dao kou	1000
+六安	lu an	1000
+前海	qian hai	1000
+华强北	hua qiang bei	1000
+南京路	nan jing lu	1000
+南锣鼓巷	nan luo gu xiang	1000
+台州	tai zhou	1000
+后海	hou hai	1000
+城隍庙	cheng huang miao	1000
+太古里	tai gu li	1000
+宽窄巷子	kuan zhai xiang zi	1000
+张江	zhang jiang	1000
+徐家汇	xu jia hui	1000
+新天地	xin tian di	1000
+春熙路	chun xi lu	1000
+洪崖洞	hong ya dong	1000
+灵隐寺	ling yin si	1000
+番禺	pan yu	1000
+稻城亚丁	dao cheng ya ding	1000
+西二旗	xi er qi	1000
+解放碑	jie fang bei	1000
+静安寺	jing an si	1000
+尉犁	yu li	300
+铅山	yan shan	300

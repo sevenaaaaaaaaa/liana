@@ -96,6 +96,13 @@ private func dedupeInputSourcePersistence() -> (hitoolboxRemoved: Int, thirdPart
 let installArgs = CommandLine.arguments
 if installArgs.count > 1 {
     switch installArgs[1] {
+    case "--app-names":
+        // 开发用：列出本机应用名词包会收录的名字
+        let names = AppNameLexicon.collectNames().sorted()
+        print(names.joined(separator: " "))
+        print("共 \(names.count) 个")
+        exit(0)
+
     case "--register-input-source":
         if let source = findInputSource() {
             print("已注册: \(inputSourceID()) (\(describe(source)))")
@@ -935,6 +942,7 @@ PluginStore.seedBundledPacks()
 _ = EncryptedStore.shared.load()
 ClipboardMonitor.shared.startIfEnabled()
 ClipboardActionWatcher.shared.refresh()
+AppNameLexicon.startPeriodicRefresh()
 PetWindowController.restoreIfEnabled()
 NotificationCenter.default.addObserver(
     forName: NSApplication.willTerminateNotification,

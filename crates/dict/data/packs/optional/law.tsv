@@ -1,0 +1,134 @@
+# 松萝官方词包 · law（清华 THUOCL_law，MIT；只含基础词库没有的词）
+# 格式：词<TAB>拼音（空格分隔）<TAB>词频（与 base-large.tsv 同尺度）
+权利人	quan li ren	1388
+注册会计师	zhu ce kuai ji shi	637
+国家旅游局	guo jia lv you ju	293
+联营	lian ying	229
+承兑	cheng dui	216
+中国注册会计师	zhong guo zhu ce kuai ji shi	83
+赢利能力	ying li neng li	63
+案值	an zhi	55
+窃电	qie dian	54
+贿赂案	hui lu an	44
+议付	yi fu	36
+产品标识	chan pin biao shi	26
+刑复	xing fu	25
+重置成本	zhong zhi cheng ben	24
+国家环境保护总局	guo jia huan jing bao hu zong ju	23
+收当	shou dang	22
+中国食品工业协会	zhong guo shi pin gong ye xie hui	12
+五定	wu ding	12
+产品税	chan pin shui	12
+价格放开	jia ge fang kai	12
+债务转移	zhai wu zhuan yi	12
+党政领导干部选拔任用工作条例	dang zheng ling dao gan bu xuan ba ren yong gong zuo tiao li	12
+医疗事故处理条例	yi liao shi gu chu li tiao li	12
+危害公共安全罪	wei hai gong gong an quan zui	12
+情感障碍	qing gan zhang ai	12
+手钩	shou gou	12
+执行监督	zhi xing jian du	12
+有奖征集活动	you jiang zheng ji huo dong	12
+村民委员会组织法	cun min wei yuan hui zu zhi fa	12
+殴打他人	ou da ta ren	12
+烟草总公司	yan cao zong gong si	12
+特种设备安全监察	te zhong she bei an quan jian cha	12
+由拥有	you yong you	12
+皮下出血	pi xia chu xie	12
+社会在职人员	she hui zai zhi ren yuan	12
+职业安全卫生	zhi ye an quan wei sheng	12
+资源有偿使用制度	zi yuan you chang shi yong zhi du	12
+重大责任事故罪	zhong da ze ren shi gu zui	12
+非婚生子女	fei hun sheng zi nv	12
+不完全履行	bu wan quan lv xing	11
+业主大会议事规则	ye zhu da hui yi shi gui ze	11
+个体经济组织	ge ti jing ji zu zhi	11
+中共中央统战部	zhong gong zhong yang tong zhan bu	11
+中华人民共和国物权法	zhong hua ren min gong he guo wu quan fa	11
+中国烟草总公司	zhong guo yan cao zong gong si	11
+交通事故认定书	jiao tong shi gu ren ding shu	11
+产品缺陷	chan pin que xian	11
+产权变更	chan quan bian geng	11
+代理收付款项	dai li shou fu kuan xiang	11
+价格承诺	jia ge cheng nuo	11
+企业转让	qi ye zhuan rang	11
+全面推进依法行政实施纲要	quan mian tui jin yi fa xing zheng shi shi gang yao	11
+兵役法	bing yi fa	11
+出口信贷	chu kou xin dai	11
+刑事科学技术	xing shi ke xue ji shu	11
+到岸价格	dao an jia ge	11
+募集设立	mu ji she li	11
+医疗器械注册证	yi liao qi xie zhu ce zheng	11
+协议收购	xie yi shou gou	11
+参照公务员法	can zhao gong wu yuan fa	11
+品牌诉求	pin pai su qiu	11
+回购协议	hui gou xie yi	11
+城乡医疗救助	cheng xiang yi liao jiu zhu	11
+城市房地产税	cheng shi fang di chan shui	11
+宏观调控目标	hong guan tiao kong mu biao	11
+抽象行政行为	chou xiang xing zheng xing wei	11
+拆迁补偿安置协议	chai qian bu chang an zhi xie yi	11
+母婴保健法	mu ying bao jian fa	11
+流氓行为	liu mang xing wei	11
+涉法涉诉	she fa she su	11
+港澳办	gang ao ban	11
+犯罪未遂	fan zui wei sui	11
+现代产权制度	xian dai chan quan zhi du	11
+经济体制改革委员会	jing ji ti zhi gai ge wei yuan hui	11
+结构性矛盾突出	jie gou xing mao dun tu chu	11
+维权成本	wei quan cheng ben	11
+行纪人	xing ji ren	11
+负直接	fu zhi jie	11
+进行审计监督	jin xing shen ji jian du	11
+道路交通事故处理	dao lu jiao tong shi gu chu li	11
+部门管辖	bu men guan xia	11
+重大误解	zhong da wu jie	11
+铁路运输法院	tie lu yun shu fa yuan	11
+非法侵占	fei fa qin zhan	11
+非法吸收公众存款罪	fei fa xi shou gong zhong cun kuan zui	11
+专利使用费	zhuan li shi yong fei	10
+中华人民共和国价格法	zhong hua ren min gong he guo jia ge fa	10
+中国专利局	zhong guo zhuan li ju	10
+五讲四美	wu jiang si mei	10
+交通拥堵费	jiao tong yong du fei	10
+人类精子库	ren lei jing zi ku	10
+住房公积金管理条例	zhu fang gong ji jin guan li tiao li	10
+侮辱妇女	wu ru fu nv	10
+信息权	xin xi quan	10
+假冒商标	jia mao shang biao	10
+前父母	qian fu mu	10
+加工合同	jia gong he tong	10
+危险作业	wei xian zuo ye	10
+国家计划委员会	guo jia ji hua wei yuan hui	10
+增值税暂行条例	zeng zhi shui zan xing tiao li	10
+妇女就业	fu nv jiu ye	10
+委托关系	wei tuo guan xi	10
+姘居	pin ju	10
+市场分割	shi chang fen ge	10
+市场经济法	shi chang jing ji fa	10
+应用法学	ying yong fa xue	10
+建设工程质量管理条例	jian she gong cheng zhi liang guan li tiao li	10
+指定人员	zhi ding ren yuan	10
+收购土地	shou gou tu di	10
+放火罪	fang huo zui	10
+新闻发布制度	xin wen fa bu zhi du	10
+无行为能力	wu xing wei neng li	10
+期末存货	qi mo cun huo	10
+未利用地	wei li yong di	10
+杠杆收购	gang gan shou gou	10
+根本扭转	gen ben niu zhuan	10
+正式谈判	zheng shi tan pan	10
+气候变化框架公约	qi hou bian hua kuang jia gong yue	10
+法台	fa tai	10
+特定物	te ding wu	10
+相对集中行政处罚权	xiang dui ji zhong xing zheng chu fa quan	10
+禁止传销条例	jin zhi chuan xiao tiao li	10
+私闯民宅	si chuang min zhai	10
+继子女	ji zi nv	10
+联合国海洋法公约	lian he guo hai yang fa gong yue	10
+虚报注册资本罪	xu bao zhu ce zi ben zui	10
+行为障碍	xing wei zhang ai	10
+证券公司监督管理条例	zheng quan gong si jian du guan li tiao li	10
+赌棍	du gun	10
+通话录音	tong hua lu yin	10
+陪审员制度	pei shen yuan zhi du	10
+首席大法官	shou xi da fa guan	10

@@ -1,0 +1,76 @@
+# 松萝官方词包 · slang（本项目维护，AGPL-3.0-only）
+# 格式：词<TAB>拼音（空格分隔）<TAB>词频（与 base-large.tsv 同尺度）
+人工智能	ren gong zhi neng	20000
+内卷	nei juan	8000
+双十一	shuang shi yi	8000
+大模型	da mo xing	8000
+打卡	da ka	8000
+打工人	da gong ren	8000
+摆烂	bai lan	8000
+新能源	xin neng yuan	8000
+无语	wu yu	8000
+破防	po fang	8000
+社恐	she kong	8000
+离谱	li pu	8000
+种草	zhong cao	8000
+绝了	jue le	8000
+考研	kao yan	8000
+躺平	tang ping	8000
+上头	shang tou	3000
+上岸	shang an	3000
+仪式感	yi shi gan	3000
+充电宝	chong dian bao	3000
+充电桩	chong dian zhuang	3000
+内耗	nei hao	3000
+剧本杀	ju ben sha	3000
+双十二	shuang shi er	3000
+吃瓜	chi gua	3000
+外卖员	wai mai yuan	3000
+天花板	tian hua ban	3000
+好家伙	hao jia huo	3000
+干饭	gan fan	3000
+快递员	kuai di yuan	3000
+情绪价值	qing xu jia zhi	3000
+懂了	dong le	3000
+拉胯	la kua	3000
+拔草	ba cao	3000
+提示词	ti shi ci	3000
+搭子	da zi	3000
+整活	zheng huo	3000
+智能体	zhi neng ti	3000
+氛围感	fen wei gan	3000
+真的假的	zhen de jia de	3000
+社死	she si	3000
+社牛	she niu	3000
+笑死	xiao si	3000
+算力	suan li	3000
+绝绝子	jue jue zi	3000
+网约车	wang yue che	3000
+考公	kao gong	3000
+起飞	qi fei	3000
+预制菜	yu zhi cai	3000
+骑手	qi shou	3000
+下头	xia tou	1000
+不明觉厉	bu ming jue li	1000
+不至于吧	bu zhi yu ba	1000
+六一八	liu yi ba	1000
+凡尔赛	fan er sai	1000
+吃瓜群众	chi gua qun zhong	1000
+多少沾点	duo shao zhan dian	1000
+安利	an li	1000
+密室逃脱	mi shi tao tuo	1000
+小确幸	xiao que xing	1000
+干饭人	gan fan ren	1000
+懂的都懂	dong de dou dong	1000
+我服了	wo fu le	1000
+整挺好	zheng ting hao	1000
+显眼包	xian yan bao	1000
+有点东西	you dian dong xi	1000
+松弛感	song chi gan	1000
+生成式	sheng cheng shi	1000
+破大防	po da fang	1000
+笑死我了	xiao si wo le	1000
+精神内耗	jing shen nei hao	1000
+芜湖	wu hu	1000
+那咋了	na za le	1000
+饭搭子	fan da zi	1000

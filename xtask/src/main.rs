@@ -33,9 +33,10 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("dict") => dict_cmd(&args[1..]),
         Some("plugin") => plugin_cmd(&args[1..]),
         Some("accuracy") if args.get(1).map(String::as_str) == Some("--hard") => {
-            accuracy_hard_cmd()
+            accuracy_hard_cmd(&args[2..])
         }
         Some("accuracy") => accuracy_cmd(),
+        Some("query") => query_cmd(&args[1..]),
         Some("-h") | Some("--help") => {
             usage();
             Ok(())
@@ -423,10 +424,15 @@ fn plugin_new(args: &[String]) -> Result<(), String> {
 fn dict_cmd(args: &[String]) -> Result<(), String> {
     match args.first().map(String::as_str) {
         Some("build") => {
-            let (input, output, with_base) = parse_io(&args[1..])?;
+            let no_packs = args.iter().any(|a| a == "--no-packs");
+            let rest: Vec<String> = args[1..].iter().filter(|a| *a != "--no-packs").cloned().collect();
+            let (input, output, with_base) = parse_io(&rest)?;
             let src = read(&input)?;
             let (mut dict, report) = parse_tsv(&src);
             print_report("TSV", &input, &report);
+            if !no_packs {
+                merge_default_packs(&mut dict, Path::new(&input))?;
+            }
             if with_base {
                 let base = Dictionary::embedded();
                 dict.merge(&base);
@@ -534,6 +540,58 @@ fn import_rime_multi(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+/// `xtask query <按键>…`：打印生产词库（含官方词包）下的前 10 个候选与分数，排查排序用。
+fn query_cmd(args: &[String]) -> Result<(), String> {
+    use std::sync::Arc;
+
+    use liana_core::Mode;
+    use liana_engine::Session;
+
+    let path = "crates/dict/data/base-large.tsv";
+    let tsv = std::fs::read_to_string(path).map_err(|e| format!("读不到 {path}: {e}（请在仓库根目录运行）"))?;
+    let mut dict = parse_tsv(&tsv).0;
+    merge_default_packs(&mut dict, Path::new(path))?;
+    let dict = Arc::new(dict);
+    for keys in args {
+        let mut s = Session::with_mode(dict.clone(), Mode::Pinyin);
+        for ch in keys.chars() {
+            s.feed(ch);
+        }
+        println!("{keys}:");
+        for c in s.composition().candidates.iter().take(10) {
+            println!("  {:<12} {:>7.2}  {:?} 消耗 {}", c.text, c.score, c.kind, c.consumed);
+        }
+    }
+    Ok(())
+}
+
+/// 官方词包：输入文件同目录的 `packs/default/*.tsv` 全部合并（同词同音取较大词频，只补词、抬词频）。
+fn merge_default_packs(dict: &mut Dictionary, input: &Path) -> Result<usize, String> {
+    let dir = input.parent().unwrap_or(Path::new(".")).join("packs/default");
+    let Ok(read_dir) = std::fs::read_dir(&dir) else {
+        return Ok(0);
+    };
+    let mut paths: Vec<PathBuf> = read_dir
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.extension().is_some_and(|x| x == "tsv"))
+        .collect();
+    paths.sort();
+    let before = dict.entry_count();
+    for path in &paths {
+        let src = std::fs::read_to_string(path).map_err(|e| format!("读取 {} 失败: {e}", path.display()))?;
+        let (pack, report) = parse_tsv(&src);
+        if report.skipped > 0 {
+            print_report("词包", &path.display().to_string(), &report);
+        }
+        dict.merge(&pack);
+    }
+    let added = dict.entry_count() - before;
+    if !paths.is_empty() {
+        println!("已合并官方词包 {} 个：+{added} 词条（共 {}）", paths.len(), dict.entry_count());
+    }
+    Ok(added)
+}
+
 fn parse_io(args: &[String]) -> Result<(String, String, bool), String> {
     let mut input = None;
     let mut output = None;
@@ -605,19 +663,38 @@ fn usage() {
 
 /// `xtask accuracy --hard`：困难评测集（单字/口语/简拼/半截/长整句/成语/科技）+ 学习能力。
 /// 同时报 Top-1 与 Top-5：Top-1 决定「一次打对」，Top-5 决定「翻页成本」。
-fn accuracy_hard_cmd() -> Result<(), String> {
+fn accuracy_hard_cmd(args: &[String]) -> Result<(), String> {
     use std::collections::BTreeMap;
     use std::sync::Arc;
 
     use liana_core::Mode;
     use liana_engine::Session;
 
-    let tsv = std::fs::read_to_string("crates/dict/data/base-large.tsv")
-        .map_err(|e| format!("读不到 base-large.tsv: {e}（请在仓库根目录运行）"))?;
-    let (dict, _) = parse_tsv(&tsv);
+    // --cases <评测集>（默认困难集）、--dict <词典 .ifd/.tsv>（默认 base-large.tsv）
+    let mut cases_path = "xtask/data/accuracy-hard.tsv".to_string();
+    let mut dict_path = "crates/dict/data/base-large.tsv".to_string();
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--cases" => cases_path = args.get(i + 1).ok_or("--cases 缺值")?.clone(),
+            "--dict" => dict_path = args.get(i + 1).ok_or("--dict 缺值")?.clone(),
+            other => return Err(format!("未知参数: {other}")),
+        }
+        i += 2;
+    }
+    let dict = if dict_path.ends_with(".ifd") {
+        let bytes = std::fs::read(&dict_path).map_err(|e| format!("读不到 {dict_path}: {e}"))?;
+        Dictionary::from_bytes(&bytes).map_err(|e| format!("{dict_path}: {e}"))?
+    } else {
+        let tsv = std::fs::read_to_string(&dict_path)
+            .map_err(|e| format!("读不到 {dict_path}: {e}（请在仓库根目录运行）"))?;
+        let mut dict = parse_tsv(&tsv).0;
+        merge_default_packs(&mut dict, Path::new(&dict_path))?;
+        dict
+    };
     let dict = Arc::new(dict);
-    let cases_src = std::fs::read_to_string("xtask/data/accuracy-hard.tsv")
-        .map_err(|e| format!("读不到 xtask/data/accuracy-hard.tsv: {e}"))?;
+    let cases_src = std::fs::read_to_string(&cases_path)
+        .map_err(|e| format!("读不到 {cases_path}: {e}"))?;
 
     let run = |keys: &str| -> Vec<String> {
         let mut s = Session::with_mode(dict.clone(), Mode::Pinyin);

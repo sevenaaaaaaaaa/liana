@@ -1,0 +1,51 @@
+# 地名 / 商圈 / 景点 / 多音字地名（本项目维护，AGPL-3.0-only）。格式同 apps.txt
+陆家嘴 C
+中关村 C
+三里屯 C
+望京 C
+国贸 C
+五道口 D
+后海 D
+南锣鼓巷 D
+西二旗 D
+张江 D
+徐家汇 D
+静安寺 D
+新天地 D
+南京路 D
+外滩 C
+城隍庙 D
+前海 D
+南山区 C
+福田区 C
+科技园 C
+华强北 D
+春熙路 D
+宽窄巷子 D
+太古里 D
+解放碑 D
+洪崖洞 D
+西湖 C
+灵隐寺 D
+鼓浪屿 C
+洱海 C
+丽江 C
+大理 C
+稻城亚丁 D
+布达拉宫 C
+黄浦江 C
+珠穆朗玛峰 C
+香格里拉 C
+西双版纳 C
+张家界 C
+九寨沟 C
+景德镇 C
+义乌 C
+蚌埠 C
+六安 D lu an
+番禺 D pan yu
+丽水 D li shui
+台州 D tai zhou
+乐清 D yue qing
+铅山 E yan shan
+尉犁 E yu li

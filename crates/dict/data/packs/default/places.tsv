@@ -1,0 +1,3268 @@
+# 松萝官方词包 · places（清华 THUOCL_diming，MIT；只含基础词库没有的词）
+# 格式：词<TAB>拼音（空格分隔）<TAB>词频（与 base-large.tsv 同尺度）
+北川	bei chuan	3656
+南都	nan dou	3164
+上都	shang dou	1627
+海南省	hai nan sheng	1442
+元和	yuan he	951
+美的	mei de	879
+中都	zhong du	870
+卫生厅	wei sheng ting	823
+株洲	zhu zhou	815
+湘潭	xiang tan	742
+建委	jian wei	645
+番禺	pan yu	620
+一中	yi zhong	495
+江汉	jiang han	481
+滨江	bin jiang	411
+芦山	lu shan	393
+大坝	da ba	378
+增城	zeng cheng	369
+前海	qian hai	358
+长治	zhang zhi	357
+台南	tai nan	347
+芜湖	wu hu	347
+丝路	si lu	328
+公墓	gong mu	323
+株洲市	zhu zhou shi	322
+南城	nan cheng	272
+华润	hua run	263
+河堤	he di	246
+舟山	zhou shan	239
+华龙	hua long	224
+萧山	xiao shan	215
+衡阳市	heng yang shi	214
+内都	nei dou	206
+南坪	nan ping	202
+西郊	xi jiao	198
+娄底市	lou di shi	197
+榆林市	yu lin shi	192
+宁乡	ning xiang	188
+宝鸡市	bao ji shi	187
+花城	hua cheng	185
+渝北	yu bei	182
+涪陵	fu ling	177
+浏阳市	liu yang shi	175
+绿城	lv cheng	174
+华美	hua mei	168
+台东	tai dong	168
+增城市	zeng cheng shi	165
+东江	dong jiang	164
+洪山	hong shan	164
+建新	jian xin	163
+新竹	xin zhu	163
+水口	shui kou	163
+韶关市	shao guan shi	162
+龙湖	long hu	161
+北郊	bei jiao	156
+水田	shui tian	155
+鲁甸	lu dian	155
+奉贤	feng xian	153
+崇明	chong ming	152
+北碚	bei bei	151
+望城	wang cheng	151
+溧水	li shui	151
+财源	cai yuan	146
+梨园	li yuan	145
+嘉义	jia yi	144
+高淳	gao chun	143
+新港	xin gang	140
+平谷	ping gu	139
+甘孜	gan zi	137
+黄陂	huang pi	137
+三联	san lian	136
+后所	hou suo	135
+阿坝	a ba	135
+城阳	cheng yang	133
+温岭	wen ling	133
+巴州	ba zhou	132
+新洲	xin zhou	130
+小林	xiao lin	129
+滨湖	bin hu	127
+林中	lin zhong	126
+屏东	ping dong	125
+巴南	ba nan	125
+益阳市	yi yang shi	125
+金花	jin hua	124
+山塘	shan tang	123
+余杭	yu hang	122
+通化	tong hua	122
+长治市	zhang zhi shi	122
+三桥	san qiao	121
+阿坝州	a ba zhou	121
+安康市	an kang shi	120
+商厦	shang sha	119
+本溪	ben xi	119
+宜兰	yi lan	118
+老屋	lao wu	118
+后任	hou ren	117
+开元	kai yuan	117
+金店	jin dian	116
+金桥	jin qiao	116
+雨花	yu hua	116
+华府	hua fu	115
+茂名市	mao ming shi	115
+血站	xue zhan	115
+广元市	guang yuan shi	114
+辽阳	liao yang	113
+下桥	xia qiao	112
+华联	hua lian	112
+彰化	zhang hua	112
+温江	wen jiang	112
+计生局	ji sheng ju	112
+珀斯	po si	111
+辰溪	chen xi	109
+东四	dong si	107
+晋城市	jin cheng shi	107
+闸北	zha bei	107
+临夏	lin xia	106
+南川	nan chuan	106
+武隆	wu long	105
+高和	gao he	105
+高桥	gao qiao	105
+加力	jia li	104
+吕梁市	lv liang shi	104
+沙田	sha tian	104
+吉安	ji an	103
+接待中心	jie dai zhong xin	103
+公交总公司	gong jiao zong gong si	102
+城口	cheng kou	102
+新会	xin hui	102
+硚口	qiao kou	102
+华阳	hua yang	101
+新化	xin hua	101
+板桥	ban qiao	101
+海河	hai he	101
+下都	xia dou	100
+军事科学院	jun shi ke xue yuan	99
+巡警大队	xun jing da dui	99
+沙湾	sha wan	99
+澄迈	cheng mai	99
+省新	sheng xin	99
+自治区政府	zi zhi qu zheng fu	99
+黄兴	huang xing	99
+万新	wan xin	98
+刚果	gang guo	98
+城市广场	cheng shi guang chang	98
+鹏城	peng cheng	98
+学研	xue yan	97
+铜川市	tong chuan shi	97
+南投	nan tou	96
+恩施州	en shi zhou	96
+综合执法局	zong he zhi fa ju	96
+苍南	cang nan	96
+解放广场	jie fang guang chang	96
+酉阳	you yang	96
+金城	jin cheng	96
+久治	jiu zhi	95
+农业示范区	nong ye shi fan qu	95
+永嘉	yong jia	95
+涟源市	lian yuan shi	94
+交警中队	jiao jing zhong dui	93
+佛教协会	fo jiao xie hui	93
+大坪	da ping	93
+下村	xia cun	92
+华电	hua dian	92
+市交警支队	shi jiao jing zhi dui	92
+永乐	yong le	92
+鄂州市	e zhou shi	92
+香江	xiang jiang	92
+东大街	dong da jie	91
+二桥	er qiao	91
+伊利诺伊州	yi li nuo yi zhou	91
+大乐	da le	91
+密苏里州	mi su li zhou	91
+诸暨	zhu ji	91
+金堂	jin tang	91
+二院	er yuan	90
+朝阳医院	zhao yang yi yuan	90
+渝中	yu zhong	90
+璧山	bi shan	90
+西大街	xi da jie	90
+高速路口	gao su lu kou	90
+伊尔	yi er	89
+国发	guo fa	89
+奉节	feng jie	89
+定西市	ding xi shi	89
+市中心医院	shi zhong xin yi yuan	89
+市民中心	shi min zhong xin	89
+新发地	xin fa di	89
+洪都拉斯	hong dou la si	89
+维新	wei xin	89
+长清	zhang qing	89
+川南	chuan nan	88
+新疆自治区	xin jiang zi zhi qu	88
+西乡	xi xiang	88
+观澜	guan lan	88
+院前	yuan qian	88
+一医院	yi yi yuan	87
+南车	nan che	87
+大港	da gang	87
+安源	an yuan	87
+平江	ping jiang	87
+新津	xin jin	87
+旅游集散中心	lv you ji san zhong xin	87
+枣庄市	zao zhuang shi	87
+田头	tian tou	87
+象山	xiang shan	87
+阳泉市	yang quan shi	87
+陈家	chen jia	87
+旺角	wang jiao	86
+特警支队	te jing zhi dui	86
+石岩	shi yan	86
+藤村	teng cun	86
+下沙	xia sha	85
+侨社	qiao she	85
+同济	tong ji	85
+岳塘	yue tang	85
+监利	jian li	85
+艾奥瓦州	ai ao wa zhou	85
+南通市	nan tong shi	84
+古丝绸之路	gu si chou zhi lu	84
+名都	ming dou	84
+大新	da xin	84
+德阳市	de yang shi	84
+温室大棚	wen shi da peng	84
+外国语学院	wai guo yu xue yuan	83
+市人民医院	shi ren min yi yuan	83
+碑林	bei lin	83
+茶陵	cha ling	83
+丁字路口	ding zi lu kou	82
+北京南	bei jing nan	82
+市残联	shi can lian	82
+布吉	bu ji	82
+永康	yong kang	82
+综合市场	zong he shi chang	82
+阜新	fu xin	82
+龙湾	long wan	82
+华大	hua da	81
+朔州市	shuo zhou shi	81
+李华	li hua	81
+过段	guo duan	81
+长青	chang qing	81
+武侯	wu hou	80
+内华达州	nei hua da zhou	79
+火车东站	huo che dong zhan	79
+热力公司	re li gong si	79
+田中	tian zhong	79
+平度市	ping du shi	78
+平遥	ping yao	78
+彝良	yi liang	78
+普洱市	pu er shi	78
+沅陵	yuan ling	78
+皇岗	huang gang	78
+红山	hong shan	78
+老楼	lao lou	78
+职高	zhi gao	78
+新塘	xin tang	77
+东大门	dong da men	76
+华泰	hua tai	76
+古村	gu cun	76
+安吉	an ji	76
+上建	shang jian	75
+二医院	er yi yuan	75
+儋州市	dan zhou shi	75
+公积金中心	gong ji jin zhong xin	75
+北京儿童医院	bei jing er tong yi yuan	75
+武警医院	wu jing yi yuan	75
+蓝山	lan shan	75
+青少年活动中心	qing shao nian huo dong zhong xin	75
+七中	qi zhong	74
+密歇根州	mi xie gen zhou	74
+林芝	lin zhi	74
+炎陵	yan ling	74
+省中医院	sheng zhong yi yuan	74
+红场	hong chang	74
+保通	bao tong	73
+城步	cheng bu	73
+徐林	xu lin	73
+执法中队	zhi fa zhong dui	73
+汽车南站	qi che nan zhan	73
+联华	lian hua	73
+资兴市	zi xing shi	73
+保靖	bao jing	72
+四大队	si da dui	72
+大润发	da run fa	72
+宜章	yi zhang	72
+客运段	ke yun duan	72
+张丹	zhang dan	72
+惠东	hui dong	72
+桐庐	tong lu	72
+潼南	tong nan	72
+胶东	jiao dong	72
+荣昌	rong chang	72
+东营市	dong ying shi	71
+后湖	hou hu	71
+安化	an hua	71
+市北	shi bei	71
+红河州	hong he zhou	71
+乌兰察布市	wu lan cha bu shi	70
+古田	gu tian	70
+四房	si fang	70
+开新	kai xin	70
+新疆各族人民	xin jiang ge zu ren min	70
+橘子洲	ju zi zhou	70
+西安市政府	xi an shi zheng fu	70
+景山	jing shan	69
+玉树县	yu shu xian	69
+环境学院	huan jing xue yuan	69
+瑞安市	rui an shi	69
+社会主义学院	she hui zhu yi xue yuan	69
+罗沙	luo sha	69
+胶南市	jiao nan shi	69
+萍乡市	ping xiang shi	69
+衡水市	heng shui shi	69
+西固	xi gu	69
+醴陵市	li ling shi	69
+长丰	zhang feng	69
+麻省	ma sheng	69
+三院	san yuan	68
+东大	dong da	68
+厚德	hou de	68
+大广高速	da guang gao su	68
+石牌	shi pai	68
+青白江	qing bai jiang	68
+巫溪	wu xi	67
+市民广场	shi min guang chang	67
+春熙路	chun xi lu	67
+武陵	wu ling	67
+汉口火车站	han kou huo che zhan	67
+粤海	yue hai	67
+西延	xi yan	67
+丰都	feng dou	66
+县府	xian fu	66
+双流机场	shuang liu ji chang	66
+市中医院	shi zhong yi yuan	66
+承德市	cheng de shi	66
+拱北	gong bei	66
+永丰	yong feng	66
+英德市	ying de shi	66
+青田	qing tian	66
+世界遗产名录	shi jie yi chan ming lu	65
+东门外	dong men wai	65
+宁远	ning yuan	65
+梅县	mei xian	65
+美东	mei dong	65
+蔡甸	cai dian	65
+迎宾大道	ying bin da dao	65
+东一	dong yi	64
+乐东	le dong	64
+坂田	ban tian	64
+武昌火车站	wu chang huo che zhan	64
+红岩	hong yan	64
+红星路	hong xing lu	64
+绿岛	lv dao	64
+陇南市	long nan shi	64
+云南省昆明市	yun nan sheng kun ming shi	63
+广州东站	guang zhou dong zhan	63
+毕节市	bi jie shi	63
+水工	shui gong	63
+汉寿	han shou	63
+玉树州	yu shu zhou	63
+西溪	xi xi	63
+三明市	san ming shi	62
+东海海域	dong hai hai yu	62
+中山东路	zhong shan dong lu	62
+交警二大队	jiao jing er da dui	62
+北湖	bei hu	62
+天然气资源	tian ran qi zi yuan	62
+工程处	gong cheng chu	62
+横岗	heng gang	62
+白沙洲	bai sha zhou	62
+航空航天大学	hang kong hang tian da xue	62
+青羊	qing yang	62
+俄勒冈州	e lei gang zhou	61
+大邑	da yi	61
+海心沙	hai xin sha	61
+湾仔	wan zai	61
+省博物馆	sheng bo wu guan	61
+经管学院	jing guan xue yuan	61
+西一	xi yi	61
+和林	he lin	60
+商河	shang he	60
+大良	da liang	60
+天成	tian cheng	60
+德清	de qing	60
+玉林市	yu lin shi	60
+东方市	dong fang shi	59
+两城	liang cheng	59
+五所	wu suo	59
+什刹海	shen sha hai	59
+历下	li xia	59
+四连	si lian	59
+基隆市	ji long shi	59
+栈桥	zhan qiao	59
+省立医院	sheng li yi yuan	59
+五公里	wu gong li	58
+成华	cheng hua	58
+汨罗市	mi luo shi	58
+汽车东站	qi che dong zhan	58
+清江	qing jiang	58
+红安	hong an	58
+芷江	zhi jiang	58
+长沙火车站	chang sha huo che zhan	58
+华星	hua xing	57
+安溪	an xi	57
+广西自治区	guang xi zi zhi qu	57
+朱敏	zhu min	57
+王乐泉	wang le quan	57
+芙蓉路	fu rong lu	57
+钱进	qian jin	57
+陆丰市	lu feng shi	57
+黄河路	huang he lu	57
+养殖小区	yang zhi xiao qu	56
+南岭	nan ling	56
+友谊医院	you yi yi yuan	56
+弹唱	dan chang	56
+榆中	yu zhong	56
+田纳西州	tian na xi zhou	56
+省农科院	sheng nong ke yuan	56
+中沙	zhong sha	55
+小寨	xiao zhai	55
+新中	xin zhong	55
+梧州市	wu zhou shi	55
+皇岗口岸	huang gang kou an	55
+东平	dong ping	54
+孟加拉湾	meng jia la wan	54
+安仁	an ren	54
+客运总站	ke yun zong zhan	54
+容桂	rong gui	54
+泸溪	lu xi	54
+溆浦	xu pu	54
+石桥铺	shi qiao pu	54
+秀水	xiu shui	54
+迎泽	ying ze	54
+金凤	jin feng	54
+阎良	yan liang	54
+黄家	huang jia	54
+黄江	huang jiang	54
+上城	shang cheng	53
+临湘市	lin xiang shi	53
+人民政府办公厅	ren min zheng fu ban gong ting	53
+北仑	bei lun	53
+南汇	nan hui	53
+双桥	shuang qiao	53
+嘉义市	jia yi shi	53
+崇文	chong wen	53
+成山	cheng shan	53
+新罕布什尔州	xin han bu shen er zhou	53
+汝城	ru cheng	53
+汽车北站	qi che bei zhan	53
+汽车西站	qi che xi zhan	53
+浙江省台州市	zhe jiang sheng tai zhou shi	53
+海安	hai an	53
+罗湖口岸	luo hu kou an	53
+随州市	sui zhou shi	53
+黄瑶	huang yao	53
+中华门	zhong hua men	52
+亚欧大陆桥	ya ou da lu qiao	52
+公交分局	gong jiao fen ju	52
+建华	jian hua	52
+慈利	ci li	52
+昌都	chang dou	52
+民安	min an	52
+水产市场	shui chan shi chang	52
+江上	jiang shang	52
+浮桥	fu qiao	52
+路易斯安那州	lu yi si an na zhou	52
+三城	san cheng	51
+东疆	dong jiang	51
+中心血站	zhong xin xue zhan	51
+乌苏市	wu su shi	51
+关店	guan dian	51
+单店	dan dian	51
+卢湾	lu wan	51
+小清河	xiao qing he	51
+康涅狄格州	kang nie di ge zhou	51
+开福	kai fu	51
+旅游学院	lv you xue yuan	51
+朝阳公园	zhao yang gong yuan	51
+桂东	gui dong	51
+江浦	jiang pu	51
+白石	bai shi	51
+第四人民医院	di si ren min yi yuan	51
+马军	ma jun	51
+黄花机场	huang hua ji chang	51
+龙泉驿	long quan yi	51
+东岗	dong gang	50
+东湖新技术开发区	dong hu xin ji shu kai fa qu	50
+保亭	bao ting	50
+劲松	jing song	50
+历城	li cheng	50
+大岭山	da ling shan	50
+新华医院	xin hua yi yuan	50
+桂阳	gui yang	50
+横路	heng lu	50
+江桥	jiang qiao	50
+漳浦	zhang pu	50
+电白	dian bai	50
+藏传	cang chuan	50
+万象城	wan xiang cheng	49
+上海火车站	shang hai huo che zhan	49
+中街	zhong jie	49
+乐从	le cong	49
+克州	ke zhou	49
+劳动路	lao dong lu	49
+博罗	bo luo	49
+山一	shan yi	49
+市国税局	shi guo shui ju	49
+常熟市	chang shu shi	49
+新竹市	xin zhu shi	49
+林家	lin jia	49
+槐荫	huai yin	49
+檀香山	tan xiang shan	49
+湘阴	xiang yin	49
+犹他州	you ta zhou	49
+省图书馆	sheng tu shu guan	49
+耒阳市	lei yang shi	49
+西双版纳州	xi shuang ban na zhou	49
+连州市	lian zhou shi	49
+阿拉斯加州	a la si jia zhou	49
+青川	qing chuan	49
+冷水江市	leng shui jiang shi	48
+南滨路	nan bin lu	48
+博州	bo zhou	48
+屯昌	tun chang	48
+恩施市	en shi shi	48
+朝阳路	zhao yang lu	48
+梅山	mei shan	48
+航天城	hang tian cheng	48
+阿肯色州	a ken se zhou	48
+凤阳	feng yang	47
+卫生监督局	wei sheng jian du ju	47
+印第安纳州	yin di an na zhou	47
+堪萨斯州	kan sa si zhou	47
+威斯康星州	wei si kang xing zhou	47
+幸福路	xing fu lu	47
+惠阳	hui yang	47
+新市	xin shi	47
+明辨	ming bian	47
+李庄	li zhuang	47
+江都	jiang du	47
+迈皋桥	mai gao qiao	47
+陈国	chen guo	47
+陈村	chen cun	47
+黄村	huang cun	47
+中国农业科学院	zhong guo nong ye ke xue yuan	46
+临武	lin wu	46
+主要景点	zhu yao jing dian	46
+六大队	liu da dui	46
+北川县	bei chuan xian	46
+北苑	bei yuan	46
+华新	hua xin	46
+塘边	tang bian	46
+市二医院	shi er yi yuan	46
+新厂	xin chang	46
+新地	xin di	46
+桥北	qiao bei	46
+琼中	qiong zhong	46
+省消防总队	sheng xiao fang zong dui	46
+积水潭	ji shui tan	46
+菜园坝	cai yuan ba	46
+菜园子	cai yuan zi	46
+龙头寺	long tou si	46
+佐治亚州	zuo zhi ya zhou	45
+台北县	tai bei xian	45
+城新	cheng xin	45
+市一医院	shi yi yi yuan	45
+湖口	hu kou	45
+西京医院	xi jing yi yuan	45
+邵东	shao dong	45
+项城市	xiang cheng shi	45
+麦地	mai di	45
+两路口	liang lu kou	44
+什邡市	shen fang shi	44
+佛冈	fu gang	44
+卫校	wei xiao	44
+双牌	shuang pai	44
+天坛公园	tian tan gong yuan	44
+安贞医院	an zhen yi yuan	44
+康桥	kang qiao	44
+新庄	xin zhuang	44
+经委	jing wei	44
+都柏林	dou bo lin	44
+铁西	tie xi	44
+香河	xiang he	44
+三新	san xin	43
+和谐家园	he xie jia yuan	43
+圆山	yuan shan	43
+桥东	qiao dong	43
+武进	wu jin	43
+沙湖	sha hu	43
+湖南路	hu nan lu	43
+狮山	shi shan	43
+苜蓿	mu xu	43
+较场口	jiao chang kou	43
+通道县	tong dao xian	43
+上春	shang chun	42
+促进社区	cu jin she qu	42
+凤翔	feng xiang	42
+北市	bei shi	42
+和田市	he tian shi	42
+天河客运站	tian he ke yun zhan	42
+小西湖	xiao xi hu	42
+市妇幼保健院	shi fu you bao jian yuan	42
+拱北口岸	gong bei kou an	42
+枫林	feng lin	42
+河北省唐山市	he bei sheng tang shan shi	42
+沿江大道	yan jiang da dao	42
+海沧	hai cang	42
+烈士纪念碑	lie shi ji nian bei	42
+省新闻出版局	sheng xin wen chu ban ju	42
+石井	shi jing	42
+红星路二段	hong xing lu er duan	42
+莘庄	xin zhuang	42
+西丽	xi li	42
+连南	lian nan	42
+中北	zhong bei	41
+体育场路	ti yu chang lu	41
+克赖斯特彻奇	ke lai si te che qi	41
+内环路	nei huan lu	41
+凯德	kai de	41
+北滘	bei jiao	41
+北魏	bei wei	41
+厂门口	chang men kou	41
+江北机场	jiang bei ji chang	41
+沭阳	shu yang	41
+淳安	chun an	41
+王家湾	wang jia wan	41
+瓦努阿图	wa nu a tu	41
+白头	bai tou	41
+石坝	shi ba	41
+科技中心	ke ji zhong xin	41
+空军部队	kong jun bu dui	41
+老山	lao shan	41
+老年活动中心	lao nian huo dong zhong xin	41
+莲塘	lian tang	41
+裕华路	yu hua lu	41
+韩城市	han cheng shi	41
+东湖风景区	dong hu feng jing qu	40
+东院	dong yuan	40
+五里店	wu li dian	40
+北京动物园	bei jing dong wu yuan	40
+后张	hou zhang	40
+嘉陵	jia ling	40
+大华	da hua	40
+如皋市	ru gao shi	40
+密西西比州	mi xi xi bi zhou	40
+德胜	de sheng	40
+新墨西哥州	xin mo xi ge zhou	40
+方庄	fang zhuang	40
+池边	chi bian	40
+洋山	yang shan	40
+温州市鹿城区	wen zhou shi lu cheng qu	40
+澳新	ao xin	40
+绥宁	sui ning	40
+花桥	hua qiao	40
+贵港市	gui gang shi	40
+陈家祠	chen jia ci	40
+香格里拉大酒店	xiang ge li la da jiu dian	40
+鹤壁市	he bi shi	40
+鹿泉市	lu quan shi	40
+上虞	shang yu	39
+东坝	dong ba	39
+东方医院	dong fang yi yuan	39
+九洲	jiu zhou	39
+假日酒店	jia ri jiu dian	39
+南锣鼓巷	nan luo gu xiang	39
+桥南	qiao nan	39
+水库中	shui ku zhong	39
+泰顺	tai shun	39
+洪洞	hong dong	39
+石湾	shi wan	39
+秭归	zi gui	39
+经开区管委会	jing kai qu guan wei hui	39
+绵竹市	mian zhu shi	39
+绿都	lv dou	39
+缅因州	mian yin zhou	39
+解放西路	jie fang xi lu	39
+警官学院	jing guan xue yuan	39
+购书中心	gou shu zhong xin	39
+那曲	na qu	39
+香港中路	xiang gang zhong lu	39
+上地	shang di	38
+东华	dong hua	38
+东方红广场	dong fang hong guang chang	38
+东河	dong he	38
+五一大道	wu yi da dao	38
+京山	jing shan	38
+刘建超	liu jian chao	38
+北关	bei guan	38
+北园	bei yuan	38
+南中国	nan zhong guo	38
+南丰	nan feng	38
+新建路	xin jian lu	38
+新河	xin he	38
+桥口	qiao kou	38
+榆次	yu ci	38
+沙溪	sha xi	38
+河北省衡水市	he bei sheng heng shui shi	38
+湘东	xiang dong	38
+矿业大学	kuang ye da xue	38
+禹州市	yu zhou shi	38
+移民新村	yi min xin cun	38
+美法	mei fa	38
+连山	lian shan	38
+通化市	tong hua shi	38
+长堤	zhang di	38
+阜宁	fu ning	38
+韶山路	shao shan lu	38
+龙源	long yuan	38
+龙门山	long men shan	38
+东塘	dong tang	37
+中原路	zhong yuan lu	37
+中牟	zhong mu	37
+交警三大队	jiao jing san da dui	37
+信宜市	xin yi shi	37
+兰新	lan xin	37
+北医三院	bei yi san yuan	37
+华丰	hua feng	37
+台山市	tai shan shi	37
+响水	xiang shui	37
+商业城	shang ye cheng	37
+嘉善	jia shan	37
+客村	ke cun	37
+山东路	shan dong lu	37
+工业大	gong ye da	37
+工业大道	gong ye da dao	37
+彭水县	peng shui xian	37
+德庆	de qing	37
+新邵	xin shao	37
+昌平法院	chang ping fa yuan	37
+歌乐山	ge le shan	37
+永康市	yong kang shi	37
+永辉超市	yong hui chao shi	37
+汉中门	han zhong men	37
+滨江大道	bin jiang da dao	37
+环城西路	huan cheng xi lu	37
+莱芜市	lai wu shi	37
+酉阳县	you yang xian	37
+钱江新城	qian jiang xin cheng	37
+阳新	yang xin	37
+雨湖	yu hu	37
+雷州市	lei zhou shi	37
+韶山市	shao shan shi	37
+麻阳	ma yang	37
+龙溪	long xi	37
+一建	yi jian	36
+三峡广场	san xia guang chang	36
+两河	liang he	36
+中环线	zhong huan xian	36
+云峰	yun feng	36
+交通队	jiao tong dui	36
+人民大街	ren min da jie	36
+体育西路	ti yu xi lu	36
+华兴	hua xing	36
+南门口	nan men kou	36
+团结路	tuan jie lu	36
+壕沟	hao gou	36
+外村	wai cun	36
+奎屯市	kui tun shi	36
+安乡	an xiang	36
+巷内	xiang nei	36
+广东台山	guang dong tai shan	36
+建筑设计院	jian zhu she ji yuan	36
+所社区	suo she qu	36
+振华	zhen hua	36
+李家沱	li jia tuo	36
+河北省张家口市	he bei sheng zhang jia kou shi	36
+潮阳	chao yang	36
+蓬江	peng jiang	36
+解放北路	jie fang bei lu	36
+越秀公园	yue xiu gong yuan	36
+车陂	che bei	36
+长江西路	chang jiang xi lu	36
+阿勒泰市	a lei tai shi	36
+雪峰	xue feng	36
+顾村	gu cun	36
+高培	gao pei	36
+高路	gao lu	36
+高雄县	gao xiong xian	36
+鱼洞	yu dong	36
+上中	shang zhong	35
+东乡	dong xiang	35
+中江	zhong jiang	35
+交通中心	jiao tong zhong xin	35
+县中医院	xian zhong yi yuan	35
+大润发超市	da run fa chao shi	35
+宣武医院	xuan wu yi yuan	35
+岭南学院	ling nan xue yuan	35
+平安大街	ping an da jie	35
+晋宁	jin ning	35
+来凤	lai feng	35
+武警支队	wu jing zhi dui	35
+江油市	jiang you shi	35
+清新县	qing xin xian	35
+温泉度假村	wen quan du jia cun	35
+烈士公园	lie shi gong yuan	35
+站前路	zhan qian lu	35
+西河	xi he	35
+里水	li shui	35
+金寨	jin zhai	35
+东兴市	dong xing shi	34
+农业示范园区	nong ye shi fan yuan qu	34
+凯恩	kai en	34
+北京植物园	bei jing zhi wu yuan	34
+华山路	hua shan lu	34
+城建集团	cheng jian ji tuan	34
+大悟	da wu	34
+宝源	bao yuan	34
+宝龙	bao long	34
+小江	xiao jiang	34
+山西路	shan xi lu	34
+平坝	ping ba	34
+徐强	xu qiang	34
+惠安	hui an	34
+成都大学	cheng du da xue	34
+新合作	xin he zuo	34
+新晃	xin huang	34
+梅园	mei yuan	34
+榕城	rong cheng	34
+汉南	han nan	34
+河北省廊坊市	he bei sheng lang fang shi	34
+泗洪	si hong	34
+海清	hai qing	34
+清水塘	qing shui tang	34
+电建	dian jian	34
+省肿瘤医院	sheng zhong liu yi yuan	34
+管局	guan ju	34
+雁栖湖	yan qi hu	34
+香港路	xiang gang lu	34
+万家丽	wan jia li	33
+三和	san he	33
+上塘	shang tang	33
+上海路	shang hai lu	33
+东圃	dong pu	33
+中河	zhong he	33
+九华	jiu hua	33
+云岩	yun yan	33
+交通学院	jiao tong xue yuan	33
+京东方	jing dong fang	33
+仁和	ren he	33
+仙居	xian ju	33
+冷水滩	leng shui tan	33
+出所	chu suo	33
+南坡	nan po	33
+南湖路	nan hu lu	33
+同文	tong wen	33
+后占	hou zhan	33
+四联	si lian	33
+安塞	an sai	33
+富源	fu yuan	33
+小分子	xiao fen zi	33
+崇左市	chong zuo shi	33
+张店	zhang dian	33
+晓庄	xiao zhuang	33
+村前	cun qian	33
+武冈市	wu gang shi	33
+熊猫基地	xiong mao ji di	33
+环城北路	huan cheng bei lu	33
+红牌楼	hong pai lou	33
+羊城晚报社	yang cheng wan bao she	33
+花台	hua tai	33
+英山	ying shan	33
+财产保险公司	cai chan bao xian gong si	33
+金湖	jin hu	33
+长岭	zhang ling	33
+陵水县	ling shui xian	33
+三支队	san zhi dui	32
+三林	san lin	32
+中北路	zhong bei lu	32
+临洮	lin tao	32
+乐昌市	le chang shi	32
+仙女山	xian nv shan	32
+兰亭	lan ting	32
+土地后	tu di hou	32
+威远	wei yuan	32
+山西省运城市	shan xi sheng yun cheng shi	32
+巴适	ba shi	32
+常宁市	chang ning shi	32
+微山湖	wei shan hu	32
+文明路	wen ming lu	32
+新客站	xin ke zhan	32
+新昌	xin chang	32
+朝天宫	chao tian gong	32
+李东	li dong	32
+水电路	shui dian lu	32
+江滨	jiang bin	32
+沙市	sha shi	32
+海东	hai dong	32
+滨江公园	bin jiang gong yuan	32
+石柱县	shi zhu xian	32
+红旗河沟	hong qi he gou	32
+维多利亚港	wei duo li ya gang	32
+罗阳	luo yang	32
+群艺馆	qun yi guan	32
+胸科医院	xiong ke yi yuan	32
+良渚	liang zhu	32
+花垣	hua yuan	32
+重庆路	chong qing lu	32
+铜山区	tong shan qu	32
+长洲	zhang zhou	32
+长海医院	zhang hai yi yuan	32
+阳春市	yang chun shi	32
+青医附院	qing yi fu yuan	32
+高东	gao dong	32
+鹿儿岛	lu er dao	32
+上清寺	shang qing si	31
+东周	dong zhou	31
+二厂	er chang	31
+会泽	hui ze	31
+化州市	hua zhou shi	31
+千台	qian tai	31
+南沙岛	nan sha dao	31
+双屿	shuang yu	31
+国际花园	guo ji hua yuan	31
+坡面	po mian	31
+安岳	an yue	31
+嵩山路	song shan lu	31
+工业园区管委会	gong ye yuan qu guan wei hui	31
+师专	shi zhuan	31
+弹子石	dan zi shi	31
+望江路	wang jiang lu	31
+民主路	min zhu lu	31
+江干	jiang gan	31
+海军司令部	hai jun si ling bu	31
+海星	hai xing	31
+特教学校	te jiao xue xiao	31
+经七路	jing qi lu	31
+绥德	sui de	31
+胶州路	jiao zhou lu	31
+莫愁湖	mo chou hu	31
+蒙牛乳业	meng niu ru ye	31
+西祠胡同	xi ci hu tong	31
+迪庆州	di qing zhou	31
+金海	jin hai	31
+长汀	chang ting	31
+长途汽车总站	chang tu qi che zong zhan	31
+陈家坪	chen jia ping	31
+香樟树	xiang zhang shu	31
+龙洞	long dong	31
+三河市	san he shi	30
+五指山市	wu zhi shan shi	30
+亚拉巴马州	ya la ba ma zhou	30
+仓山	cang shan	30
+北新	bei xin	30
+北环大道	bei huan da dao	30
+南园	nan yuan	30
+南城区	nan cheng qu	30
+发展大道	fa zhan da dao	30
+和平村	he ping cun	30
+商州	shang zhou	30
+嘉园	jia yuan	30
+土门	tu men	30
+坝坝	ba ba	30
+宋家庄	song jia zhuang	30
+客运中心站	ke yun zhong xin zhan	30
+市三医院	shi san yi yuan	30
+林业大学	lin ye da xue	30
+桐柏路	tong bai lu	30
+汝州市	ru zhou shi	30
+海丰	hai feng	30
+海宁市	hai ning shi	30
+燕子矶	yan zi ji	30
+环城南路	huan cheng nan lu	30
+直属库	zhi shu ku	30
+竹园	zhu yuan	30
+简阳市	jian yang shi	30
+藁城市	gao cheng shi	30
+西岭	xi ling	30
+遂昌	sui chang	30
+阜康市	fu kang shi	30
+马鞍山路	ma an shan lu	30
+高平市	gao ping shi	30
+高新园区	gao xin yuan qu	30
+龙海市	long hai shi	30
+万宝	wan bao	29
+上海图书馆	shang hai tu shu guan	29
+中南医院	zhong nan yi yuan	29
+五峰	wu feng	29
+南小岛	nan xiao dao	29
+县交警大队	xian jiao jing da dui	29
+双新	shuang xin	29
+四队	si dui	29
+季华路	ji hua lu	29
+宝安机场	bao an ji chang	29
+尖峰	jian feng	29
+山西省长治市	shan xi sheng zhang zhi shi	29
+平邑	ping yi	29
+府谷	fu gu	29
+文峰	wen feng	29
+旅游委员会	lv you wei yuan hui	29
+曲阜市	qu fu shi	29
+月湖	yue hu	29
+正阳	zheng yang	29
+武安市	wu an shi	29
+玉渊潭公园	yu yuan tan gong yuan	29
+甘南州	gan nan zhou	29
+石山	shi shan	29
+第二外国语学院	di er wai guo yu xue yuan	29
+紫阳	zi yang	29
+舒城	shu cheng	29
+西宝	xi bao	29
+路桥公司	lu qiao gong si	29
+金叶	jin ye	29
+长安路	chang an lu	29
+长征医院	chang zheng yi yuan	29
+长途车站	chang tu che zhan	29
+阜平	fu ping	29
+首都图书馆	shou du tu shu guan	29
+香山公园	xiang shan gong yuan	29
+黄山路	huang shan lu	29
+齐河	qi he	29
+龟山	gui shan	29
+世界遗产委员会	shi jie yi chan wei yuan hui	28
+东二	dong er	28
+东关	dong guan	28
+东岳	dong yue	28
+书院路	shu yuan lu	28
+二马路	er ma lu	28
+交通职业技术学院	jiao tong zhi ye ji shu xue yuan	28
+体育路	ti yu lu	28
+南湖公园	nan hu gong yuan	28
+安宁市	an ning shi	28
+山东省德州市	shan dong sheng de zhou shi	28
+岗顶	gang ding	28
+广宁	guang ning	28
+徽州大道	hui zhou da dao	28
+明珠广场	ming zhu guang chang	28
+月坛	yue tan	28
+杏坛	xing tan	28
+橘子洲头	ju zi zhou tou	28
+武胜路	wu sheng lu	28
+沂水	yi shui	28
+沈阳站	shen yang zhan	28
+沙坪	sha ping	28
+洗车场	xi che chang	28
+滨河大道	bin he da dao	28
+玉渊潭	yu yuan tan	28
+电业	dian ye	28
+福克兰群岛	fu ke lan qun dao	28
+移民村	yi min cun	28
+营盘路	ying pan lu	28
+邻水	lin shui	28
+锦里	jin li	28
+长寿路	chang shou lu	28
+阿图什市	a tu shen shi	28
+阿尔及尔	a er ji er	28
+陆港	lu gang	28
+雕塑公园	diao su gong yuan	28
+靖边	jing bian	28
+黑龙江路	hei long jiang lu	28
+三岔路口	san cha lu kou	27
+东涌	dong yong	27
+中创	zhong chuang	27
+丹阳市	dan yang shi	27
+井陉	jing xing	27
+半坡	ban po	27
+华城	hua cheng	27
+句容市	ju rong shi	27
+吉隆	ji long	27
+唐都医院	tang dou yi yuan	27
+大唐芙蓉园	da tang fu rong yuan	27
+大庆路	da qing lu	27
+奇台	qi tai	27
+如东	ru dong	27
+宜都市	yi du shi	27
+宝丰	bao feng	27
+市政府大楼	shi zheng fu da lou	27
+市辖	shi xia	27
+市运管处	shi yun guan chu	27
+新官	xin guan	27
+日喀则市	ri ka ze shi	27
+枣阳市	zao yang shi	27
+武林广场	wu lin guang chang	27
+泉城路	quan cheng lu	27
+渝西	yu xi	27
+灵隐	ling yin	27
+理工大	li gong da	27
+璧山县	bi shan xian	27
+白城市	bai cheng shi	27
+祁东	qi dong	27
+科技路	ke ji lu	27
+美亚	mei ya	27
+荥经	xing jing	27
+萨摩亚	sa mo ya	27
+衡南	heng nan	27
+西樵山	xi qiao shan	27
+西门口	xi men kou	27
+阳谷	yang gu	27
+陕西省宝鸡市	shan xi sheng bao ji shi	27
+陶然亭公园	tao ran ting gong yuan	27
+靖江市	jing jiang shi	27
+万柏林	wan bo lin	26
+上南路	shang nan lu	26
+上海植物园	shang hai zhi wu yuan	26
+东里	dong li	26
+中间地带	zhong jian di dai	26
+临淄	lin zi	26
+临澧	lin li	26
+九堡	jiu bao	26
+体育大街	ti yu da jie	26
+公园前	gong yuan qian	26
+军区总医院	jun qu zong yi yuan	26
+北运河	bei yun he	26
+南市	nan shi	26
+叙永	xu yong	26
+吉大	ji da	26
+周浦	zhou pu	26
+国际商学院	guo ji shang xue yuan	26
+塔中	ta zhong	26
+大东门	da dong men	26
+对达	dui da	26
+封开	feng kai	26
+嵩明	song ming	26
+并州	bing zhou	26
+建设大街	jian she da jie	26
+德化	de hua	26
+栾城	luan cheng	26
+栾川	luan chuan	26
+棠下	tang xia	26
+武义	wu yi	26
+民和	min he	26
+永城市	yong cheng shi	26
+泗阳	si yang	26
+浠水	xi shui	26
+海门市	hai men shi	26
+清源	qing yuan	26
+渑池	mian chi	26
+环城东路	huan cheng dong lu	26
+皇姑	huang gu	26
+礼泉	li quan	26
+罗村	luo cun	26
+聂拉木	nie la mu	26
+茶店子	cha dian zi	26
+荣成市	rong cheng shi	26
+蒙大拿州	meng da na zhou	26
+西华门	xi hua men	26
+西园	xi yuan	26
+西塔	xi ta	26
+车站路	che zhan lu	26
+达县	da xian	26
+重庆南路	chong qing nan lu	26
+金鼎	jin ding	26
+钟家村	zhong jia cun	26
+霍山	huo shan	26
+龙岗区政府	long gang qu zheng fu	26
+龙门阵	long men zhen	26
+东坑	dong keng	25
+东胜	dong sheng	25
+中环路	zhong huan lu	25
+临夏州	lin xia zhou	25
+临泉	lin quan	25
+九阳	jiu yang	25
+佛蒙特州	fu meng te zhou	25
+修水	xiu shui	25
+光明村	guang ming cun	25
+公交集团公司	gong jiao ji tuan gong si	25
+创业大街	chuang ye da jie	25
+前花	qian hua	25
+南昌路	nan chang lu	25
+南河	nan he	25
+吉庆	ji qing	25
+四厂	si chang	25
+姜堰	jiang yan	25
+安下	an xia	25
+工人体育馆	gong ren ti yu guan	25
+工人宿舍	gong ren su she	25
+市博物馆	shi bo wu guan	25
+平武	ping wu	25
+广河	guang he	25
+张北	zhang bei	25
+彭美	peng mei	25
+恒安	heng an	25
+拱墅	gong shu	25
+振兴路	zhen xing lu	25
+捞刀河	lao dao he	25
+教师公寓	jiao shi gong yu	25
+曲阳	qu yang	25
+横琴岛	heng qin dao	25
+毕节地区	bi jie di qu	25
+洞头	dong tou	25
+洪江市	hong jiang shi	25
+海淀区政府	hai dian qu zheng fu	25
+海滨公园	hai bin gong yuan	25
+清凉山	qing liang shan	25
+潜山	qian shan	25
+瓮安	weng an	25
+皋兰	gao lan	25
+盐都	yan dou	25
+罗湖区委	luo hu qu wei	25
+翔安	xiang an	25
+航空路	hang kong lu	25
+若羌	ruo qiang	25
+街心公园	jie xin gong yuan	25
+西里	xi li	25
+辉县市	hui xian shi	25
+辽中	liao zhong	25
+辽宁省鞍山市	liao ning sheng an shan shi	25
+都心	dou xin	25
+铝厂	lv chang	25
+锦屏	jin ping	25
+随县	sui xian	25
+靖远	jing yuan	25
+黄州	huang zhou	25
+一德路	yi de lu	24
+上海动物园	shang hai dong wu yuan	24
+东校区	dong xiao qu	24
+东陵	dong ling	24
+中山四路	zhong shan si lu	24
+中山门	zhong shan men	24
+中港	zhong gang	24
+临泉路	lin quan lu	24
+乐东县	le dong xian	24
+九峰	jiu feng	24
+二环西路	er huan xi lu	24
+儿科医院	er ke yi yuan	24
+光和	guang he	24
+北港	bei gang	24
+北滨路	bei bin lu	24
+华中科大	hua zhong ke da	24
+华源	hua yuan	24
+华阴市	hua yin shi	24
+南雄市	nan xiong shi	24
+原平市	yuan ping shi	24
+双楠	shuang nan	24
+古蔺	gu lin	24
+合阳	he yang	24
+含光路	han guang lu	24
+地安门	di an men	24
+坪塘	ping tang	24
+塔城市	ta cheng shi	24
+大溪	da xi	24
+宋城	song cheng	24
+宜良	yi liang	24
+岘港	xian gang	24
+崇礼	chong li	24
+崇阳	chong yang	24
+广深高速公路	guang shen gao su gong lu	24
+张江高科技园区	zhang jiang gao ke ji yuan qu	24
+德惠市	de hui shi	24
+春华	chun hua	24
+杜家坎	du jia kan	24
+松阳	song yang	24
+榆树市	yu shu shi	24
+沁阳市	qin yang shi	24
+沅江市	yuan jiang shi	24
+河北省承德市	he bei sheng cheng de shi	24
+沿河路	yan he lu	24
+清水湾	qing shui wan	24
+潜山路	qian shan lu	24
+电白县	dian bai xian	24
+福寿	fu shou	24
+纬一路	wei yi lu	24
+翠微	cui wei	24
+芙蓉南路	fu rong nan lu	24
+苏澳	su ao	24
+茶都	cha dou	24
+莱州湾	lai zhou wan	24
+衡东	heng dong	24
+西藏南路	xi zang nan lu	24
+谷城	gu cheng	24
+赤岗	chi gang	24
+金都	jin dou	24
+镇雄	zhen xiong	24
+附院	fu yuan	24
+高家	gao jia	24
+高科技园区	gao ke ji yuan qu	24
+麓谷	lu gu	24
+一公园	yi gong yuan	23
+万源市	wan yuan shi	23
+东湖开发区	dong hu kai fa qu	23
+东源	dong yuan	23
+东联	dong lian	23
+东风渠	dong feng qu	23
+中保	zhong bao	23
+习水	xi shui	23
+云台	yun tai	23
+五四广场	wu si guang chang	23
+五河	wu he	23
+保健院	bao jian yuan	23
+健康路	jian kang lu	23
+农业展览馆	nong ye zhan lan guan	23
+农牧局	nong mu ju	23
+利州区	li zhou qu	23
+华通	hua tong	23
+南屏	nan ping	23
+合江	he jiang	23
+和平门	he ping men	23
+城南路	cheng nan lu	23
+墨脱	mo tuo	23
+外高桥保税区	wai gao qiao bao shui qu	23
+孟州市	meng zhou shi	23
+宜黄	yi huang	23
+富裕村	fu yu cun	23
+岳麓大道	yue lu da dao	23
+川沙	chuan sha	23
+工人体育场	gong ren ti yu chang	23
+市车管所	shi che guan suo	23
+常营	chang ying	23
+广州路	guang zhou lu	23
+广水市	guang shui shi	23
+怀宁	huai ning	23
+新疆师范大学	xin jiang shi fan da xue	23
+新百	xin bai	23
+明光路	ming guang lu	23
+明孝陵	ming xiao ling	23
+李溪	li xi	23
+杏花岭	xing hua ling	23
+桃园路	tao yuan lu	23
+桐城市	tong cheng shi	23
+武都	wu dou	23
+汉川市	han chuan shi	23
+汉源	han yuan	23
+泉塘	quan tang	23
+泰山路	tai shan lu	23
+洛南	luo nan	23
+涞源	lai yuan	23
+清城	qing cheng	23
+温州市瓯海区	wen zhou shi ou hai qu	23
+湘府路	xiang fu lu	23
+火车站东	huo che zhan dong	23
+犀浦	xi pu	23
+环岛路	huan dao lu	23
+珲春市	hui chun shi	23
+福建省莆田市	fu jian sheng pu tian shi	23
+粮油市场	liang you shi chang	23
+舜耕	shun geng	23
+街心花园	jie xin hua yuan	23
+西平	xi ping	23
+贵溪市	gui xi shi	23
+边防局	bian fang ju	23
+银湖	yin hu	23
+长泰	zhang tai	23
+长辛店	zhang xin dian	23
+首府乌鲁木齐	shou fu wu lu mu qi	23
+高村	gao cun	23
+黄尾屿	huang wei yu	23
+龙潭公园	long tan gong yuan	23
+三医院	san yi yuan	22
+丰城市	feng cheng shi	22
+丰宁	feng ning	22
+九眼桥	jiu yan qiao	22
+九龙湖	jiu long hu	22
+傅家坡	fu jia po	22
+儿童村	er tong cun	22
+凤凰路	feng huang lu	22
+华宝	hua bao	22
+南漳	nan zhang	22
+博山	bo shan	22
+司法学院	si fa xue yuan	22
+和平公园	he ping gong yuan	22
+固始	gu shi	22
+坝下	ba xia	22
+大行宫	da xing gong	22
+太谷	tai gu	22
+夹江	jia jiang	22
+宝坻	bao di	22
+寿阳	shou yang	22
+尖草坪	jian cao ping	22
+帕劳	pa lao	22
+应城市	ying cheng shi	22
+庙前	miao qian	22
+怒江州	nu jiang zhou	22
+文艺路	wen yi lu	22
+新寨	xin zhai	22
+昌黎	chang li	22
+明湖	ming hu	22
+朝阳街	zhao yang jie	22
+木浦	mu pu	22
+松滋市	song zi shi	22
+树德	shu de	22
+栖霞山	qi xia shan	22
+橘子洲大桥	ju zi zhou da qiao	22
+民族文化宫	min zu wen hua gong	22
+涡阳	wo yang	22
+清湖	qing hu	22
+渔业公司	yu ye gong si	22
+漳河	zhang he	22
+火车西站	huo che xi zhan	22
+田林	tian lin	22
+略阳	lve yang	22
+祥龙	xiang long	22
+福建省宁德市	fu jian sheng ning de shi	22
+第五医院	di wu yi yuan	22
+缙云山	jin yun shan	22
+罗坪	luo ping	22
+罗定市	luo ding shi	22
+老河口市	lao he kou shi	22
+肖杰	xiao jie	22
+苍溪	cang xi	22
+苏家屯	su jia tun	22
+苏通大桥	su tong da qiao	22
+草场门	cao chang men	22
+襄汾	xiang fen	22
+西堤	xi di	22
+西塘	xi tang	22
+西工大	xi gong da	22
+西红门	xi hong men	22
+解放东路	jie fang dong lu	22
+解放桥	jie fang qiao	22
+诏安	zhao an	22
+辽宁省抚顺市	liao ning sheng fu shun shi	22
+金湾	jin wan	22
+长江中路	chang jiang zhong lu	22
+阳光城	yang guang cheng	22
+集宁	ji ning	22
+马王	ma wang	22
+鸿福	hong fu	22
+龙港	long gang	22
+龙胜	long sheng	22
+三墩	san dun	21
+东湖公园	dong hu gong yuan	21
+东苑	dong yuan	21
+东风西路	dong feng xi lu	21
+九龙城	jiu long cheng	21
+二附中	er fu zhong	21
+云溪	yun xi	21
+交通路	jiao tong lu	21
+仁化	ren hua	21
+偃师市	yan shi shi	21
+兴平市	xing ping shi	21
+农副产品市场	nong fu chan pin shi chang	21
+凤凰岭	feng huang ling	21
+北头	bei tou	21
+古交市	gu jiao shi	21
+培德	pei de	21
+大围山	da wei shan	21
+大湾	da wan	21
+大路口	da lu kou	21
+如中	ru zhong	21
+宜城市	yi cheng shi	21
+寻甸	xun dian	21
+小东门	xiao dong men	21
+就业中心	jiu ye zhong xin	21
+巷子口	xiang zi kou	21
+市桥	shi qiao	21
+市第二人民医院	shi di er ren min yi yuan	21
+常青路	chang qing lu	21
+平安医院	ping an yi yuan	21
+广州大道北	guang zhou da dao bei	21
+建湖	jian hu	21
+建设南路	jian she nan lu	21
+开元路	kai yuan lu	21
+抚顺路	fu shun lu	21
+摆龙门阵	bai long men zhen	21
+敖德萨	ao de sa	21
+新湖	xin hu	21
+旧宫	jiu gong	21
+旬阳	xun yang	21
+木材厂	mu cai chang	21
+梅溪	mei xi	21
+武穴市	wu xue shi	21
+江宁开发区	jiang ning kai fa qu	21
+沪太路	hu tai lu	21
+河津市	he jin shi	21
+泾阳	jing yang	21
+液化气站	ye hua qi zhan	21
+清华附中	qing hua fu zhong	21
+湖北路	hu bei lu	21
+猴子石大桥	hou zi shi da qiao	21
+石首市	shi shou shi	21
+秀山县	xiu shan xian	21
+纸坊	zhi fang	21
+苏堤	su di	21
+蟠龙	pan long	21
+观山	guan shan	21
+转塘	zhuan tang	21
+银盆岭	yin pen ling	21
+锦绣路	jin xiu lu	21
+长江东路	chang jiang dong lu	21
+霍邱	huo qiu	21
+高支队	gao zhi dui	21
+高栏	gao lan	21
+黄柏	huang bai	21
+龙头山	long tou shan	21
+三解	san jie	20
+下应	xia ying	20
+中国科技馆	zhong guo ke ji guan	20
+中间站	zhong jian zhan	20
+中阳	zhong yang	20
+丰顺	feng shun	20
+交警指挥中心	jiao jing zhi hui zhong xin	20
+人民桥	ren min qiao	20
+俄克拉何马州	e ke la he ma zhou	20
+俄罗斯族	e luo si zu	20
+公交二公司	gong jiao er gong si	20
+兴业路	xing ye lu	20
+利辛	li xin	20
+北京妇产医院	bei jing fu chan yi yuan	20
+十一学校	shi yi xue xiao	20
+华侨医院	hua qiao yi yuan	20
+华苑	hua yuan	20
+南疆铁路	nan jiang tie lu	20
+博湖	bo hu	20
+双城市	shuang cheng shi	20
+口前	kou qian	20
+垡头	fa tou	20
+多米尼加共和国	duo mi ni jia gong he guo	20
+大同路	da tong lu	20
+大沙	da sha	20
+太华路	tai hua lu	20
+太平门	tai ping men	20
+奥林匹克体育中心	ao lin pi ke ti yu zhong xin	20
+妇儿医院	fu er yi yuan	20
+安陆市	an lu shi	20
+广埠屯	guang bu tun	20
+广州火车东站	guang zhou huo che dong zhan	20
+建宁路	jian ning lu	20
+建设村	jian she cun	20
+恩宁路	en ning lu	20
+抚远	fu yuan	20
+揭西	jie xi	20
+教师进修学校	jiao shi jin xiu xue xiao	20
+新华街	xin hua jie	20
+新园	xin yuan	20
+暮云	mu yun	20
+木材加工厂	mu cai jia gong chang	20
+朱宏路	zhu hong lu	20
+机场派出所	ji chang pai chu suo	20
+格尔木市	ge er mu shi	20
+梅河	mei he	20
+模范马路	mo fan ma lu	20
+武乡	wu xiang	20
+民丰	min feng	20
+汾西	fen xi	20
+沙头	sha tou	20
+法制日报社	fa zhi ri bao she	20
+海珠广场	hai zhu guang chang	20
+漫城	man cheng	20
+灌云	guan yun	20
+特拉华州	te la hua zhou	20
+盘道	pan dao	20
+省外贸	sheng wai mao	20
+磐安	pan an	20
+秋阳	qiu yang	20
+科技工业园	ke ji gong ye yuan	20
+竹溪	zhu xi	20
+红塔	hong ta	20
+纬三路	wei san lu	20
+罗山	luo shan	20
+美都	mei dou	20
+翁源	weng yuan	20
+胡家庙	hu jia miao	20
+芙蓉北路	fu rong bei lu	20
+西影路	xi ying lu	20
+西湖路	xi hu lu	20
+远大路	yuan da lu	20
+那拉提	na la ti	20
+金台	jin tai	20
+金河	jin he	20
+镇远	zhen yuan	20
+长潭	zhang tan	20
+阜城	fu cheng	20
+阿拉尔市	a la er shi	20
+静宁	jing ning	20
+马会	ma hui	20
+马驹桥	ma ju qiao	20
+鳌江	ao jiang	20
+鹤城	he cheng	20
+龙池	long chi	20
+一医	yi yi	19
+上海儿童医学中心	shang hai er tong yi xue zhong xin	19
+东园	dong yuan	19
+东星	dong xing	19
+丰产路	feng chan lu	19
+九如	jiu ru	19
+会理	hui li	19
+公主岭市	gong zhu ling shi	19
+公交三公司	gong jiao san gong si	19
+兰屿	lan yu	19
+军工路	jun gong lu	19
+凤起	feng qi	19
+刘杨	liu yang	19
+北楼	bei lou	19
+十五中	shi wu zhong	19
+十渡	shi du	19
+华鑫	hua xin	19
+南岭村	nan ling cun	19
+双溪	shuang xi	19
+双碑	shuang bei	19
+古猗园	gu yi yuan	19
+右玉	you yu	19
+号桥	hao qiao	19
+后宰门	hou zai men	19
+周华	zhou hua	19
+商城路	shang cheng lu	19
+国家体育馆	guo jia ti yu guan	19
+塘里	tang li	19
+大兴法院	da xing fa yuan	19
+天连	tian lian	19
+天长市	tian zhang shi	19
+宝盛乡	bao sheng xiang	19
+宣化	xuan hua	19
+富力地产	fu li di chan	19
+寻甸县	xun dian xian	19
+小营	xiao ying	19
+市建设局	shi jian she ju	19
+平远	ping yuan	19
+广饶	guang rao	19
+建水	jian shui	19
+建设路口	jian she lu kou	19
+张家湾	zhang jia wan	19
+文化东路	wen hua dong lu	19
+新泰市	xin tai shi	19
+新疆农业大学	xin jiang nong ye da xue	19
+新闻大厦	xin wen da sha	19
+方城	fang cheng	19
+昌江县	chang jiang xian	19
+明故宫	ming gu gong	19
+景园	jing yuan	19
+柯尔克孜族	ke er ke zi zu	19
+桐梓	tong zi	19
+梅花山	mei hua shan	19
+横溪	heng xi	19
+水产公司	shui chan gong si	19
+江苏省江阴市	jiang su sheng jiang yin shi	19
+江西路	jiang xi lu	19
+洪泽	hong ze	19
+浦东南路	pu dong nan lu	19
+淅川	xi chuan	19
+淡江	dan jiang	19
+滨河公园	bin he gong yuan	19
+澳门路	ao men lu	19
+灵武市	ling wu shi	19
+牛首山	niu shou shan	19
+珠海机场	zhu hai ji chang	19
+瑞金市	rui jin shi	19
+瑞金路	rui jin lu	19
+石岗	shi gang	19
+石林县	shi lin xian	19
+石狮市	shi shi shi	19
+礼嘉	li jia	19
+禄劝	lu quan	19
+秦都	qin dou	19
+经一路	jing yi lu	19
+经二路	jing er lu	19
+胜利大街	sheng li da jie	19
+营里	ying li	19
+蓝色港湾	lan se gang wan	19
+西峡	xi xia	19
+西朗	xi lang	19
+解放公园	jie fang gong yuan	19
+都安	dou an	19
+金狮	jin shi	19
+铁心桥	tie xin qiao	19
+锦湖	jin hu	19
+长安医院	chang an yi yuan	19
+阳光里	yang guang li	19
+阳关	yang guan	19
+陕西南路	shan xi nan lu	19
+雨花亭	yu hua ting	19
+鳌头	ao tou	19
+龙塘	long tang	19
+东亭	dong ting	18
+东湖高新	dong hu gao xin	18
+中山一路	zhong shan yi lu	18
+丰溪	feng xi	18
+临江门	lin jiang men	18
+义和	yi he	18
+乌山	wu shan	18
+乌拉泊	wu la po	18
+二七广场	er qi guang chang	18
+五家渠市	wu jia qu shi	18
+五龙	wu long	18
+亚泰大街	ya tai da jie	18
+侯家塘	hou jia tang	18
+八里桥	ba li qiao	18
+公路分局	gong lu fen ju	18
+六都	liu dou	18
+兴村	xing cun	18
+冼村	xian cun	18
+准噶尔盆地	zhun ga er pen di	18
+刘庄	liu zhuang	18
+北达科他州	bei da ke ta zhou	18
+华侨路	hua qiao lu	18
+华科大	hua ke da	18
+友好路	you hao lu	18
+古北	gu bei	18
+吉祥路	ji xiang lu	18
+周建军	zhou jian jun	18
+商南	shang nan	18
+四方坪	si fang ping	18
+回龙观医院	hui long guan yi yuan	18
+土场	tu chang	18
+城站火车站	cheng zhan huo che zhan	18
+城西客运站	cheng xi ke yun zhan	18
+塔山	ta shan	18
+大熊猫栖息地	da xiong mao qi xi di	18
+太原街	tai yuan jie	18
+孟连	meng lian	18
+安永	an yong	18
+安路	an lu	18
+定州市	ding zhou shi	18
+宜州市	yi zhou shi	18
+岑村	cen cun	18
+岳池	yue chi	18
+巡特警支队	xun te jing zhi dui	18
+工人新村	gong ren xin cun	18
+市少年宫	shi shao nian gong	18
+平沙	ping sha	18
+平阳路	ping yang lu	18
+康宁医院	kang ning yi yuan	18
+建阳	jian yang	18
+徐州市委	xu zhou shi wei	18
+循礼门	xun li men	18
+德兴市	de xing shi	18
+新乐市	xin le shi	18
+新联	xin lian	18
+旺旺集团	wang wang ji tuan	18
+晋州市	jin zhou shi	18
+曹家巷	cao jia xiang	18
+杭州路	hang zhou lu	18
+柳巷	liu xiang	18
+梅岭	mei ling	18
+樱花园	ying hua yuan	18
+正宁	zheng ning	18
+水上分局	shui shang fen ju	18
+永修	yong xiu	18
+汉台	han tai	18
+汽渡	qi du	18
+汾阳市	fen yang shi	18
+沁园	qin yuan	18
+沂源	yi yuan	18
+泸定	lu ding	18
+洪江区	hong jiang qu	18
+潞城市	lu cheng shi	18
+砂子塘	sha zi tang	18
+禄劝县	lu quan xian	18
+窑厂	yao chang	18
+管庄	guan zhuang	18
+米粉店	mi fen dian	18
+繁华大道	fan hua da dao	18
+红会医院	hong hui yi yuan	18
+肥城市	fei cheng shi	18
+苏仙	su xian	18
+茶亭	cha ting	18
+营门口	ying men kou	18
+虹口足球场	hong kou zu qiu chang	18
+西坡	xi po	18
+西市	xi shi	18
+财富广场	cai fu guang chang	18
+跃进路	yue jin lu	18
+郑家	zheng jia	18
+金乡	jin xiang	18
+长沙路	chang sha lu	18
+长顺	zhang shun	18
+阆中市	lang zhong shi	18
+青龙湖	qing long hu	18
+靖港	jing gang	18
+香樟路	xiang zhang lu	18
+高坪	gao ping	18
+高城	gao cheng	18
+鹿邑	lu yi	18
+三栋楼	san dong lou	17
+三角城	san jiao cheng	17
+三阳路	san yang lu	17
+上海中学	shang hai zhong xue	17
+东门口	dong men kou	17
+两河口	liang he kou	17
+中山五路	zhong shan wu lu	17
+丰乐	feng le	17
+临清市	lin qing shi	17
+乌坎	wu kan	17
+乐都	le du	17
+九龙山	jiu long shan	17
+于都	yu dou	17
+五星村	wu xing cun	17
+伊斯兰教协会	yi si lan jiao xie hui	17
+体育大学	ti yu da xue	17
+保亭县	bao ting xian	17
+儿童医学中心	er tong yi xue zhong xin	17
+化工路	hua gong lu	17
+北控	bei kong	17
+北理工	bei li gong	17
+华盛	hua sheng	17
+南洲	nan zhou	17
+南浔	nan xun	17
+双山	shuang shan	17
+史志办	shi zhi ban	17
+吴山广场	wu shan guang chang	17
+吴江市	wu jiang shi	17
+回龙观地区	hui long guan di qu	17
+场部	chang bu	17
+城南客运站	cheng nan ke yun zhan	17
+堰塘	yan tang	17
+大报恩寺	da bao en si	17
+大旺	da wang	17
+大连路	da lian lu	17
+天河北路	tian he bei lu	17
+天津路	tian jin lu	17
+安福	an fu	17
+宋家	song jia	17
+定海	ding hai	17
+定淮门	ding huai men	17
+宝塔山	bao ta shan	17
+宝安区政府	bao an qu zheng fu	17
+宝岗大道	bao gang da dao	17
+宣威市	xuan wei shi	17
+将军山	jiang jun shan	17
+小西门	xiao xi men	17
+岑溪市	cen xi shi	17
+市二院	shi er yuan	17
+幺儿	yao er	17
+广州军区总医院	guang zhou jun qu zong yi yuan	17
+广州大道中	guang zhou da dao zhong	17
+建康	jian kang	17
+徐征	xu zheng	17
+怀仁	huai ren	17
+总府路	zong fu lu	17
+扎兰屯市	zha lan tun shi	17
+托克逊	tuo ke xun	17
+拱宸桥	gong chen qiao	17
+新城分局	xin cheng fen ju	17
+新大	xin da	17
+新民市	xin min shi	17
+新江湾城	xin jiang wan cheng	17
+旬邑	xun yi	17
+李家村	li jia cun	17
+杨家岭	yang jia ling	17
+杭州市上城区	hang zhou shi shang cheng qu	17
+林县	lin xian	17
+枞阳	zong yang	17
+枫林路	feng lin lu	17
+柞水	zha shui	17
+永兴村	yong xing cun	17
+永福	yong fu	17
+江东门	jiang dong men	17
+江南西	jiang nan xi	17
+江安	jiang an	17
+沙子口	sha zi kou	17
+河北路	he bei lu	17
+河南路	he nan lu	17
+海德	hai de	17
+涿州市	zhuo zhou shi	17
+清凉门	qing liang men	17
+湖滨路	hu bin lu	17
+湘江路	xiang jiang lu	17
+潮南	chao nan	17
+澎湖列岛	peng hu lie dao	17
+焉耆县	yan qi xian	17
+爱达荷州	ai da he zhou	17
+牛山	niu shan	17
+琉璃河	liu li he	17
+盘江	pan jiang	17
+空军指挥学院	kong jun zhi hui xue yuan	17
+红原	hong yuan	17
+绍兴路	shao xing lu	17
+绩溪	ji xi	17
+老火车站	lao huo che zhan	17
+肖家湾	xiao jia wan	17
+育才小学	yu cai xiao xue	17
+芦溪	lu xi	17
+花莲市	hua lian shi	17
+芳村客运站	fang cun ke yun zhan	17
+荔波	li bo	17
+蒙巴萨	meng ba sa	17
+蕉岭	jiao ling	17
+西吉	xi ji	17
+谢家湾	xie jia wan	17
+赣榆	gan yu	17
+越秀山	yue xiu shan	17
+车站北路	che zhan bei lu	17
+辽宁路	liao ning lu	17
+连南县	lian nan xian	17
+道孚	dao fu	17
+郧西	yun xi	17
+都匀市	dou yun shi	17
+都昌	dou chang	17
+重医	zhong yi	17
+阳光小区	yang guang xiao qu	17
+阳曲	yang qu	17
+阿克拉	a ke la	17
+陈建民	chen jian min	17
+隆平高科	long ping gao ke	17
+高安市	gao an shi	17
+高桥大市场	gao qiao da shi chang	17
+黄桥	huang qiao	17
+鼎城	ding cheng	17
+龙兴	long xing	17
+龙口市	long kou shi	17
+龙陵	long ling	17
+丁桥	ding qiao	16
+七星岗	qi xing gang	16
+万寿	wan shou	16
+三峡坝区	san xia ba qu	16
+上坊	shang fang	16
+上庄	shang zhuang	16
+东明路	dong ming lu	16
+中市	zhong shi	16
+丽景	li jing	16
+乐至	le zhi	16
+云南路	yun nan lu	16
+五里牌	wu li pai	16
+井冈山市	jing gang shan shi	16
+交城	jiao cheng	16
+交大路	jiao da lu	16
+仁怀市	ren huai shi	16
+仓库区	cang ku qu	16
+佛坪	fu ping	16
+供水总公司	gong shui zong gong si	16
+保康县	bao kang xian	16
+共和新路	gong he xin lu	16
+兴华街	xing hua jie	16
+北京城市学院	bei jing cheng shi xue yuan	16
+北屯	bei tun	16
+华岩	hua yan	16
+华清	hua qing	16
+南新	nan xin	16
+南通大学	nan tong da xue	16
+南郊公园	nan jiao gong yuan	16
+历史城区	li shi cheng qu	16
+双凤	shuang feng	16
+双河	shuang he	16
+司门口	si men kou	16
+和布克赛尔县	he bu ke sai er xian	16
+和平广场	he ping guang chang	16
+哇尔玛乡	wa er ma xiang	16
+嘉华大桥	jia hua da qiao	16
+嘉陵江大桥	jia ling jiang da qiao	16
+回兴	hui xing	16
+国际列车	guo ji lie che	16
+坡子街	po zi jie	16
+城东路	cheng dong lu	16
+大前	da qian	16
+大台	da tai	16
+大源	da yuan	16
+大滩	da tan	16
+天安数码城	tian an shu ma cheng	16
+天宫院	tian gong yuan	16
+天湖	tian hu	16
+太平街	tai ping jie	16
+奥林匹克花园	ao lin pi ke hua yuan	16
+宁都	ning dou	16
+宁陕	ning shan	16
+宜阳	yi yang	16
+富顺	fu shun	16
+小梅沙	xiao mei sha	16
+山西省大同市	shan xi sheng da tong shi	16
+岳家嘴	yue jia zui	16
+市公交公司	shi gong jiao gong si	16
+市客管处	shi ke guan chu	16
+府东街	fu dong jie	16
+康乐园	kang le yuan	16
+德安	de an	16
+文昌路	wen chang lu	16
+新井	xin jing	16
+新水	xin shui	16
+新马	xin ma	16
+新马路	xin ma lu	16
+昆明路	kun ming lu	16
+明星村	ming xing cun	16
+晋源	jin yuan	16
+望城坡	wang cheng po	16
+未来城	wei lai cheng	16
+来安	lai an	16
+杨家山	yang jia shan	16
+柿子树	shi zi shu	16
+横琴口岸	heng qin kou an	16
+武汉工程大学	wu han gong cheng da xue	16
+永善	yong shan	16
+汉沽	han gu	16
+江滨路	jiang bin lu	16
+沙坝	sha ba	16
+沾化	zhan hua	16
+深圳路	shen zhen lu	16
+灌南	guan nan	16
+灵寿	ling shou	16
+灵溪	ling xi	16
+爱都	ai dou	16
+玉门市	yu men shi	16
+王家墩	wang jia dun	16
+登峰	deng feng	16
+白庙	bai miao	16
+白沙县	bai sha xian	16
+秋涛路	qiu tao lu	16
+稷山	ji shan	16
+第一桥	di yi qiao	16
+红旗街	hong qi jie	16
+绥中	sui zhong	16
+罗山路	luo shan lu	16
+翠屏	cui ping	16
+翼城	yi cheng	16
+老西门	lao xi men	16
+育英	yu ying	16
+茂业百货	mao ye bai huo	16
+莲花桥	lian hua qiao	16
+薛家岛	xue jia dao	16
+西弗吉尼亚州	xi fu ji ni ya zhou	16
+道里	dao li	16
+金中	jin zhong	16
+金井	jin jing	16
+金街	jin jie	16
+铜川路	tong chuan lu	16
+铜陵路	tong ling lu	16
+锡伯族	xi bo zu	16
+镇安	zhen an	16
+镇巴	zhen ba	16
+长山	zhang shan	16
+长武	zhang wu	16
+长治路	zhang zhi lu	16
+阅江楼	yue jiang lou	16
+阳西	yang xi	16
+食品城	shi pin cheng	16
+马绍尔群岛	ma shao er qun dao	16
+驷马桥	si ma qiao	16
+高岭	gao ling	16
+鸡鸣寺	ji ming si	16
+鹤峰	he feng	16
+麦西来甫	mai xi lai fu	16
+黄花园大桥	huang hua yuan da qiao	16
+黑龙江省佳木斯市	hei long jiang sheng jia mu si shi	16
+万年场	wan nian chang	15
+三堡	san bao	15
+上村	shang cun	15
+东岭	dong ling	15
+东林	dong lin	15
+东湖社区	dong hu she qu	15
+中山公园站	zhong shan gong yuan zhan	15
+中山桥	zhong shan qiao	15
+临渭	lin wei	15
+临邑	lin yi	15
+九台市	jiu tai shi	15
+五里墩	wu li dun	15
+人才大厦	ren cai da sha	15
+伍家岭	wu jia ling	15
+信丰	xin feng	15
+光山	guang shan	15
+免税商店	mian shui shang dian	15
+八佰伴	ba bai ban	15
+八卦洲	ba gua zhou	15
+公交五公司	gong jiao wu gong si	15
+兰山	lan shan	15
+凉水河	liang shui he	15
+创新公司	chuang xin gong si	15
+剑阁	jian ge	15
+北京展览馆	bei jing zhan lan guan	15
+北塘	bei tang	15
+北桥头	bei qiao tou	15
+北流市	bei liu shi	15
+区交通局	qu jiao tong ju	15
+医学院附属医院	yi xue yuan fu shu yi yuan	15
+十里店	shi li dian	15
+华蓥市	hua ying shi	15
+南湖广场	nan hu guang chang	15
+南达科他州	nan da ke ta zhou	15
+卫生队	wei sheng dui	15
+古寨	gu zhai	15
+台北路	tai bei lu	15
+合浦	he pu	15
+吉林省通化市	ji lin sheng tong hua shi	15
+后楼	hou lou	15
+向华	xiang hua	15
+吴川市	wu chuan shi	15
+和平南路	he ping nan lu	15
+塔吉克族	ta ji ke zu	15
+墩和	dun he	15
+天回	tian hui	15
+天心阁	tian xin ge	15
+好又多超市	hao you duo chao shi	15
+宁国路	ning guo lu	15
+宁河	ning he	15
+定王台	ding wang tai	15
+小南门	xiao nan men	15
+小山头	xiao shan tou	15
+小岗	xiao gang	15
+小青岛	xiao qing dao	15
+小马路	xiao ma lu	15
+居庸关长城	ju yong guan chang cheng	15
+山溪	shan xi	15
+山西省阳泉市	shan xi sheng yang quan shi	15
+巴里坤县	ba li kun xian	15
+市三院	shi san yuan	15
+师院	shi yuan	15
+平凉路	ping liang lu	15
+府西街	fu xi jie	15
+延川	yan chuan	15
+建康路	jian kang lu	15
+开村	kai cun	15
+张杨路	zhang yang lu	15
+思明	si ming	15
+思茅	si mao	15
+恒丰	heng feng	15
+文景路	wen jing lu	15
+新南门	xin nan men	15
+明德门	ming de men	15
+景谷县	jing gu xian	15
+月牙湖	yue ya hu	15
+望海楼	wang hai lou	15
+来马	lai ma	15
+武宁	wu ning	15
+武江	wu jiang	15
+毛纺厂	mao fang chang	15
+民俗文化村	min su wen hua cun	15
+水西门	shui xi men	15
+沈河	shen he	15
+洛浦	luo pu	15
+涞水	lai shui	15
+清华学堂	qing hua xue tang	15
+渭城	wei cheng	15
+湖山	hu shan	15
+潭柘寺	tan zhe si	15
+牛角沱	niu jiao tuo	15
+珞狮南路	luo shi nan lu	15
+界石	jie shi	15
+皮山	pi shan	15
+皮革厂	pi ge chang	15
+盐津	yan jin	15
+福田保税区	fu tian bao shui qu	15
+粉岭	fen ling	15
+红专	hong zhuan	15
+纬七路	wei qi lu	15
+纬二路	wei er lu	15
+美西	mei xi	15
+耀华	yao hua	15
+老军营	lao jun ying	15
+老庄	lao zhuang	15
+花园街	hua yuan jie	15
+芳草地	fang cao di	15
+苏丹尼耶	su dan ni ye	15
+苏坡	su po	15
+苏州路	su zhou lu	15
+茂南	mao nan	15
+虎山	hu shan	15
+袁家岗	yuan jia gang	15
+西桥	xi qiao	15
+质量监督局	zhi liang jian du ju	15
+辽宁省盘锦市	liao ning sheng pan jin shi	15
+迁安市	qian an shi	15
+郑大	zheng da	15
+郸城	dan cheng	15
+金平	jin ping	15
+金谷	jin gu	15
+金陵饭店	jin ling fan dian	15
+鑫源	xin yuan	15
+锁金村	suo jin cun	15
+长坡	zhang po	15
+长垣	zhang yuan	15
+长虹路	chang hong lu	15
+阜南	fu nan	15
+阜外医院	fu wai yi yuan	15
+雅安地区	ya an di qu	15
+霍城	huo cheng	15
+顺安	shun an	15
+颍州区	ying zhou qu	15
+高北	gao bei	15
+鲁迅公园	lu xun gong yuan	15
+黄田	huang tian	15
+黄龙体育中心	huang long ti yu zhong xin	15
+龙泉村	long quan cun	15
+龙首	long shou	15
+丁家庄	ding jia zhuang	14
+七局	qi ju	14
+三洲	san zhou	14
+东侧路	dong ce lu	14
+东台市	dong tai shi	14
+东盛	dong sheng	14
+中央商场	zhong yang shang chang	14
+中心花园	zhong xin hua yuan	14
+中西区	zhong xi qu	14
+丰泽	feng ze	14
+丹徒	dan tu	14
+二厅	er ting	14
+二连浩特市	er lian hao te shi	14
+云台花园	yun tai hua yuan	14
+五金城	wu jin cheng	14
+交道口	jiao dao kou	14
+侯马市	hou ma shi	14
+元高	yuan gao	14
+全南	quan nan	14
+全椒	quan jiao	14
+六厂	liu chang	14
+兰新线	lan xin xian	14
+其国	qi guo	14
+净水厂	jing shui chang	14
+凯宾斯基	kai bin si ji	14
+刘村	liu cun	14
+包河大道	bao he da dao	14
+北新桥	bei xin qiao	14
+北门口	bei men kou	14
+区医院	qu yi yuan	14
+十八中	shi ba zhong	14
+十四中	shi si zhong	14
+升平	sheng ping	14
+半岛酒店	ban dao jiu dian	14
+华峰	hua feng	14
+华文学院	hua wen xue yuan	14
+华锐	hua rui	14
+南沙湾	nan sha wan	14
+南里	nan li	14
+博爱路	bo ai lu	14
+卫星路	wei xing lu	14
+台湖	tai hu	14
+同兴	tong xing	14
+后村	hou cun	14
+吐乌大	tu wu da	14
+含山	han shan	14
+唐家墩	tang jia dun	14
+唐家岭	tang jia ling	14
+唐延路	tang yan lu	14
+回天	hui tian	14
+团风	tuan feng	14
+国际赛车场	guo ji sai che chang	14
+城南新区	cheng nan xin qu	14
+城固	cheng gu	14
+夏津	xia jin	14
+大冲	da chong	14
+大坦沙	da tan sha	14
+大码头	da ma tou	14
+大社	da she	14
+大雁塔北广场	da yan ta bei guang chang	14
+天山北坡	tian shan bei po	14
+宁海路	ning hai lu	14
+宁通	ning tong	14
+宁阳	ning yang	14
+宝山路	bao shan lu	14
+宝峰	bao feng	14
+宾阳	bin yang	14
+察布查尔县	cha bu cha er xian	14
+将军路	jiang jun lu	14
+尤溪	you xi	14
+山底	shan di	14
+山美	shan mei	14
+山都	shan dou	14
+工人路	gong ren lu	14
+巴塘	ba tang	14
+市行政服务中心	shi xing zheng fu wu zhong xin	14
+平安村	ping an cun	14
+平安路	ping an lu	14
+平陆	ping lu	14
+广汕公路	guang shan gong lu	14
+开慧	kai hui	14
+彩田路	cai tian lu	14
+彭埠	peng bu	14
+徐州市泉山区	xu zhou shi quan shan qu	14
+徐庄	xu zhuang	14
+德意	de yi	14
+成华大道	cheng hua da dao	14
+文学馆	wen xue guan	14
+文德路	wen de lu	14
+新南路	xin nan lu	14
+新围	xin wei	14
+新民村	xin min cun	14
+新洲路	xin zhou lu	14
+新集	xin ji	14
+旺苍	wang cang	14
+景宁	jing ning	14
+桃花江	tao hua jiang	14
+梅园新村	mei yuan xin cun	14
+森林动物园	sen lin dong wu yuan	14
+横沙	heng sha	14
+正义路	zheng yi lu	14
+正阳门	zheng yang men	14
+永清街	yong qing jie	14
+永胜	yong sheng	14
+汇佳	hui jia	14
+汽配市场	qi pei shi chang	14
+河北省沧州市	he bei sheng cang zhou shi	14
+泽普	ze pu	14
+洪山路	hong shan lu	14
+洪湾	hong wan	14
+洪雅	hong ya	14
+浈江	zhen jiang	14
+海珠客运站	hai zhu ke yun zhan	14
+清江路	qing jiang lu	14
+潮安县	chao an xian	14
+灵璧	ling bi	14
+照母山	zhao mu shan	14
+牌前	pai qian	14
+界首市	jie shou shi	14
+百丈	bai zhang	14
+百子湾	bai zi wan	14
+省二院	sheng er yuan	14
+福中	fu zhong	14
+离石	li shi	14
+秣陵	mo ling	14
+紫竹院公园	zi zhu yuan gong yuan	14
+红岩村	hong yan cun	14
+职介中心	zhi jie zhong xin	14
+联盛	lian sheng	14
+肖家河	xiao jia he	14
+节制闸	jie zhi zha	14
+芦洞	lu dong	14
+药材市场	yao cai shi chang	14
+营山	ying shan	14
+蒙阴	meng yin	14
+街路口	jie lu kou	14
+西湖公园	xi hu gong yuan	14
+西湖大道	xi hu da dao	14
+贵定	gui ding	14
+赛虹桥	sai hong qiao	14
+轻纺城	qing fang cheng	14
+辛家庙	xin jia miao	14
+近江	jin jiang	14
+郁南	yu nan	14
+郯城	tan cheng	14
+金塔	jin ta	14
+铁道口	tie dao kou	14
+锡林浩特市	xi lin hao te shi	14
+镇中	zhen zhong	14
+长春路	chang chun lu	14
+陈庄	chen zhuang	14
+青园	qing yuan	14
+青岛路	qing dao lu	14
+青铜峡市	qing tong xia shi	14
+骡马市	luo ma shi	14
+高庄	gao zhuang	14
+鲁巷	lu xiang	14
+鼓楼法院	gu lou fa yuan	14
+龙潭湖	long tan hu	14
+龙翔大道	long xiang da dao	14
+龙阳路	long yang lu	14
+万丰	wan feng	13
+三合	san he	13
+东塔	dong ta	13
+东平湖	dong ping hu	13
+东湾	dong wan	13
+两河流域	liang he liu yu	13
+中南美	zhong nan mei	13
+中央花园	zhong yang hua yuan	13
+临沭	lin shu	13
+九溪	jiu xi	13
+二仙桥	er xian qiao	13
+云谷	yun gu	13
+五常市	wu chang shi	13
+五桂桥	wu gui qiao	13
+产业园管委会	chan ye yuan guan wei hui	13
+仪陇	yi long	13
+体育馆路	ti yu guan lu	13
+余干	yu gan	13
+兴庆路	xing qing lu	13
+兴隆村	xing long cun	13
+农讲所	nong jiang suo	13
+凭祥市	ping xiang shi	13
+创业大厦	chuang ye da sha	13
+创新路	chuang xin lu	13
+北七家	bei qi jia	13
+北京农学院	bei jing nong xue yuan	13
+北展	bei zhan	13
+北望	bei wang	13
+十八里店	shi ba li dian	13
+华业	hua ye	13
+华瑞	hua rui	13
+南山公安分局	nan shan gong an fen ju	13
+南林	nan lin	13
+南海区政府	nan hai qu zheng fu	13
+南苑机场	nan yuan ji chang	13
+南陵	nan ling	13
+卫辉市	wei hui shi	13
+双塘	shuang tang	13
+双师	shuang shi	13
+双桥子	shuang qiao zi	13
+古田二路	gu tian er lu	13
+吉木乃	ji mu nai	13
+含光门	han guang men	13
+哈尔滨路	ha er bin lu	13
+四季花城	si ji hua cheng	13
+四惠桥	si hui qiao	13
+四惠站	si hui zhan	13
+四面山	si mian shan	13
+团岛	tuan dao	13
+国展中心	guo zhan zhong xin	13
+圣湖	sheng hu	13
+地窝堡	di wo bao	13
+坪上	ping shang	13
+大井	da jing	13
+大沽河	da gu he	13
+大洋百货	da yang bai huo	13
+大温	da wen	13
+大溪沟	da xi gou	13
+天星	tian xing	13
+天津开发区	tian jin kai fa qu	13
+太白路	tai bai lu	13
+姚江	yao jiang	13
+孙河	sun he	13
+安联	an lian	13
+宣恩	xuan en	13
+富春	fu chun	13
+寻乌	xun wu	13
+小龙坎	xiao long kan	13
+尼勒克	ni lei ke	13
+岗上	gang shang	13
+崇仁	chong ren	13
+嵊泗	sheng si	13
+巡场	xun chang	13
+市一院	shi yi yuan	13
+市体育中心	shi ti yu zhong xin	13
+市公积金中心	shi gong ji jin zhong xin	13
+平塘	ping tang	13
+应用技术学院	ying yong ji shu xue yuan	13
+建设街	jian she jie	13
+德意志联邦共和国	de yi zhi lian bang gong he guo	13
+思进	si jin	13
+息烽	xi feng	13
+护国寺	hu guo si	13
+文华路	wen hua lu	13
+新华南路	xin hua nan lu	13
+新华大街	xin hua da jie	13
+新沙	xin sha	13
+新疆区	xin jiang qu	13
+昔阳	xi yang	13
+星辉	xing hui	13
+杉山	shan shan	13
+杨浦大桥	yang pu da qiao	13
+果品市场	guo pin shi chang	13
+果菜批发市场	guo cai pi fa shi chang	13
+树木岭	shu mu ling	13
+桂西	gui xi	13
+桐梓坡路	tong zi po lu	13
+桓台	huan tai	13
+森林总队	sen lin zong dui	13
+樊城	fan cheng	13
+武隆仙女山	wu long xian nv shan	13
+民航管理局	min hang guan li ju	13
+水贝	shui bei	13
+永安里	yong an li	13
+永昌路	yong chang lu	13
+永靖	yong jing	13
+沧源	cang yuan	13
+沩山	wei shan	13
+河口县	he kou xian	13
+河滩路	he tan lu	13
+波密	bo mi	13
+泽州	ze zhou	13
+流沙河	liu sha he	13
+浐河	chan he	13
+海南省琼海市	hai nan sheng qiong hai shi	13
+清镇市	qing zhen shi	13
+温泉之乡	wen quan zhi xiang	13
+渭滨	wei bin	13
+湄潭	mei tan	13
+湖南烈士公园	hu nan lie shi gong yuan	13
+湖西	hu xi	13
+漫水桥	man shui qiao	13
+潮安	chao an	13
+牙克石市	ya ke shi shi	13
+牛栏山	niu lan shan	13
+犍为	qian wei	13
+猛追湾	meng zhui wan	13
+环市西路	huan shi xi lu	13
+珞狮路	luo shi lu	13
+甘谷	gan gu	13
+田家炳中学	tian jia bing zhong xue	13
+田心村	tian xin cun	13
+百信	bai xin	13
+盐市口	yan shi kou	13
+石门大桥	shi men da qiao	13
+福泉市	fu quan shi	13
+科达	ke da	13
+竹联	zhu lian	13
+红荔路	hong li lu	13
+纬五路	wei wu lu	13
+罗店	luo dian	13
+翠苑	cui yuan	13
+老庙	lao miao	13
+联合村	lian he cun	13
+聚龙	ju long	13
+芍药居	shao yao ju	13
+芮城	rui cheng	13
+花园口	hua yuan kou	13
+蔡锷路	cai e lu	13
+虹桥国际机场	hong qiao guo ji ji chang	13
+裕民	yu min	13
+西二旗	xi er qi	13
+西充	xi chong	13
+西善桥	xi shan qiao	13
+西局	xi ju	13
+西府	xi fu	13
+解放大路	jie fang da lu	13
+解放门	jie fang men	13
+许家	xu jia	13
+赛里木湖	sai li mu hu	13
+赤湾	chi wan	13
+赫山	he shan	13
+车路	che lu	13
+达坂城	da ban cheng	13
+遂川	sui chuan	13
+避风塘	bi feng tang	13
+郭公庄	guo gong zhuang	13
+鄄城	juan cheng	13
+金溪	jin xi	13
+铁山坪	tie shan ping	13
+银都	yin dou	13
+锦江乐园	jin jiang le yuan	13
+镇东	zhen dong	13
+长沟	zhang gou	13
+长盛	zhang sheng	13
+阿尔山市	a er shan shi	13
+陆桥	lu qiao	13
+陈家湾	chen jia wan	13
+集里	ji li	13
+雷锋大道	lei feng da dao	13
+青园街	qing yuan jie	13
+青年公寓	qing nian gong yu	13
+马街	ma jie	13
+高南	gao nan	13
+高新一中	gao xin yi zhong	13
+高新路	gao xin lu	13
+高林	gao lin	13
+高邑	gao yi	13
+黄贝岭	huang bei ling	13
+黔西	qian xi	13
+龙华医院	long hua yi yuan	13
+龙和	long he	13
+龙津	long jin	13
+一马路	yi ma lu	12
+丁字桥	ding zi qiao	12
+三堂	san tang	12
+上蔡	shang cai	12
+世界公园	shi jie gong yuan	12
+世纪花园	shi ji hua yuan	12
+东岳庙	dong yue miao	12
+临猗	lin yi	12
+主校区	zhu xiao qu	12
+于山	yu shan	12
+仙湖植物园	xian hu zhi wu yuan	12
+任东	ren dong	12
+保德	bao de	12
+先锋村	xian feng cun	12
+兖州市	yan zhou shi	12
+八桂	ba gui	12
+公交一公司	gong jiao yi gong si	12
+公交停靠站	gong jiao ting kao zhan	12
+公园北街	gong yuan bei jie	12
+公园西门	gong yuan xi men	12
+公路总段	gong lu zong duan	12
+六里屯	liu li tun	12
+关岭	guan ling	12
+军山	jun shan	12
+农业村	nong ye cun	12
+农机站	nong ji zhan	12
+农民新村	nong min xin cun	12
+北京天坛	bei jing tian tan	12
+北京街	bei jing jie	12
+北屯市	bei tun shi	12
+北工业区	bei gong ye qu	12
+北极阁	bei ji ge	12
+南召	nan zhao	12
+南山医院	nan shan yi yuan	12
+南望	nan wang	12
+南桥头	nan qiao tou	12
+南郑	nan zheng	12
+原阳	yuan yang	12
+古港	gu gang	12
+合江亭	he jiang ting	12
+合肥路	he fei lu	12
+吉林省四平市	ji lin sheng si ping shi	12
+后旗	hou qi	12
+后沙峪	hou sha yu	12
+呈贡县	cheng gong xian	12
+周家嘴路	zhou jia zui lu	12
+唐家沱	tang jia tuo	12
+商业大	shang ye da	12
+商业大楼	shang ye da lou	12
+商务学院	shang wu xue yuan	12
+园岭	yuan ling	12
+国贸中心	guo mao zhong xin	12
+地质大队	di zhi da dui	12
+大慈寺	da ci si	12
+大黄山	da huang shan	12
+天祝	tian zhu	12
+太湖路	tai hu lu	12
+太阳村	tai yang cun	12
+妇婴医院	fu ying yi yuan	12
+威尼斯水城	wei ni si shui cheng	12
+孝陵卫	xiao ling wei	12
+季明	ji ming	12
+宁城	ning cheng	12
+安远	an yuan	12
+宝城	bao cheng	12
+尖山	jian shan	12
+工人医院	gong ren yi yuan	12
+工人村	gong ren cun	12
+市体育馆	shi ti yu guan	12
+广昌	guang chang	12
+广渠门桥	guang qu men qiao	12
+广电中心	guang dian zhong xin	12
+康复路	kang fu lu	12
+开福寺	kai fu si	12
+弋阳	yi yang	12
+弥勒县	mi le xian	12
+志丹	zhi dan	12
+惠民路	hui min lu	12
+拜城	bai cheng	12
+振东	zhen dong	12
+文水	wen shui	12
+新圩	xin wei	12
+新城市广场	xin cheng shi guang chang	12
+新城广场	xin cheng guang chang	12
+新浦	xin pu	12
+新绛	xin jiang	12
+新营	xin ying	12
+新车站	xin che zhan	12
+新野	xin ye	12
+旗山	qi shan	12
+昌乐	chang le	12
+明园	ming yuan	12
+春江	chun jiang	12
+昭平	zhao ping	12
+月星	yue xing	12
+望江西路	wang jiang xi lu	12
+木垒县	mu lei xian	12
+杏园	xing yuan	12
+杨家湾	yang jia wan	12
+杨高中路	yang gao zhong lu	12
+杨高南路	yang gao nan lu	12
+杭州大厦	hang zhou da sha	12
+板仓	ban cang	12
+林东	lin dong	12
+桂溪	gui xi	12
+桃源村	tao yuan cun	12
+梅树	mei shu	12
+榆社	yu she	12
+樱桃园	ying tao yuan	12
+武山	wu shan	12
+武汉体育中心	wu han ti yu zhong xin	12
+武陵源风景名胜区	wu ling yuan feng jing ming sheng qu	12
+水木年华	shui mu nian hua	12
+水西门大街	shui xi men da jie	12
+永济市	yong ji shi	12
+汉口路	han kou lu	12
+汉阴	han yin	12
+沈丘	shen qiu	12
+沈甸	shen dian	12
+沙河市	sha he shi	12
+沙湾路	sha wan lu	12
+沧口	cang kou	12
+河沿	he yan	12
+河滨公园	he bin gong yuan	12
+油脂公司	you zhi gong si	12
+泌阳	bi yang	12
+泛北部湾	fan bei bu wan	12
+泸西	lu xi	12
+浑源	hun yuan	12
+海上世界	hai shang shi jie	12
+海东地区	hai dong di qu	12
+海伦市	hai lun shi	12
+海城市	hai cheng shi	12
+海阳市	hai yang shi	12
+海陵	hai ling	12
+深州市	shen zhou shi	12
+清华科技园	qing hua ke ji yuan	12
+清涧	qing jian	12
+渭源	wei yuan	12
+湘雅路	xiang ya lu	12
+滦平	luan ping	12
+潞河医院	lu he yi yuan	12
+火车站北广场	huo che zhan bei guang chang	12
+火车站南	huo che zhan nan	12
+灵丘	ling qiu	12
+灵谷寺	ling gu si	12
+炉中	lu zhong	12
+牟平	mu ping	12
+玉田	yu tian	12
+玉祥门	yu xiang men	12
+田丰	tian feng	12
+白水寨	bai shui zhai	12
+白沙路	bai sha lu	12
+皇城根	huang cheng gen	12
+皮实	pi shi	12
+相因	xiang yin	12
+石坪桥	shi ping qiao	12
+石桥村	shi qiao cun	12
+石灰窑	shi hui yao	12
+石龙村	shi long cun	12
+祖庙路	zu miao lu	12
+禅城区政府	chan cheng qu zheng fu	12
+福喜公司	fu xi gong si	12
+秦城	qin cheng	12
+筠连	yun lian	12
+粮店	liang dian	12
+精河	jing he	12
+红其拉甫	hong qi la fu	12
+红古	hong gu	12
+红旗村	hong qi cun	12
+红苕	hong shao	12
+经贸学院	jing mao xue yuan	12
+羊市街	yang shi jie	12
+翔殷路	xiang yin lu	12
+翠园	cui yuan	12
+耀华路	yao hua lu	12
+肃宁	su ning	12
+育才路	yu cai lu	12
+肺科医院	fei ke yi yuan	12
+胡林	hu lin	12
+舒兰市	shu lan shi	12
+花墙	hua qiang	12
+花岗	hua gang	12
+花明楼	hua ming lou	12
+茌平	chi ping	12
+荷花园	he hua yuan	12
+莒南	ju nan	12
+莱阳市	lai yang shi	12
+莲池	lian chi	12
+莲花白	lian hua bai	12
+莲花超市	lian hua chao shi	12
+蓬安	peng an	12
+行政办公楼	xing zheng ban gong lou	12
+西华路	xi hua lu	12
+观音岩	guan yin yan	12
+警察学校	jing cha xue xiao	12
+诺福克	nuo fu ke	12
+贡山	gong shan	12
+过境公路	guo jing gong lu	12
+运输处	yun shu chu	12
+逍遥津	xiao yao jin	12
+通渭	tong wei	12
+邗江	han jiang	12
+金城江	jin cheng jiang	12
+金鹰国际	jin ying guo ji	12
+铁路医院	tie lu yi yuan	12
+镇宁	zhen ning	12
+长江村	chang jiang cun	12
+阿尔金山	a er jin shan	12
+青峰	qing feng	12
+鞍山路	an shan lu	12
+香港东路	xiang gang dong lu	12
+高新医院	gao xin yi yuan	12
+高龙	gao long	12
+鲤城	li cheng	12
+鸿恩寺	hong en si	12
+鹅掌坦	e zhang tan	12
+麦岛	mai dao	12
+麦盖提	mai gai ti	12
+黄兴南路	huang xing nan lu	12
+黄河口	huang he kou	12
+黄萍	huang ping	12
+龙头寺火车站	long tou si huo che zhan	12
+龙泉寺	long quan si	12
+一号桥	yi hao qiao	11
+丁香园	ding xiang yuan	11
+万春	wan chun	11
+万胜围	wan sheng wei	11
+三山街	san shan jie	11
+三港	san gang	11
+三溪村	san xi cun	11
+三灶	san zao	11
+三牌楼	san pai lou	11
+三眼桥	san yan qiao	11
+三道关	san dao guan	11
+三马路	san ma lu	11
+上下九步行街	shang xia jiu bu xing jie	11
+上望	shang wang	11
+东宁	dong ning	11
+东小口	dong xiao kou	11
+东新路	dong xin lu	11
+东方家园	dong fang jia yuan	11
+东溪	dong xi	11
+东直门外	dong zhi men wai	11
+中坝	zhong ba	11
+丰乐路	feng le lu	11
+丰和	feng he	11
+临漳	lin zhang	11
+丽泽桥	li ze qiao	11
+丽都饭店	li du fan dian	11
+义马市	yi ma shi	11
+乐陵市	le ling shi	11
+乔司	qiao si	11
+乡宁	xiang ning	11
+乾陵	qian ling	11
+五路居	wu lu ju	11
+休闲街	xiu xian jie	11
+伽师	ga shi	11
+保俶路	bao chu lu	11
+光华门	guang hua men	11
+全福	quan fu	11
+公交四公司	gong jiao si gong si	11
+养禽场	yang qin chang	11
+冀州市	ji zhou shi	11
+内蒙古军区	nei meng gu jun qu	11
+冕宁	mian ning	11
+凤凰村	feng huang cun	11
+凤城一路	feng cheng yi lu	11
+劳动南路	lao dong nan lu	11
+勐腊	meng la	11
+北一路	bei yi lu	11
+北园春	bei yuan chun	11
+北市场	bei shi chang	11
+北方工业大学	bei fang gong ye da xue	11
+北马里亚纳群岛	bei ma li ya na qun dao	11
+十三中	shi san zhong	11
+十六中	shi liu zhong	11
+华侨新村	hua qiao xin cun	11
+华夏路	hua xia lu	11
+华林路	hua lin lu	11
+华立	hua li	11
+南侨	nan qiao	11
+博兴	bo xing	11
+博白	bo bai	11
+卫东	wei dong	11
+友谊桥	you yi qiao	11
+双沟	shuang gou	11
+双湖	shuang hu	11
+古渡	gu du	11
+古荡	gu dang	11
+合作市	he zuo shi	11
+后勤基地	hou qin ji di	11
+后桥	hou qiao	11
+吴堡	wu bu	11
+吴边	wu bian	11
+和安	he an	11
+和平社区	he ping she qu	11
+和政	he zheng	11
+和龙市	he long shi	11
+四川路	si chuan lu	11
+四港	si gang	11
+国际航空港	guo ji hang kong gang	11
+坡头	po tou	11
+城北客运站	cheng bei ke yun zhan	11
+城郊村	cheng jiao cun	11
+塘栖	tang qi	11
+夏庄	xia zhuang	11
+夏邑	xia yi	11
+大岭	da ling	11
+大通路	da tong lu	11
+天钥桥路	tian yao qiao lu	11
+太乙路	tai yi lu	11
+子洲	zi zhou	11
+子长	zi zhang	11
+孟连县	meng lian xian	11
+宁晋	ning jin	11
+宁蒗县	ning lang xian	11
+安居小区	an ju xiao qu	11
+宗关	zong guan	11
+定南	ding nan	11
+定陵	ding ling	11
+实验站	shi yan zhan	11
+容城	rong cheng	11
+寿宁	shou ning	11
+寿春路	shou chun lu	11
+将乐	jiang le	11
+小博士幼儿园	xiao bo shi you er yuan	11
+小坝	xiao ba	11
+尚城	shang cheng	11
+岚皋	lan gao	11
+左家塘	zuo jia tang	11
+市六医院	shi liu yi yuan	11
+幸福城	xing fu cheng	11
+广西区	guang xi qu	11
+府前路	fu qian lu	11
+延安中路	yan an zhong lu	11
+张家堡	zhang jia bao	11
+张庄	zhang zhuang	11
+彭城	peng cheng	11
+徐家棚	xu jia peng	11
+怀柔法院	huai rou fa yuan	11
+恭城	gong cheng	11
+愚园路	yu yuan lu	11
+招呼站	zhao hu zhan	11
+招商中心	zhao shang zhong xin	11
+挹江门	yi jiang men	11
+揭东县	jie dong xian	11
+新医路	xin yi lu	11
+新华村	xin hua cun	11
+新南	xin nan	11
+新朋	xin peng	11
+新美	xin mei	11
+新都桥	xin dou qiao	11
+无棣	wu di	11
+易初莲花	yi chu lian hua	11
+普渡	pu du	11
+景阳	jing yang	11
+曹家渡	cao jia du	11
+望京医院	wang jing yi yuan	11
+木垒	mu lei	11
+朱家尖	zhu jia jian	11
+朱雀门	zhu que men	11
+机电市场	ji dian shi chang	11
+松山湖管委会	song shan hu guan wei hui	11
+松桃县	song tao xian	11
+林业科学研究院	lin ye ke xue yan jiu yuan	11
+林丰	lin feng	11
+林甸	lin dian	11
+枫香	feng xiang	11
+栖霞寺	qi xia si	11
+格子里	ge zi li	11
+桂花园	gui hua yuan	11
+桂花路	gui hua lu	11
+桦甸市	hua dian shi	11
+梅河口市	mei he kou shi	11
+武林门	wu lin men	11
+武泰闸	wu tai zha	11
+武鸣	wu ming	11
+水富	shui fu	11
+永丰路	yong feng lu	11
+汝阳	ru yang	11
+江宁路	jiang ning lu	11
+汤头	tang tou	11
+沿山路	yan shan lu	11
+沿溪	yan xi	11
+泉源	quan yuan	11
+济南路	ji nan lu	11
+海南州	hai nan zhou	11
+海月	hai yue	11
+淮滨	huai bin	11
+深泽	shen ze	11
+清溪路	qing xi lu	11
+渔民村	yu min cun	11
+渝澳大桥	yu ao da qiao	11
+澄城	cheng cheng	11
+火车站西广场	huo che zhan xi guang chang	11
+玉兰路	yu lan lu	11
+环北	huan bei	11
+环西	huan xi	11
+理塘	li tang	11
+甲西	jia xi	11
+白土	bai tu	11
+白洋	bai yang	11
+省体育场	sheng ti yu chang	11
+知本	zhi ben	11
+石油路	shi you lu	11
+石溪	shi xi	11
+确山	que shan	11
+第一监狱	di yi jian yu	11
+红庙坡	hong miao po	11
+红石	hong shi	11
+纳溪	na xi	11
+翠微路	cui wei lu	11
+老年医院	lao nian yi yuan	11
+老户	lao hu	11
+职教城	zhi jiao cheng	11
+联丰	lian feng	11
+联合广场	lian he guang chang	11
+联盟路	lian meng lu	11
+肖村	xiao cun	11
+自由大路	zi you da lu	11
+舞钢市	wu gang shi	11
+芜湖路	wu hu lu	11
+茅坪	mao ping	11
+茶园新区	cha yuan xin qu	11
+草莓园	cao mei yuan	11
+蒙城路	meng cheng lu	11
+蓝天路	lan tian lu	11
+融安	rong an	11
+袁家岭	yuan jia ling	11
+裕丰	yu feng	11
+西北路	xi bei lu	11
+西单站	xi dan zhan	11
+西沟	xi gou	11
+西班牙港	xi ban ya gang	11
+观音堂	guan yin tang	11
+贺龙体育馆	he long ti yu guan	11
+跳伞塔	tiao san ta	11
+迭部	die bu	11
+通许	tong xu	11
+遵化市	zun hua shi	11
+里教	li jiao	11
+金东	jin dong	11
+金宇	jin yu	11
+金林	jin lin	11
+金沙车站	jin sha che zhan	11
+金海湖	jin hai hu	11
+金海路	jin hai lu	11
+锡山	xi shan	11
+长兴路	chang xing lu	11
+长排	zhang pai	11
+长流水	chang liu shui	11
+门源	men yuan	11
+闸站	zha zhan	11
+阅马场	yue ma chang	11
+附一医院	fu yi yi yuan	11
+陈家桥	chen jia qiao	11
+隧道北	sui dao bei	11
+雷山	lei shan	11
+霍营	huo ying	11
+青山路	qing shan lu	11
+青神	qing shen	11
+青龙桥	qing long qiao	11
+马桥	ma qiao	11
+马甸桥	ma dian qiao	11
+马道	ma dao	11
+高古	gao gu	11
+鲁谷	lu gu	11
+麻江	ma jiang	11
+黄岗	huang gang	11
+黄河大街	huang he da jie	11
+黄阁	huang ge	11
+龙井村	long jing cun	11
+龙庆峡	long qing xia	11
+龙潭寺	long tan si	11
+龙里	long li	11
+七浦路	qi pu lu	10
+七里山	qi li shan	10
+丈八东路	zhang ba dong lu	10
+三府湾	san fu wan	10
+上海体育馆	shang hai ti yu guan	10
+下江	xia jiang	10
+世贸广场	shi mao guang chang	10
+东凤	dong feng	10
+东四十条	dong si shi tiao	10
+东坡路	dong po lu	10
+东安路	dong an lu	10
+东方路	dong fang lu	10
+东昌路	dong chang lu	10
+东桥	dong qiao	10
+东楼	dong lou	10
+东高	dong gao	10
+中山植物园	zhong shan zhi wu yuan	10
+临夏市	lin xia shi	10
+乌石	wu shi	10
+九和	jiu he	10
+九曲桥	jiu qu qiao	10
+事故大队	shi gu da dui	10
+二道桥	er dao qiao	10
+云城	yun cheng	10
+云岗	yun gang	10
+五寨	wu zhai	10
+五路口	wu lu kou	10
+仓前	cang qian	10
+伊通	yi tong	10
+休闲长廊	xiu xian chang lang	10
+体育中心南	ti yu zhong xin nan	10
+佛山火车站	fo shan huo che zhan	10
+先农坛	xian nong tan	10
+八一桥	ba yi qiao	10
+八大处公园	ba da chu gong yuan	10
+八院	ba yuan	10
+公和	gong he	10
+公园区	gong yuan qu	10
+六和塔	liu he ta	10
+兰西	lan xi	10
+共青团路	gong qing tuan lu	10
+内江市东兴区	nei jiang shi dong xing qu	10
+农牧场	nong mu chang	10
+农药厂	nong yao chang	10
+冬藏	dong cang	10
+凤城二路	feng cheng er lu	10
+凤城市	feng cheng shi	10
+刘家堡	liu jia bao	10
+刘家窑	liu jia yao	10
+利津	li jin	10
+前湖	qian hu	10
+劳动西路	lao dong xi lu	10
+勾庄	gou zhuang	10
+北安河	bei an he	10
+北新街	bei xin jie	10
+区社区	qu she qu	10
+千厮门	qian si men	10
+南一路	nan yi lu	10
+南乐	nan yue	10
+南稍门	nan shao men	10
+卧佛寺	wo fo si	10
+县工业园区	xian gong ye yuan qu	10
+双墩	shuang dun	10
+双桥门	shuang qiao men	10
+双洞	shuang dong	10
+合作化路	he zuo hua lu	10
+吉祥村	ji xiang cun	10
+同济路	tong ji lu	10
+后冲	hou chong	10
+吴县	wu xian	10
+咸宁路	xian ning lu	10
+四医院	si yi yuan	10
+固镇	gu zhen	10
+图木舒克市	tu mu shu ke shi	10
+垂杨柳	chui yang liu	10
+城市之心	cheng shi zhi xin	10
+塔子山公园	ta zi shan gong yuan	10
+塘口	tang kou	10
+外事学院	wai shi xue yuan	10
+妇幼医院	fu you yi yuan	10
+婺城	wu cheng	10
+孝感市孝南区	xiao gan shi xiao nan qu	10
+安图	an tu	10
+宋都	song dou	10
+官田	guan tian	10
+定襄	ding xiang	10
+宝龙城市广场	bao long cheng shi guang chang	10
+客运西站	ke yun xi zhan	10
+宿松路	su song lu	10
+富裕路	fu yu lu	10
+尉犁	yu li	10
+小北门	xiao bei men	10
+小香港	xiao xiang gang	10
+山内	shan nei	10
+山姆会员店	shan mu hui yuan dian	10
+岳峰	yue feng	10
+峨嵋	e mei	10
+川岛	chuan dao	10
+川港	chuan gang	10
+市区街道	shi qu jie dao	10
+市行政中心	shi xing zheng zhong xin	10
+平安里	ping an li	10
+广医二院	guang yi er yuan	10
+广场路	guang chang lu	10
+广州火车	guang zhou huo che	10
+庐山路	lu shan lu	10
+建设新村	jian she xin cun	10
+建阳市	jian yang shi	10
+开远市	kai yuan shi	10
+彭浦新村	peng pu xin cun	10
+徐水	xu shui	10
+德基广场	de ji guang chang	10
+情侣路	qing lv lu	10
+成都外国语学校	cheng du wai guo yu xue xiao	10
+房山区政府	fang shan qu zheng fu	10
+抚宁	fu ning	10
+抛石	pao shi	10
+敦化路	dun hua lu	10
+文明小区	wen ming xiao qu	10
+新世纪广场	xin shi ji guang chang	10
+新塘村	xin tang cun	10
+新建小学	xin jian xiao xue	10
+新开河	xin kai he	10
+新松	xin song	10
+新泻	xin xie	10
+新荣	xin rong	10
+新蔡	xin cai	10
+昂船洲	ang chuan zhou	10
+晓港	xiao gang	10
+曲江池	qu jiang chi	10
+曲沃	qu wo	10
+月亮湾大道	yue liang wan da dao	10
+月湖公园	yue hu gong yuan	10
+望江楼	wang jiang lou	10
+木樨地	mu xi di	10
+机场专线	ji chang zhuan xian	10
+机电公司	ji dian gong si	10
+机电工程学院	ji dian gong cheng xue yuan	10
+李子坝	li zi ba	10
+杜甫江阁	du fu jiang ge	10
+杨庄	yang zhuang	10
+杨镇	yang zhen	10
+松湖	song hu	10
+果场	guo chang	10
+枣林	zao lin	10
+柏树林	bai shu lin	10
+柘城	zhe cheng	10
+栖霞市	qi xia shi	10
+格中	ge zhong	10
+桂中	gui zhong	10
+桐城路	tong cheng lu	10
+榆垡	yu fa	10
+横峰	heng feng	10
+横江	heng jiang	10
+樱桃沟	ying tao gou	10
+正大广场	zheng da guang chang	10
+正阳路	zheng yang lu	10
+武陟	wu zhi	10
+死亡之海	si wang zhi hai	10
+民族自治县	min zu zi zhi xian	10
+水管站	shui guan zhan	10
+江州	jiang zhou	10
+江滨公园	jiang bin gong yuan	10
+沂河	yi he	10
+沙园	sha yuan	10
+河南省永城市	he nan sheng yong cheng shi	10
+泰山新村	tai shan xin cun	10
+洞井	dong jing	10
+津市市	jin shi shi	10
+浆洗街	jiang xi jie	10
+海关大楼	hai guan da lou	10
+海西州	hai xi zhou	10
+消防大	xiao fang da	10
+润州	run zhou	10
+深圳大剧院	shen zhen da ju yuan	10
+渔业基地	yu ye ji di	10
+湖城	hu cheng	10
+潭村	tan cun	10
+燕山路	yan shan lu	10
+片山	pian shan	10
+玉龙县	yu long xian	10
+王家村	wang jia cun	10
+珠江帝景	zhu jiang di jing	10
+珠江道	zhu jiang dao	10
+琅琊路小学	lang ya lu xiao xue	10
+番禺广场	pan yu guang chang	10
+白塔寺	bai ta si	10
+白石洲	bai shi zhou	10
+白纸坊	bai zhi fang	10
+白莲泾	bai lian jing	10
+盆景园	pen jing yuan	10
+益丰	yi feng	10
+盐源	yan yuan	10
+盖德	gai de	10
+省体育中心	sheng ti yu zhong xin	10
+石板坡	shi ban po	10
+石榴园	shi liu yuan	10
+石角	shi jiao	10
+社旗	she qi	10
+神仙树	shen xian shu	10
+禄丰	lu feng	10
+福德	fu de	10
+禹城市	yu cheng shi	10
+种猪场	zhong zhu chang	10
+秦岭野生动物园	qin ling ye sheng dong wu yuan	10
+空军医院	kong jun yi yuan	10
+窦店	dou dian	10
+站前街	zhan qian jie	10
+竹子林	zhu zi lin	10
+第一国际	di yi guo ji	10
+繁峙	fan zhi	10
+绥芬河市	sui fen he shi	10
+罗马假日	luo ma jia ri	10
+羊城八景	yang cheng ba jing	10
+耿马县	geng ma xian	10
+联中	lian zhong	10
+肃南	su nan	10
+肇东市	zhao dong shi	10
+自强西路	zi qiang xi lu	10
+舞阳	wu yang	10
+航空博物馆	hang kong bo wu guan	10
+舵落口	duo luo kou	10
+花卉世界	hua hui shi jie	10
+花园城	hua yuan cheng	10
+花园广场	hua yuan guang chang	10
+荆山	jing shan	10
+荒沟	huang gou	10
+荔浦	li pu	10
+莲花湖	lian hua hu	10
+获嘉	huo jia	10
+蒲黄榆	pu huang yu	10
+蓝绍敏	lan shao min	10
+蔡家坡	cai jia po	10
+蔬菜公司	shu cai gong si	10
+蕉门	jiao men	10
+蛟河市	jiao he shi	10
+西安文理学院	xi an wen li xue yuan	10
+西岗	xi gang	10
+西工	xi gong	10
+西康路	xi kang lu	10
+西藏路	xi zang lu	10
+西陵	xi ling	10
+解放公园路	jie fang gong yuan lu	10
+贡山县	gong shan xian	10
+贼娃子	zei wa zi	10
+赫章	he zhang	10
+辽宁省葫芦岛市	liao ning sheng hu lu dao shi	10
+达新	da xin	10
+通县	tong xian	10
+通州北苑	tong zhou bei yuan	10
+郎溪	lang xi	10
+郭庄	guo zhuang	10
+都市花园	du shi hua yuan	10
+鄢陵	yan ling	10
+金域蓝湾	jin yu lan wan	10
+金桥路	jin qiao lu	10
+金沙江路	jin sha jiang lu	10
+金牛宾馆	jin niu bin guan	10
+金盏	jin zhan	10
+金色阳光	jin se yang guang	10
+金融广场	jin rong guang chang	10
+镇坪	zhen ping	10
+长椿街	zhang chun jie	10
+阜阳路	fu yang lu	10
+防城	fang cheng	10
+阳信	yang xin	10
+阿勒泰路	a lei tai lu	10
+陕西北路	shan xi bei lu	10
+陶瓷博物馆	tao ci bo wu guan	10
+青木关	qing mu guan	10
+顺发	shun fa	10
+食品工业园	shi pin gong ye yuan	10
+饶阳	rao yang	10
+馆陶	guan tao	10
+首义路	shou yi lu	10
+马家沟	ma jia gou	10
+马站	ma zhan	10
+马边	ma bian	10
+高桥村	gao qiao cun	10
+高港	gao gang	10
+鲁班路	lu ban lu	10
+鲘门	hou men	10
+黎城	li cheng	10
+龙井路	long jing lu	10
+龙园	long yuan	10
+龙田	long tian	10
+龙都	long dou	10
+龟兹	qiu ci	10
