@@ -35,6 +35,10 @@ const MAX_RANKED_PATHS: usize = 32;
 const MAX_DECODE_PATHS: usize = 64;
 /// 启用拼写纠错的最大输入长度（长句不纠错，保证性能）。
 const MAX_FUZZY_INPUT: usize = 12;
+/// 纠错路径凑够这么多就停（左侧纠错已拿全，尾段纠错性价比最低）。
+const CORRECTED_PATH_TARGET: usize = 40;
+/// 锚定纠错只取精确切分的前这么多条路径做锚（后面的切分质量差，纠了也没人看）。
+const ANCHOR_PATHS: usize = 24;
 /// 前缀查询单次扫描上限（防止首字母输入扫描过大）。
 const PREFIX_SCAN_LIMIT: usize = 8192;
 /// 前缀查询时同一 key 下取多少条词条（是/时/事/使…）。
@@ -792,18 +796,17 @@ pub fn normalize(input: &str) -> (Vec<char>, Vec<usize>) {
 }
 
 fn segment_full(chars: &[char]) -> Vec<Vec<Seg>> {
+    let n = chars.len();
     let mut out: Vec<Vec<Seg>> = Vec::new();
+    if n == 0 {
+        return out;
+    }
     let mut cur: Vec<Seg> = Vec::new();
-    let mut fuzzy_budget: usize = 96; // 纠错尝试总预算，防止长串爆炸
-    go_full(0, chars, &mut cur, &mut out, &mut fuzzy_budget);
-    fn go_full(
-        i: usize,
-        chars: &[char],
-        cur: &mut Vec<Seg>,
-        out: &mut Vec<Vec<Seg>>,
-        fuzzy_budget: &mut usize,
-    ) {
-        let n = chars.len();
+    // 第一步：纯精确切分（一次 DFS）。纠错不参与切分探索——曾试过「按纠错
+    // 位置逐波 DFS」，但每开一波就是一整棵切分树的代价（实测 117µs → 4-10ms），
+    // 逐键路径承受不起。
+    go_full(0, n, chars, &mut cur, &mut out);
+    fn go_full(i: usize, n: usize, chars: &[char], cur: &mut Vec<Seg>, out: &mut Vec<Vec<Seg>>) {
         if out.len() >= MAX_PATHS {
             return;
         }
@@ -811,41 +814,17 @@ fn segment_full(chars: &[char]) -> Vec<Vec<Seg>> {
             out.push(cur.clone());
             return;
         }
-        // 逐长度交错探索：同一长度先精确、再纠错，保证 zhuan→zhun 这类路径
-        // 不会因为精确路径先占满 MAX_PATHS 而永远生成不出来。
-        // 长音节优先：更自然的切分（zhuan+que+du）先被探索，
-        // 避免短音节组合占满路径上限导致纠错路径无法生成
+        // 长音节优先：更自然的切分（zhuan+que+du）先被探索，避免短音节组合
+        // 占满路径上限。
         for len in (1..=MAX_SYLLABLE_LEN.min(n - i)).rev() {
             let s: String = chars[i..i + len].iter().collect();
-            // 同一长度：精确音节优先，紧随其后试纠错变体，
-            // 保证 zhuan→zhun 这类路径不会被其它长度的组合先占满上限
-            let unfinished_prefix = !is_syllable(&s) && is_syllable_prefix(&s);
-            let mut alts: Vec<(String, f64)> = Vec::new();
             if is_syllable(&s) {
-                alts.push((s.clone(), 0.0));
-            }
-            // 纠错只对较短输入开放（长句场景不划算，且极少整句错拼）
-            if len >= 2 && *fuzzy_budget > 0 && !unfinished_prefix && n <= MAX_FUZZY_INPUT {
-                for (canon, cost) in fuzzy_variants(&s) {
-                    if is_syllable(&s) && canon == s {
-                        continue;
-                    }
-                    alts.push((canon, f64::from(cost)));
-                }
-            }
-            for (canon, cost) in alts {
-                if cost > 0.0 {
-                    if *fuzzy_budget == 0 {
-                        return;
-                    }
-                    *fuzzy_budget -= 1;
-                }
                 cur.push(Seg {
-                    syl: Some(canon),
+                    syl: Some(s),
                     end: i + len,
-                    fuzzy: cost,
+                    fuzzy: 0.0,
                 });
-                go_full(i + len, chars, cur, out, fuzzy_budget);
+                go_full(i + len, n, chars, cur, out);
                 cur.pop();
                 if out.len() >= MAX_PATHS {
                     return;
@@ -863,10 +842,75 @@ fn segment_full(chars: &[char]) -> Vec<Vec<Seg>> {
             cur.pop();
         }
     }
+    // 第二步：锚定纠错——在已有精确路径上逐段替换为纠错变体，纯构造、零 DFS。
+    // 只锚前 ANCHOR_PATHS 条路径（后面的切分质量差，纠了也没人看）；
+    // 含纠错路径凑够 CORRECTED_PATH_TARGET 就停（逐键预算）。
+    if n <= MAX_FUZZY_INPUT {
+        let mut corrected = 0;
+        'anchor: for path in out.iter().take(ANCHOR_PATHS).cloned().collect::<Vec<_>>() {
+            for seg_idx in 0..path.len() {
+                let (s, end, start) = match &path[seg_idx] {
+                    Seg {
+                        syl: Some(s),
+                        end,
+                        ..
+                    } => (s.clone(), *end, if seg_idx == 0 { 0 } else { path[seg_idx - 1].end }),
+                    _ => continue,
+                };
+                if end - start < 2 {
+                    continue;
+                }
+                for (canon, cost) in fuzzy_variants(&s) {
+                    let mut p = path.clone();
+                    p[seg_idx].syl = Some(canon);
+                    p[seg_idx].fuzzy = f64::from(cost);
+                    out.push(p);
+                    corrected += 1;
+                    if corrected >= CORRECTED_PATH_TARGET || out.len() >= MAX_PATHS {
+                        break 'anchor;
+                    }
+                }
+            }
+        }
+        // 整串音节级兜底：输入本身就是打错的一个音节（yign→ying、xan→xian）。
+        // 锚定纠错只纠「合法切分里的段」，整段打错时锚不到；锚段纠出了别结果
+        // 也不代表整段没错，所以不管锚定有没有产出都试。
+        // 限音节长度内（≤6）且必须含元音：简拼缩写（bj/nh/wm）天然全声母、
+        // 永不含元音，兜底不会污染简拼候选（否则 bj 邻近键纠出 bu，压过「北京」）。
+        // 混在正常输入中间的错段（nihao+kian）暂不支持。
+        if n >= 2 && n <= MAX_SYLLABLE_LEN {
+            let whole: String = chars.iter().collect();
+            if whole.contains(['a', 'e', 'i', 'o', 'u', 'v']) && !is_syllable(&whole) {
+                for (canon, cost) in fuzzy_variants(&whole) {
+                    out.push(vec![Seg {
+                        syl: Some(canon),
+                        end: n,
+                        fuzzy: f64::from(cost),
+                    }]);
+                    corrected += 1;
+                    if corrected >= CORRECTED_PATH_TARGET {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    // 锚定与整串兜底可能产出相同读音的路径，按读音键去重
+    let mut seen = std::collections::HashSet::new();
+    out.retain(|p| {
+        seen.insert(format!(
+            "{}|{}",
+            p.iter()
+                .map(|s| s.syl.clone().unwrap_or_else(|| "_".to_string()))
+                .collect::<Vec<_>>()
+                .join("+"),
+            p.last().map_or(0, |s| s.end)
+        ))
+    });
     out
 }
-
-/// 生成纠错候选音节（代价 1）：相邻换位、单字符删除、n↔ng、常见声母/韵母混淆。
+/// 生成纠错候选音节（代价 1）：相邻换位、单字符删除、邻近键错按、漏打介音、
+/// n↔ng、常见声母/韵母混淆。
 fn fuzzy_variants(chunk: &str) -> Vec<(String, u8)> {
     let chars: Vec<char> = chunk.chars().collect();
     let mut out: Vec<(String, u8)> = Vec::new();
@@ -879,6 +923,30 @@ fn fuzzy_variants(chunk: &str) -> Vec<(String, u8)> {
         let mut v = chars.clone();
         v.swap(i, i + 1);
         push(v.iter().collect(), 1, chunk, &mut out);
+    }
+    // 邻近键错按：手滑打到左右/上下邻键（gao↔hao、kian→jian、zian→xian），
+    // 是机械打字里最高频的一类错误；is_syllable 校验把无关替换自然过滤
+    for (i, c) in chars.iter().enumerate() {
+        let Some((_, neigh)) = NEIGHBORS.iter().find(|(k, _)| *k == *c) else {
+            continue;
+        };
+        for r in neigh.chars() {
+            let mut v = chars.clone();
+            v[i] = r;
+            push(v.iter().collect(), 1, chunk, &mut out);
+        }
+    }
+    // 漏打介音：声母和韵腹之间少敲了 i/u（xan→xian/xuan、gan→guan），
+    // 换位、删除、声韵混淆都覆盖不到这类；介音只补 i/u，且只在声母后补
+    for i in 1..chars.len() {
+        if !is_initial(chars[i - 1]) || !matches!(chars[i], 'a' | 'e' | 'o') {
+            continue;
+        }
+        for m in ['i', 'u'] {
+            let mut v = chars.clone();
+            v.insert(i, m);
+            push(v.iter().collect(), 1, chunk, &mut out);
+        }
     }
     // 只允许删除元音（zhuan→zhun 这类多打了一个元音）；
     // 删除辅音多半是「n/h/s 还没输完」（nih、nhao、wos），交给前缀补全
@@ -933,9 +1001,48 @@ fn fuzzy_variants(chunk: &str) -> Vec<(String, u8)> {
     }
     out.sort_by(|a, b| a.1.cmp(&b.1).then_with(|| b.0.len().cmp(&a.0.len())));
     out.dedup_by(|a, b| a.0 == b.0);
-    out.truncate(6);
+    out.truncate(8);
     out
 }
+
+/// 声母字母（不含自成音节的 y/w 和韵母专用 v），用于介音补全的位置判断。
+fn is_initial(c: char) -> bool {
+    matches!(
+        c,
+        'b' | 'c' | 'd' | 'f' | 'g' | 'h' | 'j' | 'k' | 'l' | 'm' | 'n' | 'p' | 'q' | 'r' | 's'
+            | 't' | 'x' | 'z'
+    )
+}
+
+/// QWERTY 邻近键表：横邻 + 上下邻。错按几乎都落在这圈键里。
+const NEIGHBORS: &[(char, &str)] = &[
+    ('q', "wa"),
+    ('w', "qeasd"),
+    ('e', "wrsd"),
+    ('r', "etdf"),
+    ('t', "ryfg"),
+    ('y', "tugh"),
+    ('u', "yihj"),
+    ('i', "uojk"),
+    ('o', "ipkl"),
+    ('p', "ol"),
+    ('a', "qwsz"),
+    ('s', "adwezx"),
+    ('d', "sferxc"),
+    ('f', "dgrtcv"),
+    ('g', "fhtyvb"),
+    ('h', "gjyubn"),
+    ('j', "hkuinm"),
+    ('k', "jliom"),
+    ('l', "kop"),
+    ('z', "asx"),
+    ('x', "zcsd"),
+    ('c', "xdfv"),
+    ('v', "cfgb"),
+    ('b', "vngh"),
+    ('n', "bmhj"),
+    ('m', "nkj"),
+];
 
 fn segment_shuangpin(chars: &[char], codes: &Codes) -> Vec<Vec<Seg>> {
     let mut out: Vec<Vec<Seg>> = Vec::new();
@@ -1233,6 +1340,39 @@ mod tests {
     }
 
     #[test]
+    fn fuzzy_keyboard_adjacency() {
+        // gao 是 hao 的横邻键错按；kian 是 jian 的邻近键错按
+        let mut d = Dictionary::new();
+        d.insert("hao", "好", 500_000);
+        d.insert("gao", "高", 400_000);
+        d.insert("jian", "见", 300_000);
+        let d = PinyinDecoder::new(Arc::new(d), Layout::Full);
+        let c = d.candidates("gao");
+        assert_eq!(c[0].text, "高", "精确拼写必须排第一: {c:?}");
+        assert!(
+            c.iter().any(|x| x.text == "好"),
+            "gao 应纠出 hao 的「好」: {c:?}"
+        );
+        let kian = d.candidates("kian");
+        assert!(
+            kian.iter().any(|x| x.text == "见"),
+            "kian 应纠回 jian: {kian:?}"
+        );
+    }
+
+    #[test]
+    fn fuzzy_missing_medial() {
+        // xan：声母后漏了介音，可补 i（xian）或 u（xuan）
+        let mut d = Dictionary::new();
+        d.insert("xian", "先", 500_000);
+        d.insert("xuan", "选", 450_000);
+        let d = PinyinDecoder::new(Arc::new(d), Layout::Full);
+        let c = d.candidates("xan");
+        assert!(c.iter().any(|x| x.text == "先"), "xan 应纠回 xian: {c:?}");
+        assert!(c.iter().any(|x| x.text == "选"), "xan 应纠回 xuan: {c:?}");
+    }
+
+    #[test]
     fn single_syllable_prefers_char() {
         let d = PinyinDecoder::new(dict(), Layout::Full);
         let xi = d.candidates("xi");
@@ -1353,5 +1493,34 @@ mod tests {
         assert_eq!(d.candidates("ni")[0].text, "你");
         assert_eq!(d.candidates("nihao")[0].text, "你好");
         assert_eq!(d.candidates("shi")[0].text, "是");
+    }
+}
+
+#[cfg(test)]
+mod perf {
+    use super::*;
+    use std::sync::Arc;
+    use std::time::Instant;
+
+    /// 纠错引入的逐键回归守卫：最坏情况（12 字符全纠错输入）平均解码必须
+    /// 保持在毫秒级以下。阈值故意放宽到 2ms，只拦数量级劣化，不追抖动。
+    #[test]
+    fn perf_worst_case_typo_decode() {
+        let mut d = Dictionary::new();
+        d.insert("zhun'que'du", "准确度", 200_000);
+        d.insert("jian'she'", "建设", 300_000);
+        let d = PinyinDecoder::new(Arc::new(d), Layout::Full);
+        let inputs = ["zhuanquedu", "kiansheu", "xianjihao", "gaojignshe"];
+        let t = Instant::now();
+        let mut n = 0usize;
+        for _ in 0..250 {
+            for input in inputs {
+                n += d.candidates(input).len();
+            }
+        }
+        let el = t.elapsed();
+        println!("1000 次解码（含纠错）共 {el:?}，平均 {} µs/次", el.as_micros() / 1000);
+        assert!(n > 0);
+        assert!(el.as_micros() < 2_000_000, "解码过慢: {el:?}");
     }
 }
