@@ -12,6 +12,8 @@ final class QuickPanelModel: ObservableObject {
     @Published var listening = false
     @Published var interpret: String?
     @Published var petOn = PetWindowController.isEnabled
+    @Published var media: MediaController.NowPlaying?
+    @Published var volume: Int?
 }
 
 struct QuickTile: Identifiable {
@@ -29,7 +31,7 @@ final class QuickPanelController {
     private let model = QuickPanelModel()
     private var panel: LianaKeyablePanel?
     private var outsideMonitor: Any?
-    private static let size = NSSize(width: 600, height: 372)
+    private static let size = NSSize(width: 600, height: 430)
 
     var isVisible: Bool { panel?.isVisible ?? false }
 
@@ -46,6 +48,7 @@ final class QuickPanelController {
         model.listening = listening
         model.interpret = interpret
         model.petOn = PetWindowController.isEnabled
+        refreshMedia()
         let panel = ensurePanel()
         LianaGlassContainer.position(panel, near: caret)
         panel.alphaValue = 0
@@ -56,6 +59,18 @@ final class QuickPanelController {
         }
         installOutsideMonitor()
         UserDefaults.standard.set(true, forKey: "LianaQuickPanelSeen")
+    }
+
+    /// 拉当前曲目与音量（AppleScript 离主线程，回调回主线程刷新）。
+    func refreshMedia() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let np = MediaController.shared.nowPlaying()
+            let volume = MediaController.shared.outputVolume()
+            DispatchQueue.main.async {
+                self.model.media = np
+                self.model.volume = volume
+            }
+        }
     }
 
     func hide() {
@@ -166,10 +181,59 @@ struct QuickPanelView: View {
                     }
                 }
             }
+            mediaRow
             footer
         }
         .padding(18)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    /// 正在播放：有曲目或拿得到音量才出现。操作不关面板，方便连续调。
+    @ViewBuilder
+    private var mediaRow: some View {
+        if model.media != nil || model.volume != nil {
+            HStack(spacing: 10) {
+                LianaIconBadge(symbol: "music.note", color: Color(red: 0.95, green: 0.45, blue: 0.65), size: 28)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(model.media?.title ?? "没有在播的音乐")
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .lineLimit(1)
+                    Text([model.media?.artist, model.media?.app].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer()
+                mediaButton("backward.end.fill", "上一首") { MediaActions.perform(.previous) }
+                mediaButton(model.media?.playing == true ? "pause.fill" : "play.fill", "播放 / 暂停") {
+                    MediaActions.perform(.toggle)
+                }
+                mediaButton("forward.end.fill", "下一首") { MediaActions.perform(.next) }
+                Rectangle().fill(Color.primary.opacity(0.10)).frame(width: 1, height: 20)
+                mediaButton("speaker.minus.fill", "音量 −") { MediaActions.perform(.volumeDown) }
+                Text(model.volume.map { "\($0)" } ?? "–")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 26)
+                mediaButton("speaker.plus.fill", "音量 +") { MediaActions.perform(.volumeUp) }
+            }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.primary.opacity(0.05)))
+        }
+    }
+
+    private func mediaButton(_ symbol: String, _ label: String, action: @escaping () -> Void) -> some View {
+        Button {
+            action()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { controller.refreshMedia() }
+        } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 13, weight: .semibold))
+                .frame(width: 28, height: 28)
+                .background(Circle().fill(Color.primary.opacity(0.07)))
+        }
+        .buttonStyle(.plain)
+        .help(label)
     }
 
     private var header: some View {

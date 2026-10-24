@@ -1874,6 +1874,25 @@ final class PetWindowController {
             roam.state = Self.roamEnabled ? .on : .off
             menu.addItem(roam)
         }
+        // 媒体控制：有播放器在运行才露出（只查运行列表，零 AppleScript、不阻塞菜单）
+        if !MediaController.shared.runningPlayerNames().isEmpty {
+            let media = NSMenuItem(title: "正在播放", action: nil, keyEquivalent: "")
+            let mediaMenu = NSMenu(title: "正在播放")
+            for (title, kind) in [
+                ("播放 / 暂停", "toggle"),
+                ("下一首", "next"),
+                ("上一首", "previous"),
+                ("音量 +", "volup"),
+                ("音量 −", "voldn"),
+            ] {
+                let item = NSMenuItem(title: title, action: #selector(petMenuMedia(_:)), keyEquivalent: "")
+                item.target = self
+                item.representedObject = kind
+                mediaMenu.addItem(item)
+            }
+            media.submenu = mediaMenu
+            menu.addItem(media)
+        }
         // 大小：菜单里直接拖滑杆（5%～150%）
         let sizeItem = NSMenuItem()
         sizeItem.view = PetZoomSliderView()
@@ -1909,6 +1928,17 @@ final class PetWindowController {
         hide.target = self
         menu.addItem(hide)
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    @objc private func petMenuMedia(_ sender: NSMenuItem) {
+        switch sender.representedObject as? String {
+        case "toggle": MediaActions.perform(.toggle)
+        case "next": MediaActions.perform(.next)
+        case "previous": MediaActions.perform(.previous)
+        case "volup": MediaActions.perform(.volumeUp)
+        case "voldn": MediaActions.perform(.volumeDown)
+        default: break
+        }
     }
 
     @objc private func petMenuWorkshop(_ sender: Any) {

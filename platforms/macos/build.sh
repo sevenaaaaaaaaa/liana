@@ -93,6 +93,7 @@ SWIFT_SOURCES=("$HERE/Sources/main.swift" "$HERE/Sources/Engine.swift" \
     "$HERE/Sources/TranslateClient.swift" \
     "$HERE/Sources/LianaUI.swift" \
     "$HERE/Sources/LianaActions.swift" \
+    "$HERE/Sources/MediaController.swift" \
     "$HERE/Sources/QuickPanel.swift" \
     "$HERE/Sources/SettingsCenter.swift")
 if [[ "$UNIVERSAL" == "1" ]]; then
