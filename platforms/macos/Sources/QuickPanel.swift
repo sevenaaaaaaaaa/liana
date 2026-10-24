@@ -31,7 +31,7 @@ final class QuickPanelController {
     private let model = QuickPanelModel()
     private var panel: LianaKeyablePanel?
     private var outsideMonitor: Any?
-    private static let size = NSSize(width: 600, height: 430)
+    private static let size = NSSize(width: 600, height: 552)
 
     var isVisible: Bool { panel?.isVisible ?? false }
 
@@ -128,6 +128,10 @@ final class QuickPanelController {
                   symbol: "doc.on.clipboard.fill", color: Color(red: 0.45, green: 0.50, blue: 0.58)),
         QuickTile(id: .stats, key: 8, title: "昨日总结", subtitle: "速度、准确率、省键",
                   symbol: "chart.bar.fill", color: Color(red: 0.30, green: 0.72, blue: 0.40)),
+        QuickTile(id: .shelfCapture, key: 9, title: "截图暂存", subtitle: "框选直接进暂存架",
+                  symbol: "camera.on.rectangle.fill", color: Color(red: 0.85, green: 0.55, blue: 0.30)),
+        QuickTile(id: .shelfOpen, key: 10, title: "暂存架", subtitle: "临时截图/文件 · 7 天自动清",
+                  symbol: "archivebox.fill", color: Color(red: 0.60, green: 0.55, blue: 0.85)),
     ]
 
     // MARK: - 内部

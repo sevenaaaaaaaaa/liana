@@ -23,6 +23,14 @@ final class ClipboardActionWatcher {
         set { UserDefaults.standard.set(newValue, forKey: linksKey); shared.refresh() }
     }
 
+    private static let codesKey = "LianaClipShareCodes"
+
+    /// 淘宝/京东等分享口令识别。默认开：只做本地模式匹配，不存任何内容。
+    static var codesEnabled: Bool {
+        get { UserDefaults.standard.object(forKey: codesKey) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: codesKey); shared.refresh() }
+    }
+
     private var timer: Timer?
     private var lastChange = NSPasteboard.general.changeCount
     private var lastText = ""
@@ -38,7 +46,7 @@ final class ClipboardActionWatcher {
     }
 
     func refresh() {
-        let on = Self.commandsEnabled || Self.linksEnabled
+        let on = Self.commandsEnabled || Self.linksEnabled || Self.codesEnabled
         if on, timer == nil {
             lastChange = NSPasteboard.general.changeCount
             let timer = Timer(timeInterval: 0.8, repeats: true) { [weak self] _ in self?.poll() }
@@ -62,7 +70,10 @@ final class ClipboardActionWatcher {
         if text == lastText, Date().timeIntervalSince(lastAt) < 30 { return }
         lastText = text
         lastAt = Date()
-        if Self.linksEnabled, let url = LinkDetector.detect(text) {
+        // 口令先于链接：m.tb.cn 这类电商短链不该被当普通网页丢给总结/翻译
+        if Self.codesEnabled, let code = ShareCodeDetector.detect(text) {
+            ShareCodeActions.offer(code)
+        } else if Self.linksEnabled, let url = LinkDetector.detect(text) {
             LinkActions.offer(url)
         } else if Self.commandsEnabled, let command = CommandDetector.detect(text) {
             CommandActions.offer(command)
@@ -77,6 +88,118 @@ enum LinkDetector {
               let url = URL(string: text), let scheme = url.scheme?.lowercased(),
               scheme == "http" || scheme == "https", url.host?.contains(".") == true else { return nil }
         return url
+    }
+}
+
+// MARK: - 分享口令（淘宝 / 天猫 / 京东 / 拼多多）
+
+struct DetectedShareCode {
+    let kind: String        // 淘宝 / 天猫 / 京东 / 拼多多
+    let url: URL?           // 短链：直接打开
+    let scheme: String?     // 无短链时拉起 App 的 scheme
+    let preview: String
+}
+
+enum ShareCodeDetector {
+    /// 电商短链域名：整段就是一个短链时直接打开
+    private static let shortHosts: Set<String> = [
+        "m.tb.cn", "s.tb.cn", "tb.cn",          // 淘宝
+        "v.jd.com", "3.cn",                      // 京东
+        "p.pinduoduo.com", "mobile.yangkeduo.com", // 拼多多
+    ]
+
+    /// 成对特殊符号夹码：¥xxxx¥、€xxx€、₤xx₤、￥xx￥ —— 口令的核心形态
+    private static let pairedCode = #"[¥€₤￥]{1,2}[0-9A-Za-z]{4,40}[¥€₤￥]{1,2}"#
+
+    static func detect(_ text: String) -> DetectedShareCode? {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard t.count <= 800 else { return nil }
+        let lower = t.lowercased()
+
+        // 1) 整段就是一个电商短链
+        if !t.contains(where: \.isWhitespace), let url = URL(string: t),
+           let host = url.host?.lowercased(), shortHosts.contains(host) {
+            return DetectedShareCode(kind: shopName(host), url: url, scheme: nil,
+                                     preview: String(t.prefix(80)))
+        }
+
+        // 2) 有成对码：配合话术里的店铺词判定平台（只看前 120 字，口令码总在开头）
+        let head = String(t.prefix(120))
+        let hasPaired = head.range(of: pairedCode, options: .regularExpression) != nil
+
+        // 3) 无成对码时，认「复制整段打开 xx」这类完整话术（避免正文提到淘宝就误报）
+        let tellsTaobao = ["打开淘宝", "手机淘宝", "淘宝app", "天猫app", "復制整段", "复制整段", "fu zhi", "fu经"]
+            .contains { lower.contains($0) }
+        let tellsJD = ["打开京东", "京东app"].contains { lower.contains($0) }
+        let tellsPDD = lower.contains("pinduoduo") || t.contains("拼多多app")
+
+        let kind: String?
+        if hasPaired {
+            if tellsJD || t.contains("京东") { kind = "京东" }
+            else if tellsPDD { kind = "拼多多" }
+            else if t.contains("天猫") { kind = "天猫" }
+            else { kind = "淘宝" }
+        } else if (tellsTaobao || tellsJD || tellsPDD),
+                  lower.contains("复制") || lower.contains("復制")
+                  || lower.contains("fu经") || lower.contains("fu zhi") {
+            kind = tellsJD ? "京东" : (tellsPDD ? "拼多多" : (t.contains("天猫") ? "天猫" : "淘宝"))
+        } else {
+            kind = nil
+        }
+        guard let kind else { return nil }
+        return DetectedShareCode(kind: kind, url: nil, scheme: scheme(for: kind),
+                                 preview: String(t.prefix(80)))
+    }
+
+    private static func shopName(_ host: String) -> String {
+        if host.hasSuffix("jd.com") || host == "3.cn" { return "京东" }
+        if host.contains("pinduoduo") || host.contains("yangkeduo") { return "拼多多" }
+        return "淘宝"
+    }
+
+    private static func scheme(for kind: String) -> String {
+        switch kind {
+        case "京东": return "openapp.jdmobile://"
+        case "拼多多": return "pinduoduo://"
+        default: return "taobao://"
+        }
+    }
+}
+
+enum ShareCodeActions {
+    static func offer(_ code: DetectedShareCode) {
+        let actions: [(String, () -> Void)] = [
+            ("打开\(code.kind)", { open(code) }),
+            ("取消", {}),
+        ]
+        ActionBubble.shared.show(
+            title: "复制了\(code.kind)口令",
+            detail: code.url?.absoluteString ?? code.preview,
+            warning: nil,
+            actions: actions
+        )
+        PetWindowController.shared.clipNoticed(emote: "🛍️")
+    }
+
+    private static func open(_ code: DetectedShareCode) {
+        // 短链优先；口令文本先试 App scheme（未装会失败），兜底浏览器开网页版
+        if let url = code.url {
+            NSWorkspace.shared.open(url)
+            return
+        }
+        if let scheme = code.scheme, let url = URL(string: scheme),
+           NSWorkspace.shared.open(url) {
+            return
+        }
+        let web: String
+        switch code.kind {
+        case "京东": web = "https://www.jd.com"
+        case "拼多多": web = "https://mobile.yangkeduo.com"
+        default: web = "https://www.taobao.com"
+        }
+        if let url = URL(string: web) {
+            NSWorkspace.shared.open(url)
+        }
     }
 }
 

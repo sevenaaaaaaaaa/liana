@@ -26,12 +26,18 @@ enum LianaActions {
         case clipboard = "clipboard"
         case stats = "stats"
         case settings = "settings"
+        case shelfCapture = "shelf-capture"
+        case shelfOpen = "shelf-open"
     }
 
     static func perform(_ id: ID) {
         switch id {
         case .screenshotLearn:
             ScreenshotLearner.shared.start()
+        case .shelfCapture:
+            StagingShelf.captureScreenshot()
+        case .shelfOpen:
+            StagingShelf.open()
         case .voice, .interpretEn, .interpretJa, .interpretOff:
             NotificationCenter.default.post(
                 name: .lianaControllerAction, object: nil, userInfo: ["action": id.rawValue]

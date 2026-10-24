@@ -713,6 +713,11 @@ struct PetPage: View {
                     detail: "总结 / 翻译 / 截图存档 / 站点菜谱：用本机 ego lite（优先）或 Chrome 打开，本机模型处理，不走云服务",
                     isOn: model.binding({ ClipboardActionWatcher.linksEnabled }, { ClipboardActionWatcher.linksEnabled = $0 })
                 )
+                ToggleRow(
+                    title: "复制淘宝 / 京东等口令后提示一键打开",
+                    detail: "识别口令和电商短链，点「打开」才拉起对应 App（没装就开网页版）。只做本地模式匹配，不记录剪贴板内容",
+                    isOn: model.binding({ ClipboardActionWatcher.codesEnabled }, { ClipboardActionWatcher.codesEnabled = $0 })
+                )
                 HStack {
                     Text("站点菜谱：按域名匹配、在页面里运行的一段 JS").font(.system(size: 12)).foregroundStyle(.secondary)
                     Spacer()

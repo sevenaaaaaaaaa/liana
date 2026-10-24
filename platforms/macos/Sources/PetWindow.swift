@@ -1868,6 +1868,13 @@ final class PetWindowController {
         let community = NSMenuItem(title: "形象源…", action: #selector(petMenuCommunity(_:)), keyEquivalent: "")
         community.target = self
         menu.addItem(community)
+        let shelf = NSMenuItem(
+            title: "打开暂存架（临时截图/文件 · 7 天自动清）",
+            action: #selector(petMenuShelf(_:)),
+            keyEquivalent: ""
+        )
+        shelf.target = self
+        menu.addItem(shelf)
         if isPuppet {
             let roam = NSMenuItem(title: "允许四处溜达", action: #selector(petMenuToggleRoam(_:)), keyEquivalent: "")
             roam.target = self
@@ -1928,6 +1935,10 @@ final class PetWindowController {
         hide.target = self
         menu.addItem(hide)
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    @objc private func petMenuShelf(_ sender: Any) {
+        StagingShelf.open()
     }
 
     @objc private func petMenuMedia(_ sender: NSMenuItem) {
