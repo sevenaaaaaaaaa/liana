@@ -4,36 +4,36 @@ version = 4
 
 [[package]]
 name = "liana-ai"
-version = "0.6.0"
+version = "0.7.0"
 
 [[package]]
 name = "liana-core"
-version = "0.6.0"
+version = "0.7.0"
 
 [[package]]
 name = "liana-dict"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "liana-core",
 ]
 
 [[package]]
 name = "liana-emoji"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "liana-core",
 ]
 
 [[package]]
 name = "liana-en"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "liana-core",
 ]
 
 [[package]]
 name = "liana-engine"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "liana-core",
  "liana-dict",
@@ -48,7 +48,7 @@ dependencies = [
 
 [[package]]
 name = "liana-ffi"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "liana-ai",
  "liana-core",
@@ -59,14 +59,14 @@ dependencies = [
 
 [[package]]
 name = "liana-ja"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "liana-core",
 ]
 
 [[package]]
 name = "liana-pinyin"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "liana-core",
  "liana-dict",
@@ -74,33 +74,33 @@ dependencies = [
 
 [[package]]
 name = "liana-plugin"
-version = "0.6.0"
+version = "0.7.0"
 
 [[package]]
 name = "liana-radix"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "liana-core",
 ]
 
 [[package]]
 name = "liana-symbol"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "liana-core",
 ]
 
 [[package]]
 name = "liana-sync"
-version = "0.6.0"
+version = "0.7.0"
 
 [[package]]
 name = "liana-zhconv"
-version = "0.6.0"
+version = "0.7.0"
 
 [[package]]
 name = "xtask"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "liana-core",
  "liana-dict",
