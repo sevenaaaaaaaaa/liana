@@ -54,6 +54,107 @@ enum PetChatBrain {
         keys.contains { text.contains($0) }
     }
 
+    // MARK: 偏好指令：对桌宠说出优化诉求，它按现有能力当场调整
+
+    /// 愿望单：本地纯文本，用户可在 设置中心 › 数据 目录里看到。
+    static let wishlistPath = NSHomeDirectory() + "/Library/Application Support/Liana/wishlist.txt"
+
+    /// 追加一条愿望（带时间戳），返回追加后的总条数。
+    @discardableResult
+    static func recordWish(_ text: String) -> Int {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd HH:mm"
+        let line = "[\(df.string(from: Date()))] \(text)\n"
+        let url = URL(fileURLWithPath: wishlistPath)
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        var content = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        content += line
+        try? content.write(to: url, atomically: true, encoding: .utf8)
+        return content.components(separatedBy: "\n").filter { $0.hasPrefix("[") }.count
+    }
+
+    /// 偏好指令识别：匹配到就当场改设置并回复；要求记愿望的写入本地愿望单。
+    private static func preferences(_ raw: String) -> Reply? {
+        let t = raw.trimmingCharacters(in: .whitespaces).lowercased()
+        let wantsChange = has(t, ["我希望", "能不能", "可以不要", "别再", "太吵", "太多", "太烦",
+                                  "关闭", "关掉", "去掉", "取消", "帮我开", "帮我关", "我想"])
+        guard wantsChange else { return nil }
+
+        // —— 拼音提示 ——
+        if has(t, ["拼音", "读音", "标注", "注释"]) {
+            if has(t, ["太吵", "太多", "去掉", "关闭", "关掉", "不要", "取消", "隐藏"]) {
+                ReadingDisplay.current = .never
+                return Reply(text: "好啦，候选下方的拼音提示我帮你全部隐藏了（设置 › 输入 › 拼音提示 可改回来）", trigger: "chat", action: nil)
+            }
+            if has(t, ["只留", "只显示", "仅", "只保留"]) {
+                ReadingDisplay.current = .correctedOnly
+                return Reply(text: "嗯嗯，改成「仅纠错时显示」了——打错或简拼才标拼音", trigger: "chat", action: nil)
+            }
+            if has(t, ["显示", "打开", "看到"]) {
+                ReadingDisplay.current = .always
+                return Reply(text: "好，拼音提示改成「始终显示」了", trigger: "chat", action: nil)
+            }
+        }
+        // —— 桌宠行为 ——
+        if has(t, ["乱跑", "溜达"]) && has(t, ["别", "不要", "关闭", "关掉", "取消"]) {
+            PetWindowController.roamEnabled = false
+            return Reply(text: "好，我不到处溜达了，乖乖待在原地 🧍", trigger: "chat", action: nil)
+        }
+        if has(t, ["跟着鼠标", "跟随鼠标"]) && has(t, ["别", "不要", "关闭", "关掉"]) {
+            PetWindowController.followMouse = false
+            return Reply(text: "好，我不再跟着鼠标跑啦", trigger: "chat", action: nil)
+        }
+        if has(t, ["场景", "场景跟随"]) && has(t, ["别", "不要", "关闭", "关掉"]) {
+            PetWindowController.scenesEnabled = false
+            return Reply(text: "好，换应用时我不换装了", trigger: "chat", action: nil)
+        }
+        if has(t, ["休息提醒"]) && has(t, ["别", "不要", "关闭", "关掉"]) {
+            PetWindowController.breakReminder = false
+            return Reply(text: "好，不提醒你休息了……不过还是要注意身体哦", trigger: "chat", action: nil)
+        }
+        if has(t, ["动画", "出场", "入场"]) && has(t, ["别", "不要", "关闭", "关掉"]) {
+            PetWindowController.entranceEnabled = false
+            return Reply(text: "好，出场动画关掉了，我随叫随到", trigger: "chat", action: nil)
+        }
+        if has(t, ["自动聊天", "自言自语", "主动聊天"]) && has(t, ["别", "不要", "关闭", "关掉"]) {
+            PetChatAutoTrigger.enabled = false
+            return Reply(text: "好，我不主动搭话了，你想聊再叫我", trigger: "chat", action: nil)
+        }
+        if has(t, ["安静", "别说话"]) { return nil }  // 交给既有安静模式规则
+        // —— 语音代码模式 ——
+        if has(t, ["代码模式", "代码语音", "符号词"]) {
+            if has(t, ["关闭", "关掉", "不要", "取消"]) {
+                DevDictation.enabled = false
+                return Reply(text: "好，代码模式语音关掉了", trigger: "chat", action: nil)
+            }
+            if has(t, ["打开", "开启", "帮我开", "我想"]) {
+                DevDictation.enabled = true
+                return Reply(text: "好，代码模式语音开了——说「点」「箭头」「驼峰」试试 💻", trigger: "chat_happy", action: nil)
+            }
+        }
+        // —— 剪切板 ——
+        if has(t, ["剪切板", "剪贴板", "复制"]) {
+            if has(t, ["记录", "历史"]) && has(t, ["别", "不要", "关闭", "关掉"]) {
+                ClipboardMonitor.shared.setEnabled(false)
+                return Reply(text: "好，剪切板历史关掉了，之前的记录也一并清空", trigger: "chat", action: nil)
+            }
+            if has(t, ["动作", "气泡", "弹窗", "口令"]) && has(t, ["别", "不要", "关闭", "关掉"]) {
+                ClipboardActionWatcher.commandsEnabled = false
+                ClipboardActionWatcher.linksEnabled = false
+                ClipboardActionWatcher.codesEnabled = false
+                return Reply(text: "好，复制后的动作气泡全部关掉了", trigger: "chat", action: nil)
+            }
+        }
+        // —— 记愿望 ——
+        if has(t, ["记下", "记住", "愿望", "希望支持", "希望你们", "要是能", "就好了"]) {
+            let count = recordWish(raw.trimmingCharacters(in: .whitespaces))
+            return Reply(text: "记下了！第 \(count) 条愿望，已写进本地愿望单（数据目录里的 wishlist.txt）", trigger: "chat_happy", action: nil)
+        }
+        // 说了「我希望/太吵」但没匹配到任何可调项：如实说 + 主动记愿望
+        let count = recordWish(raw.trimmingCharacters(in: .whitespaces))
+        return Reply(text: "这个我现在还不会调，已记进愿望单（第 \(count) 条）——能调的都可以直接跟我说", trigger: "chat", action: nil)
+    }
+
     /// 用户情绪 → 桌宠反应
     private static func mood(of text: String) -> String {
         if has(text, ["累", "烦", "难过", "伤心", "哭", "压力", "郁闷", "不开心", "崩溃", "加班"]) { return "chat_sad" }
@@ -63,6 +164,9 @@ enum PetChatBrain {
 
     private static func rules(_ raw: String, petName: String) -> Reply? {
         let t = raw.trimmingCharacters(in: .whitespaces).lowercased()
+        // 偏好指令：「我希望/能不能/太吵了」这类话 → 当场按现有能力调整设置。
+        // 能做的真做（改完回复确认），做不到的如实说并记进本地愿望单。
+        if let pref = preferences(t) { return pref }
         // 指令：让它做动作
         if has(t, ["跳舞", "跳个舞", "跳一个"]) { return Reply(text: "看我的！🎵", trigger: nil, action: "dance") }
         if has(t, ["转圈", "转个圈"]) { return Reply(text: "转～圈～圈～", trigger: nil, action: "spin_turn") }
