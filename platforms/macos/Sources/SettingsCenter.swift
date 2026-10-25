@@ -359,6 +359,8 @@ struct OverviewPage: View {
                 ShortcutRow(keys: "a a", title: "网址 / 表情模式", detail: "浏览器里连按两下 a 进网址模式，聊天工具里进表情")
                 Divider()
                 ShortcutRow(keys: "u…", title: "符号输入", detail: "u 开头检索符号，如 uduihao → ✓")
+                Divider()
+                ShortcutRow(keys: "uu…", title: "拆字输入", detail: "不会读的字按部件拼音拼：uuriyue → 明、uuyu yang → 鲜")
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 4)

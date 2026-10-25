@@ -9,6 +9,7 @@ use liana_emoji::EmojiDecoder;
 use liana_en::EnDecoder;
 use liana_ja::JaDecoder;
 use liana_pinyin::{Layout, PinyinDecoder};
+use liana_radix::RadixDecoder;
 use liana_symbol::SymbolDecoder;
 
 use evolution::EvolutionMemory;
@@ -71,6 +72,7 @@ pub struct Session {
     ja: JaDecoder,
     emoji: EmojiDecoder,
     symbol: SymbolDecoder,
+    radix: RadixDecoder,
     user: UserModel,
     /// 上一个上屏内容，用于二元组预测（只在内存、进程退出即消失）。
     last_committed: Option<String>,
@@ -125,6 +127,7 @@ impl Session {
             ja: JaDecoder,
             emoji: EmojiDecoder,
             symbol: SymbolDecoder,
+            radix: RadixDecoder,
             user: UserModel::new(),
             last_committed: None,
             recent: Vec::new(),
@@ -611,6 +614,14 @@ impl Session {
             return;
         }
         // `u` 前缀进符号模式：普通话没有以 u 开头的音节，不会和拼音抢输入。
+        // `uu` 前缀进拆字模式（部件读音拼字），优先于符号模式判定。
+        if self.mode == Mode::Pinyin && self.buffer.starts_with(liana_radix::TRIGGER) {
+            let cands = self.radix.decode_buffer(&self.buffer);
+            if !cands.is_empty() {
+                self.finish(cands, self.buffer.clone());
+                return;
+            }
+        }
         let symbol_hit =
             if self.mode == Mode::Pinyin && self.buffer.starts_with(liana_symbol::TRIGGER) {
                 let c = self.symbol.decode_buffer(&self.buffer);

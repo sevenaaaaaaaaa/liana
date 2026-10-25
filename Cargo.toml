@@ -8,6 +8,7 @@ members = [
     "crates/ja",
     "crates/emoji",
     "crates/symbol",
+    "crates/radix",
     "crates/sync",
     "crates/zhconv",
     "crates/engine",
@@ -34,6 +35,7 @@ liana-en = { path = "crates/en" }
 liana-ja = { path = "crates/ja" }
 liana-emoji = { path = "crates/emoji" }
 liana-symbol = { path = "crates/symbol" }
+liana-radix = { path = "crates/radix" }
 liana-sync = { path = "crates/sync" }
 liana-zhconv = { path = "crates/zhconv" }
 liana-engine = { path = "crates/engine" }

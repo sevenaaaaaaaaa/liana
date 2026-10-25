@@ -41,6 +41,7 @@ dependencies = [
  "liana-en",
  "liana-ja",
  "liana-pinyin",
+ "liana-radix",
  "liana-symbol",
  "liana-zhconv",
 ]
@@ -74,6 +75,13 @@ dependencies = [
 [[package]]
 name = "liana-plugin"
 version = "0.6.0"
+
+[[package]]
+name = "liana-radix"
+version = "0.6.0"
+dependencies = [
+ "liana-core",
+]
 
 [[package]]
 name = "liana-symbol"

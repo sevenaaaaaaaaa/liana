@@ -1,0 +1,11 @@
+[package]
+name = "liana-radix"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Radical-based hanzi input: uu + component pinyin names"
+
+[dependencies]
+liana-core = { workspace = true }

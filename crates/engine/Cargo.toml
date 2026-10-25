@@ -14,4 +14,5 @@ liana-en = { workspace = true }
 liana-ja = { workspace = true }
 liana-emoji = { workspace = true }
 liana-symbol = { workspace = true }
+liana-radix = { workspace = true }
 liana-zhconv = { workspace = true }
