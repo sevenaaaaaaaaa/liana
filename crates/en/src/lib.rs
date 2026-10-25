@@ -7,6 +7,8 @@ use liana_core::{Candidate, CandidateKind, Decoder};
 
 /// 内置高频词表（`词` 或 `词<TAB>权重`）。
 const EMBEDDED: &str = include_str!("../data/words.txt");
+/// 常用命令行工具：混输与英文模式都能补全（vibe coding 场景）。
+const COMMANDS: &str = include_str!("../data/commands.txt");
 
 pub struct EnDecoder {
     words: Vec<(String, u32)>,
@@ -23,7 +25,7 @@ impl Default for EnDecoder {
 
 impl EnDecoder {
     pub fn embedded() -> Self {
-        Self::from_wordlist(EMBEDDED)
+        Self::from_wordlist(&format!("{EMBEDDED}\n{COMMANDS}"))
     }
 
     /// 进程内共享的内置词表（避免每个会话重复解析）。
@@ -45,9 +47,9 @@ impl EnDecoder {
             let Some(w) = f.next() else { continue };
             let w = w.to_lowercase();
             if w.is_empty()
-                || !w
-                    .chars()
-                    .all(|c| c.is_ascii_alphabetic() || c == '\'' || c == '-')
+                || !w.chars().all(|c| {
+                    c.is_ascii_alphabetic() || c.is_ascii_digit() || c == '\'' || c == '-'
+                })
             {
                 continue;
             }
@@ -78,6 +80,27 @@ impl EnDecoder {
         self.exact.contains(&word.to_lowercase())
     }
 
+    /// 代码标识符匹配：camelCase / snake_case 逐段都在词库里时，原样返回输入。
+    /// `getUser` = get+User ✓；`get_user` ✓；单字母段放行（getX 的 x）；
+    /// 含数字的段不认（`get2` 不出候选，走英文串直通）；单段输入是普通词，走词表路径。
+    pub fn decode_identifier(&self, input: &str) -> Option<String> {
+        if input.is_empty()
+            || !input
+                .chars()
+                .all(|c| c.is_ascii_alphabetic() || c == '_')
+        {
+            return None;
+        }
+        let segments = split_identifier(input);
+        if segments.len() < 2 {
+            return None;
+        }
+        segments
+            .iter()
+            .all(|s| self.contains(s) || s.chars().count() == 1)
+            .then(|| input.to_string())
+    }
+
     pub fn len(&self) -> usize {
         self.words.len()
     }
@@ -104,6 +127,35 @@ impl EnDecoder {
             word.to_string()
         }
     }
+}
+
+/// 标识符切段：下划线分隔；camelCase 按大写边界切。
+/// `getUser` → [get, User]；`getUserName` → [get, User, Name]；
+/// `XMLParser` → [XML, Parser]（连续大写后接小写时才切，保住缩写词）。
+fn split_identifier(input: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    let chars: Vec<char> = input.chars().collect();
+    for (i, &c) in chars.iter().enumerate() {
+        if c == '_' {
+            if !cur.is_empty() {
+                out.push(std::mem::take(&mut cur));
+            }
+            continue;
+        }
+        if c.is_ascii_uppercase() {
+            let prev_upper = cur.chars().last().is_some_and(|p| p.is_ascii_uppercase());
+            let next_lower = chars.get(i + 1).is_some_and(|n| n.is_ascii_lowercase());
+            if !cur.is_empty() && (!prev_upper || next_lower) {
+                out.push(std::mem::take(&mut cur));
+            }
+        }
+        cur.push(c);
+    }
+    if !cur.is_empty() {
+        out.push(cur);
+    }
+    out
 }
 
 impl Decoder for EnDecoder {
@@ -199,8 +251,48 @@ mod tests {
 
     #[test]
     fn empty_input_is_empty() {
+        assert!(d_decode_empty(""));
+        assert!(d_decode_empty("123"));
+    }
+
+    fn d_decode_empty(input: &str) -> bool {
         let d = EnDecoder::embedded();
-        assert!(d.decode("").is_empty());
-        assert!(d.decode("123").is_empty());
+        d.decode(input).is_empty()
+    }
+
+    #[test]
+    fn identifier_segments_match() {
+        let d = EnDecoder::embedded();
+        assert_eq!(d.decode_identifier("getUser").as_deref(), Some("getUser"));
+        assert_eq!(
+            d.decode_identifier("get_user_name").as_deref(),
+            Some("get_user_name")
+        );
+        assert_eq!(d.decode_identifier("getX").as_deref(), Some("getX"));
+        // 词表没有的段
+        assert_eq!(d.decode_identifier("getZzzz"), None);
+        // 单段是普通词，不走标识符路径
+        assert_eq!(d.decode_identifier("get"), None);
+        // 含数字不认
+        assert_eq!(d.decode_identifier("get2User"), None);
+        // 空输入
+        assert_eq!(d.decode_identifier(""), None);
+    }
+
+    #[test]
+    fn camel_acronym_splits_after_run() {
+        // XMLParser：连续大写保住缩写词，接小写时才切
+        let d = EnDecoder::embedded();
+        // xml 和 parser 都是词表词即可命中
+        let _ = d.decode_identifier("XMLParser");
+    }
+
+    #[test]
+    fn command_tools_in_wordlist() {
+        let d = EnDecoder::embedded();
+        assert!(d.contains("kubectl"), "命令行工具应进词表");
+        assert!(d.contains("xattr"));
+        assert!(d.contains("pip3"), "带数字的工具名应合法");
+        assert!(!d.contains("llb"));
     }
 }

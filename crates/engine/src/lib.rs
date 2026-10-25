@@ -23,8 +23,8 @@ pub use app_mode::AppModeMemory;
 pub const MAX_CANDIDATES: usize = 30;
 /// 中英混输时最多掺入的英文候选数。
 const MAX_MIXED_ENGLISH: usize = 5;
-/// 中英混输里「精确英文词」判定的最短长度（避免 `he`/`can` 这类拼音噪声）。
-const MIN_EXACT_ENGLISH: usize = 4;
+/// 中英混输里「精确英文词」判定的最短长度（避免 `he`/`an` 这类拼音噪声；3 字词 get/run/map 放行）。
+const MIN_EXACT_ENGLISH: usize = 3;
 
 // ——— AI 辅助短语（不做手动短语表，全部自动学习）———
 /// 参与合并的最近上屏段数：窗口内的所有后缀组合都会被记一次。
@@ -218,9 +218,12 @@ impl Session {
     }
 
     /// 前端按键入口。只接受字母与 `'`、`;`（微软双拼 ing 键）；
-    /// 英文串（纯字母组合解码不出中文）里允许续接网址/邮箱/版本号符号。
+    /// 下划线随时可入缓冲（代码标识符意图，getUser/get_user）；
+    /// 英文串（纯字母组合解码不出中文）里允许续接网址/邮箱/版本号符号与数字。
     pub fn feed(&mut self, ch: char) -> bool {
-        let ok = ch.is_ascii_alphabetic() || ch == '\'' || ch == ';';
+        let identifier_underscore =
+            ch == '_' && matches!(self.mode, Mode::Pinyin | Mode::Shuangpin(_) | Mode::English);
+        let ok = ch.is_ascii_alphabetic() || ch == '\'' || ch == ';' || identifier_underscore;
         if !ok {
             // 英文串续接：example.ai、http://、someone@example.com、v1.2——
             // 符号与数字直接进组合，空格/回车由前端原样上屏。
@@ -247,14 +250,16 @@ impl Session {
 
     /// 组合是否已是「英文串」：缓冲非空、模式可打中文、且没有任何**全覆盖**
     /// 的汉字候选——整串解码不出中文（`example`，部分覆盖的零星单字不算），
-    /// 或全覆盖命中英文词（`hello`）。中文组合（全覆盖汉字候选）绝不触发。
+    /// 或全覆盖命中英文词（`hello`），或含下划线（`get_user`，标识符意图）。
+    /// 中文组合（全覆盖汉字候选）绝不触发。
     fn english_like(&self) -> bool {
         let raw_len = self.buffer.chars().count();
         !self.buffer.is_empty()
             && matches!(self.mode, Mode::Pinyin | Mode::Shuangpin(_) | Mode::English)
-            && !self.comp.candidates.iter().any(|c| {
-                c.consumed == raw_len && c.text.chars().any(is_phrase_char)
-            })
+            && (self.buffer.contains('_')
+                || !self.comp.candidates.iter().any(|c| {
+                    c.consumed == raw_len && c.text.chars().any(is_phrase_char)
+                }))
     }
 
     /// 网址/邮箱常见前缀（`www`/`http`/`https`/`ftp`/`mailto`），或已含 `.` `/` `@` `:`
@@ -809,28 +814,57 @@ impl Session {
 
     /// 中英混输：中文模式里掺入英文候选。
     ///
-    /// 触发条件：输入无法完整解成中文（有残余）、或本身是长度 ≥4 的英文词、
-    /// 或用户按了 Shift（大写意图）。短词（如 `he`）不触发，避免拼音噪声。
+    /// 触发条件：输入无法完整解成中文（有残余）、本身是长度 ≥3 的英文词、
+    /// 是词库逐段命中的代码标识符（getUser / get_user）、或用户按了 Shift
+    /// （大写意图）。两字母短拼（he/an）不触发，避免拼音噪声。
+    ///
+    /// 锚定插入：有全覆盖中文在场时，最优英文候选（精确词/标识符）的分数
+    /// 顶到中文最高分之下 0.5——排进候选窗首屏（紧随中文首选），不再沉底
+    /// 十几位开外。选过一次后 user.bonus 按文本加分，同前缀下次更靠前。
     fn push_english_candidates(&self, cands: &mut Vec<liana_core::Candidate>) {
         use liana_core::CandidateKind;
         let raw = self.buffer.as_str();
         let has_real_zh = cands.iter().any(|c| c.kind != CandidateKind::Literal);
         let lower = raw.to_ascii_lowercase();
         let upper_intent = raw.chars().any(|c| c.is_ascii_uppercase());
+        let identifier = self.en.decode_identifier(raw);
         let exact_word = lower.chars().count() >= MIN_EXACT_ENGLISH && self.en.contains(&lower);
-        if has_real_zh && !exact_word && !upper_intent {
+        if has_real_zh && !exact_word && identifier.is_none() && !upper_intent {
             return;
         }
         let consumed = raw.chars().count();
-        for mut c in self
+        // 全覆盖中文候选的最高分（锚定插入的基准）
+        let zh_top = cands
+            .iter()
+            .filter(|c| c.consumed == consumed && c.text.chars().any(is_phrase_char))
+            .map(|c| c.score)
+            .reduce(f64::max);
+        let mut incoming: Vec<_> = self
             .en
             .decode_for_mix(raw)
             .into_iter()
             .take(MAX_MIXED_ENGLISH)
-        {
+            .collect();
+        // 标识符候选：词表里没有这种形态（getUser），单独立一条
+        if let Some(text) = identifier {
+            incoming.push(
+                liana_core::Candidate::new(text, consumed, CandidateKind::Word, 9.0)
+                    .with_comment("标识符"),
+            );
+        }
+        for mut c in incoming {
             c.consumed = consumed;
-            // 高于 literal（-1000），但不抢中文整句的层级。
             c.score = c.score.max(-100.0);
+            if let Some(top) = zh_top {
+                let is_best = c.text.to_lowercase() == lower
+                    || c.comment.as_deref() == Some("标识符");
+                if is_best && c.score < top {
+                    if c.comment.is_none() {
+                        c.comment = Some("英文".into());
+                    }
+                    c.score = top - 0.5;
+                }
+            }
             cands.push(c);
         }
     }
@@ -1139,6 +1173,59 @@ mod tests {
         type_str(&mut s, "test");
         let c = &s.composition().candidates;
         assert_eq!(c[0].text, "test", "{c:?}");
+    }
+
+    #[test]
+    fn mixed_input_pinyin_solvable_english_near_top() {
+        // date：da'te 拼音可解，但 date 也是词库英文词——应进候选窗首屏
+        // （旧实现沉底十几位开外，用户看不见，只能切模式）
+        let mut s = session(Mode::Pinyin);
+        type_str(&mut s, "date");
+        let c = &s.composition().candidates;
+        let pos = c.iter().position(|x| x.text.to_lowercase() == "date");
+        assert!(pos.is_some_and(|p| p <= 3), "date 应在首屏（≤第 4 位）: {c:?}");
+    }
+
+    #[test]
+    fn mixed_input_three_letter_word_mixes() {
+        // get：3 字母英文词也要触发（此前 ≥4 才行，get/run/map 全被挡）
+        let mut s = session(Mode::Pinyin);
+        type_str(&mut s, "get");
+        let c = &s.composition().candidates;
+        assert!(
+            c.iter().take(4).any(|x| x.text.to_lowercase() == "get"),
+            "get 应进首屏: {c:?}"
+        );
+    }
+
+    #[test]
+    fn identifier_snake_case_candidate() {
+        let mut s = session(Mode::Pinyin);
+        type_str(&mut s, "get_user");
+        let c = &s.composition().candidates;
+        assert!(
+            c.iter().take(4).any(|x| x.text == "get_user"),
+            "get_user 应以标识符候选出现在首屏: {c:?}"
+        );
+    }
+
+    #[test]
+    fn identifier_camel_case_candidate() {
+        let mut s = session(Mode::Pinyin);
+        type_str(&mut s, "getUser");
+        let c = &s.composition().candidates;
+        assert!(
+            c.iter().take(4).any(|x| x.text == "getUser"),
+            "getUser 应以标识符候选出现在首屏: {c:?}"
+        );
+    }
+
+    #[test]
+    fn underscore_feeds_into_buffer_anytime() {
+        let mut s = session(Mode::Pinyin);
+        assert!(s.feed('_'), "下划线是标识符意图，应随时入缓冲");
+        type_str(&mut s, "get");
+        assert_eq!(s.buffer(), "_get");
     }
 
     #[test]
