@@ -655,6 +655,7 @@ impl Session {
                 self.push_phrase_candidates(&mut cands);
                 self.push_nutrition_candidates(&mut cands);
                 self.push_english_candidates(&mut cands);
+                self.suppress_partial_corrections(&mut cands);
             }
         }
         self.finish(cands, preedit);
@@ -868,9 +869,29 @@ impl Session {
             cands.push(c);
         }
     }
+
+    /// 打得准就不出纠错：输入存在「全拼恰好覆盖的真实词候选」时（= 没打错），
+    /// 丢掉部分覆盖的纠错候选——nihao 里的 里[li]/机[ji]、shuru 里的 是[shi]
+    /// 这类噪声是候选注释的最大来源（用户反馈：只有常见错别字/特别发音才需要标注）。
+    /// 整词纠错（gao→好、si→四，consumed == 输入全长）与补全（输入法 shu ru fa）
+    /// 不受影响。kernel 层做不了这个判断（需要「真实词」信号），所以放在这里。
+    fn suppress_partial_corrections(&self, cands: &mut Vec<liana_core::Candidate>) {
+        use liana_core::CommentRole;
+        let raw_len = self.buffer.chars().count();
+        let well_typed = cands.iter().any(|c| {
+            c.comment_role == CommentRole::ExactReading
+                && c.consumed == raw_len
+                && c.text.chars().any(is_phrase_char)
+        });
+        if well_typed {
+            cands.retain(|c| {
+                c.comment_role != CommentRole::CorrectedReading || c.consumed == raw_len
+            });
+        }
+    }
 }
 
-/// 能进短语库的字符：中日韩文字。英文、数字、符号、表情都排除在外。
+    /// 能进短语库的字符：中日韩文字。英文、数字、符号、表情都排除在外。
 fn is_phrase_char(c: char) -> bool {
     matches!(c, '\u{3400}'..='\u{9fff}' | '\u{f900}'..='\u{faff}')
 }
@@ -1981,4 +2002,56 @@ mod tests {
         fresh.forget_evolution();
         assert!(fresh.export_evolution().is_empty());
     }
+
+/// 「打得准就不出纠错」端到端守卫：完整全拼解码出真实词后，
+    /// 部分覆盖的纠错候选整体消失（候选注释噪声的最大来源）。
+    #[test]
+    #[test]
+    fn well_typed_input_drops_partial_corrections() {
+        let mut s = session(Mode::Pinyin);
+        for input in ["nihao", "shuru", "diannao", "xihuan"] {
+            s.clear();
+            type_str(&mut s, input);
+            let raw_len = input.chars().count();
+            let cands = &s.composition().candidates;
+            let well_typed = cands.iter().any(|c| {
+                c.comment_role == liana_core::CommentRole::ExactReading
+                    && c.consumed == raw_len
+                    && c.text.chars().any(is_phrase_char)
+            });
+            assert!(well_typed, "{input} 应是打得准的输入: {cands:?}");
+            let noise: Vec<_> = cands
+                .iter()
+                .filter(|c| {
+                    c.comment_role == liana_core::CommentRole::CorrectedReading
+                        && c.consumed < raw_len
+                })
+                .collect();
+            assert!(noise.is_empty(), "{input} 不应再有部分覆盖纠错候选: {noise:?}");
+        }
+    }
+
+    /// 整词纠错（gao→好）与补全（输入法 shu ru fa）不受抑制影响。
+    #[test]
+    #[test]
+    fn whole_word_corrections_survive() {
+        let mut s = session(Mode::Pinyin);
+        // 整词纠错：gao 打成想要 hao——候选全长、词典词，保留
+        s.clear();
+        type_str(&mut s, "gao");
+        let cands = &s.composition().candidates;
+        assert!(
+            cands.iter().take(4).any(|c| c.text == "好"),
+            "gao 的整词纠错「好」应保留在首屏: {cands:?}"
+        );
+        // 补全：shur → 输入法（全长 consumed，词典词），保留
+        s.clear();
+        type_str(&mut s, "shur");
+        let cands = &s.composition().candidates;
+        assert!(
+            cands.iter().any(|c| c.text == "输入法"),
+            "补全候选「输入法」应保留: {cands:?}"
+        );
+    }
 }
+

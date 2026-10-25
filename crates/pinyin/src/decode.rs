@@ -376,7 +376,12 @@ impl PinyinDecoder {
 
     /// 读音与用户所打完全一致的候选（`nihao` → 你好 [ni hao]）降级为
     /// [`CommentRole::ExactReading`]，前端据此在「仅纠错时显示」模式下隐藏拼音；
-    /// 模糊音、纠错、简拼、混拼、补全的读音保持 `CorrectedReading`。
+    /// 模糊音、纠错、简拼、混拼的读音保持 `CorrectedReading`。
+    ///
+    /// 补全候选分两种：输入恰好是完整音节前缀（`shuru` → 输入法，打的就是
+    /// shu+ru，候选只是多带了尾巴）按精确处理隐藏——候选文本里看得见多出的字，
+    /// 拼音纯属冗余（用户反馈：绝大多数词不需要标注）；半截输入（`nih` →
+    /// 你好 [ni hao]，音节没打完）保留提示，告诉用户补全是怎么解读的。
     fn mark_exact_readings(&self, input: &str, out: &mut [Candidate]) {
         for c in out.iter_mut() {
             if c.comment_role != CommentRole::CorrectedReading {
@@ -391,10 +396,33 @@ impl PinyinDecoder {
                 .filter(char::is_ascii_alphabetic)
                 .map(|ch| ch.to_ascii_lowercase())
                 .collect();
-            if self.reading_matches(&typed, reading) {
+            if self.reading_matches(&typed, reading) || self.is_aligned_completion(&typed, reading)
+            {
                 c.comment_role = CommentRole::ExactReading;
             }
         }
+    }
+
+    /// `typed` 是否是 `reading` 前 k 个音节（k ≥ 1）的**完整**拼写——
+    /// 即音节对齐的补全：`shuru` ⊂ [shu,ru,fa] ✓；`nih` ⊂ [ni,hao] ✗（h 不是完整音节）。
+    fn is_aligned_completion(&self, typed: &str, reading: &str) -> bool {
+        let syls: Vec<&str> = reading.split([' ', '\'']).filter(|s| !s.is_empty()).collect();
+        if syls.len() < 2 || typed.is_empty() {
+            return false;
+        }
+        let mut rest = typed;
+        for (i, syl) in syls.iter().enumerate() {
+            if rest.is_empty() {
+                // typed 在第 i 个音节前用完 → 恰好对齐前 i 个音节（i ≥ 1 才算补全）
+                return i >= 1;
+            }
+            let want = canon_syl(syl);
+            if rest.len() < want.len() || !rest.starts_with(want) {
+                return false;
+            }
+            rest = &rest[want.len()..];
+        }
+        false // 读音全部对齐 = 精确匹配，轮不到这里
     }
 
     /// `typed`（纯小写字母）是否就是 `reading`（空格/撇号分隔的拼音）的原样拼写。
