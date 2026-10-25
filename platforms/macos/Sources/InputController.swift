@@ -31,6 +31,8 @@ final class LianaInputController: IMKInputController {
     private var segmentCache: [String: String] = [:]
     /// 普通语音 final 后的标点二次确认原文；nil = 无待确认（同传不走此状态）。
     private var voicePunctPending: String?
+    /// 代码模式口述的命名模式状态（驼峰/下划线/常量），跨语句保持、开听重置
+    private var voiceCodeState = DevDictationState()
     /// 标点候选标签：下标 0 = 原样（不加标点），1... = 实际标点。
     private static let voicePunctLabels = ["原样", "。", "，", "！", "？"]
     private weak var currentClient: IMKTextInput?
@@ -607,8 +609,12 @@ final class LianaInputController: IMKInputController {
 
     private func startVoice() {
         voicePunctPending = nil
-        voice.onPartial = { [weak self] text in
+        voiceCodeState = DevDictationState()
+        voice.onPartial = { [weak self] rawText in
             guard let self, self.voice.isListening else { return }
+            let text = DevDictation.enabled
+                ? DevDictation.process(rawText, state: &self.voiceCodeState)
+                : rawText
             PetWindowController.shared.voiceHeard()
             self.voicePartial = text
             guard let client = self.activeClient() else { return }
@@ -636,7 +642,12 @@ final class LianaInputController: IMKInputController {
         voice.onFinal = { [weak self] text in
             guard let self, self.voice.isListening else { return }
             let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            let source = value.isEmpty ? self.voicePartial : value
+            // 代码模式：符号词/命名口令在这里落地（voicePartial 已是处理后的展示文本）
+            let processed = DevDictation.enabled
+                ? DevDictation.process(value, state: &self.voiceCodeState)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                : value
+            let source = processed.isEmpty ? self.voicePartial : processed
             guard !source.isEmpty else {
                 if self.voice.isListening { self.voice.stop() }
                 self.voicePartial = ""

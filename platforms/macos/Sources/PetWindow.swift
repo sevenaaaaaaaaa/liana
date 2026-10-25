@@ -1875,6 +1875,14 @@ final class PetWindowController {
         )
         shelf.target = self
         menu.addItem(shelf)
+        let voiceCode = NSMenuItem(
+            title: "代码模式语音（符号词/命名口令）",
+            action: #selector(petMenuToggleVoiceCode(_:)),
+            keyEquivalent: ""
+        )
+        voiceCode.target = self
+        voiceCode.state = DevDictation.enabled ? .on : .off
+        menu.addItem(voiceCode)
         if isPuppet {
             let roam = NSMenuItem(title: "允许四处溜达", action: #selector(petMenuToggleRoam(_:)), keyEquivalent: "")
             roam.target = self
@@ -1939,6 +1947,15 @@ final class PetWindowController {
 
     @objc private func petMenuShelf(_ sender: Any) {
         StagingShelf.open()
+    }
+
+    @objc private func petMenuToggleVoiceCode(_ sender: Any) {
+        DevDictation.enabled.toggle()
+        GlassToast.shared.show(
+            DevDictation.enabled ? "代码模式语音已开：说「点」「箭头」「驼峰」试试" : "代码模式语音已关",
+            symbol: "curlybraces.square.fill",
+            duration: 4
+        )
     }
 
     @objc private func petMenuMedia(_ sender: NSMenuItem) {

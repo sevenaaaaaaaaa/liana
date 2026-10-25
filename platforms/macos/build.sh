@@ -90,6 +90,7 @@ SWIFT_SOURCES=("$HERE/Sources/main.swift" "$HERE/Sources/Engine.swift" \
     "$HERE/Sources/PetImageGen.swift" \
     "$HERE/Sources/AvatarCreatorWindow.swift" \
     "$HERE/Sources/VoiceInput.swift" \
+    "$HERE/Sources/DevDictation.swift" \
     "$HERE/Sources/TranslateClient.swift" \
     "$HERE/Sources/LianaUI.swift" \
     "$HERE/Sources/LianaActions.swift" \

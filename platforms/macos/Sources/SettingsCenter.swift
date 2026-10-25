@@ -539,6 +539,11 @@ struct VoicePage: View {
                             .lianaGlassButton()
                     }
                 }
+                ToggleRow(
+                    title: "代码模式语音（符号词 + 命名模式口令）",
+                    detail: "说「点」落 .、「箭头」落 ->、「井号」落 #；说「驼峰 get user」落 getUser，「下划线模式」「常量模式」同理；中文正文照常上屏。默认关",
+                    isOn: model.binding({ DevDictation.enabled }, { DevDictation.enabled = $0 })
+                )
             }
             Section("同声传译") {
                 StatusRow(title: "翻译运行时（llama.cpp）",

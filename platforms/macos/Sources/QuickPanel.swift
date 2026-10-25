@@ -308,6 +308,8 @@ struct QuickPanelView: View {
 
     private func subtitle(for tile: QuickTile) -> String {
         switch tile.id {
+        case .voice where model.listening && model.interpret == nil && DevDictation.enabled:
+            return "正在听 · 代码模式"
         case .voice where model.listening && model.interpret == nil: return "正在听 · 点击停止"
         case .interpretEn where model.interpret == "en": return "进行中 · 点击关闭"
         case .interpretJa where model.interpret == "ja": return "进行中 · 点击关闭"
