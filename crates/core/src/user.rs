@@ -9,6 +9,12 @@ use std::collections::HashMap;
 const MAX_PAIRS: usize = 20_000;
 /// 自动学习的短语条数上限，同样用「丢一次性条目 + 计数减半」控制规模。
 const MAX_PHRASES: usize = 5_000;
+/// 网址/邮箱习惯条数上限（用户原样上屏过的 ASCII 令牌的字母段）。
+const MAX_DOT_HABITS: usize = 2_000;
+/// 钉选候选上限（微信式「固定首位」；最近的排最前）。
+const MAX_PINS: usize = 100;
+/// 屏蔽候选上限（「不再显示」；只对多字词生效，防误伤单字结构）。
+const MAX_BANS: usize = 1_000;
 
 #[derive(Default, Debug, Clone)]
 pub struct UserModel {
@@ -20,6 +26,14 @@ pub struct UserModel {
     /// 不提供手动短语表，连续上屏形成的搭配自动沉淀在这里。
     phrases: HashMap<String, HashMap<String, u32>>,
     phrase_len: usize,
+    /// 网址/邮箱习惯：字母段 -> 次数。用户原样上屏过含「.」「@」的 ASCII
+    /// 令牌（baidu.com、someone@example.com、v1.2）后，其字母段记在这里；
+    /// 下次打同样前缀按「.」时直接续接组合，而不是被当成句号。
+    dot_habits: HashMap<String, u32>,
+    /// 钉选的候选（最近的在前）：排序时提到所在层首位。
+    pins: Vec<String>,
+    /// 屏蔽的候选：排序前直接从候选列表剔除。
+    bans: std::collections::HashSet<String>,
 }
 
 impl UserModel {
@@ -86,6 +100,45 @@ impl UserModel {
             self.phrase_len += 1;
         }
         *entry = entry.saturating_add(1);
+        if self.phrase_len > MAX_PHRASES {
+            self.decay_phrases();
+        }
+    }
+
+    /// 记录一次「明确选择」：同一个按键串的纠正要让新词压过旧词。
+    /// 与 record_phrase 的区别是首次就给到比同键其它词更高的计数，
+    /// 这样「选错一次 → 改选一次」立刻生效，不用连选两次。
+    pub fn record_choice(&mut self, keys: &str, text: &str) {
+        if keys.is_empty() || text.is_empty() {
+            return;
+        }
+        let other_max = self
+            .phrases
+            .get(keys)
+            .map(|texts| {
+                texts
+                    .iter()
+                    .filter(|(t, _)| t.as_str() != text)
+                    .map(|(_, c)| *c)
+                    .max()
+                    .unwrap_or(0)
+            })
+            .unwrap_or(0);
+        let entry = self
+            .phrases
+            .entry(keys.to_string())
+            .or_default()
+            .entry(text.to_string())
+            .or_insert(0);
+        if *entry == 0 {
+            self.phrase_len += 1;
+        }
+        // 明确选择一次就按「两次」计：同一按键串的其它词立刻让位；
+        // 连续改选时新词始终比旧词高一次，保证一次点击就能翻回来。
+        *entry = (*entry)
+            .saturating_add(1)
+            .max(other_max.saturating_add(1))
+            .max(2);
         if self.phrase_len > MAX_PHRASES {
             self.decay_phrases();
         }
@@ -159,11 +212,13 @@ impl UserModel {
     /// 重排加分：对数增长，避免个别词完全压过语言模型。
     pub fn bonus(&self, text: &str) -> f64 {
         let c = self.count(text);
-        // 选一次就要能跨过常见的同音词频差（ln 1~1.5），多次后继续缓慢增长。
+        // 选一次就要能跨过常见的同音词频差：词典词频之外，搭配模型还会把
+        // 高频虚词组合再抬高 1~2 分（「时间」对「事件」的实际差距≈2.5），
+        // 所以首次选词的底分要比词频差更高，第二次起继续按对数增长。
         if c == 0 {
             0.0
         } else {
-            1.6 + 1.2 * (c as f64).ln()
+            2.4 + 1.5 * (c as f64).ln()
         }
     }
 
@@ -191,8 +246,90 @@ impl UserModel {
         if c == 0 {
             0.0
         } else {
-            (1.5 * (c as f64 + 1.0).ln()).min(8.0)
+            (2.2 * (c as f64 + 1.0).ln()).min(9.0)
         }
+    }
+
+    /// 记录一条网址/邮箱习惯：`label` 是 ASCII 令牌里的一段字母
+    /// （baidu.com → baidu；someone@example.com → someone、example）。
+    pub fn record_dot_habit(&mut self, label: &str) {
+        if !dot_habit_label_ok(label) {
+            return;
+        }
+        let entry = self.dot_habits.entry(label.to_string()).or_insert(0);
+        *entry = entry.saturating_add(1);
+        if self.dot_habits.len() > MAX_DOT_HABITS {
+            self.decay_dot_habits();
+        }
+    }
+
+    fn decay_dot_habits(&mut self) {
+        self.dot_habits.retain(|_, c| {
+            if *c > 1 {
+                *c /= 2;
+                true
+            } else {
+                false
+            }
+        });
+    }
+
+    /// 某个字母段的网址习惯次数（0 = 没有）。
+    pub fn dot_habit(&self, label: &str) -> u32 {
+        if !dot_habit_label_ok(label) {
+            return 0;
+        }
+        self.dot_habits.get(label).copied().unwrap_or(0)
+    }
+
+    /// 钉选候选（微信式「固定首位」）：最近的排最前；重复钉选提升优先级。
+    pub fn pin(&mut self, text: &str) {
+        let text = text.trim();
+        if text.is_empty() {
+            return;
+        }
+        self.pins.retain(|t| t != text);
+        self.pins.insert(0, text.to_string());
+        self.pins.truncate(MAX_PINS);
+    }
+
+    /// 屏蔽候选（「不再显示」）：只收多字词，单字是输入结构不许屏蔽。
+    /// 同时清掉它的个人词频与搭配证据（屏蔽即遗忘）。
+    pub fn ban(&mut self, text: &str) -> bool {
+        let text = text.trim();
+        if text.chars().count() < 2 {
+            return false;
+        }
+        if !self.bans.insert(text.to_string()) {
+            return true;
+        }
+        self.counts.remove(text);
+        for nexts in self.pairs.values_mut() {
+            nexts.remove(text);
+        }
+        for texts in self.phrases.values_mut() {
+            texts.remove(text);
+        }
+        if self.bans.len() > MAX_BANS {
+            // 超限时丢掉最早的一半（HashSet 无序，简单截断即可）
+            let keep: std::collections::HashSet<String> =
+                self.bans.iter().skip(MAX_BANS / 2).cloned().collect();
+            self.bans = keep;
+        }
+        true
+    }
+
+    pub fn is_pinned(&self, text: &str) -> bool {
+        self.pins.iter().any(|t| t == text)
+    }
+
+    pub fn is_banned(&self, text: &str) -> bool {
+        self.bans.contains(text)
+    }
+
+    /// 钉选列表（最近的在前），供排序与展示。
+    pub fn pinned(&self) -> &[String] {
+        &self.pins
     }
 
     pub fn len(&self) -> usize {
@@ -200,7 +337,12 @@ impl UserModel {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.counts.is_empty() && self.pairs.is_empty() && self.phrases.is_empty()
+        self.counts.is_empty()
+            && self.pairs.is_empty()
+            && self.phrases.is_empty()
+            && self.dot_habits.is_empty()
+            && self.pins.is_empty()
+            && self.bans.is_empty()
     }
 
     pub fn clear(&mut self) {
@@ -209,6 +351,9 @@ impl UserModel {
         self.pair_len = 0;
         self.phrases.clear();
         self.phrase_len = 0;
+        self.dot_habits.clear();
+        self.pins.clear();
+        self.bans.clear();
     }
 
     /// 导出为 TSV：`词\t次数`；二元组行为 `@pair\t前词\t后词\t次数`，
@@ -253,10 +398,31 @@ impl UserModel {
                 out.push('\n');
             }
         }
+        let mut dots: Vec<_> = self.dot_habits.iter().collect();
+        dots.sort_by(|a, b| a.0.cmp(b.0));
+        for (label, c) in dots {
+            out.push_str("@dot\t");
+            out.push_str(label);
+            out.push('\t');
+            out.push_str(&c.to_string());
+            out.push('\n');
+        }
+        for text in &self.pins {
+            out.push_str("@pin\t");
+            out.push_str(text);
+            out.push('\n');
+        }
+        let mut bans: Vec<_> = self.bans.iter().collect();
+        bans.sort();
+        for text in bans {
+            out.push_str("@ban\t");
+            out.push_str(text);
+            out.push('\n');
+        }
         out
     }
 
-    /// 导入 TSV（覆盖同名条目），返回成功条目数（词 + 二元组 + 短语）。
+    /// 导入 TSV（覆盖同名条目），返回成功条目数（词 + 二元组 + 短语 + 习惯）。
     pub fn import_tsv(&mut self, s: &str) -> usize {
         self.apply_tsv(s, false)
     }
@@ -321,6 +487,40 @@ impl UserModel {
                 n += 1;
                 continue;
             }
+            if first == "@pin" {
+                let Some(text) = it.next() else { continue };
+                if text.chars().count() < 2 || text.chars().count() > 32 {
+                    continue;
+                }
+                if !self.pins.iter().any(|t| t == text) {
+                    self.pins.push(text.to_string());
+                }
+                n += 1;
+                continue;
+            }
+            if first == "@ban" {
+                let Some(text) = it.next() else { continue };
+                if text.chars().count() >= 2 {
+                    self.bans.insert(text.to_string());
+                }
+                n += 1;
+                continue;
+            }
+            if first == "@dot" {
+                let (Some(label), Some(c)) = (it.next(), it.next()) else {
+                    continue;
+                };
+                let Ok(c) = c.trim().parse::<u32>() else {
+                    continue;
+                };
+                if !dot_habit_label_ok(label) {
+                    continue;
+                }
+                let slot = self.dot_habits.entry(label.to_string()).or_insert(0);
+                *slot = if merge { (*slot).max(c) } else { c };
+                n += 1;
+                continue;
+            }
             let Some(c) = it.next() else { continue };
             let Ok(c) = c.trim().parse::<u32>() else {
                 continue;
@@ -334,6 +534,18 @@ impl UserModel {
         }
         n
     }
+}
+
+/// 网址/邮箱习惯段的有效性：2~24 个 ASCII 字母/数字/连字符/下划线。
+/// 数字纯段（「163」「2」）不记——数字后的小数点由前端的上下文规则处理。
+fn dot_habit_label_ok(label: &str) -> bool {
+    let len = label.len();
+    (2..=24).contains(&len)
+        && label.is_ascii()
+        && label.chars().any(|c| c.is_ascii_alphabetic())
+        && label
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
 #[cfg(test)]
@@ -412,7 +624,7 @@ mod tests {
             u.record_pair("北京", "世界");
         }
         assert!(u.pair_bonus("北京", "世界") > b1);
-        assert!(u.pair_bonus("北京", "世界") <= 8.0);
+        assert!(u.pair_bonus("北京", "世界") <= 9.0);
         assert_eq!(u.pair_len(), 1);
     }
 
@@ -453,6 +665,23 @@ mod tests {
         assert_eq!(v.phrase_len(), 2);
     }
 
+    /// 明确选择一次就压过同键的旧词；再改选也一次翻回来。
+    #[test]
+    fn record_choice_overrides_previous_choice() {
+        let mut u = UserModel::new();
+        u.record_phrase("gongshi", "公示");
+        u.record_choice("gongshi", "攻势");
+        assert!(
+            u.phrase_count("gongshi", "攻势") > u.phrase_count("gongshi", "公示"),
+            "第一次明确选择就应压过旧词"
+        );
+        u.record_choice("gongshi", "公示");
+        assert!(
+            u.phrase_count("gongshi", "公示") > u.phrase_count("gongshi", "攻势"),
+            "改选也应一次生效"
+        );
+    }
+
     #[test]
     fn phrase_decay_keeps_frequent() {
         let mut u = UserModel::new();
@@ -475,5 +704,37 @@ mod tests {
         u.decay_pairs();
         assert_eq!(u.pair_count("a", "b"), 1);
         assert_eq!(u.pair_count("c", "d"), 0);
+    }
+
+    /// 网址/邮箱习惯：有效字母段记次数，无效段（纯数字、过长、含符号）忽略，
+    /// TSV 导出/导入走 @dot 行。
+    #[test]
+    fn dot_habit_record_filter_and_roundtrip() {
+        let mut u = UserModel::new();
+        u.record_dot_habit("baidu");
+        u.record_dot_habit("baidu");
+        u.record_dot_habit("v1");
+        assert_eq!(u.dot_habit("baidu"), 2);
+        assert_eq!(u.dot_habit("v1"), 1);
+        // 无效段：纯数字、太短、太长、含符号
+        u.record_dot_habit("163");
+        u.record_dot_habit("a");
+        u.record_dot_habit(&"x".repeat(30));
+        u.record_dot_habit("bad=label");
+        assert_eq!(u.dot_habit("163"), 0);
+        assert_eq!(u.dot_habit("a"), 0);
+        assert_eq!(u.dot_habit(&"x".repeat(30)), 0);
+
+        let tsv = u.export_tsv();
+        assert!(tsv.contains("@dot\tbaidu\t2"), "{tsv}");
+        let mut v = UserModel::new();
+        assert_eq!(v.import_tsv(&tsv), 2, "两个有效习惯段: {tsv}");
+        assert_eq!(v.dot_habit("baidu"), 2);
+        // 合并取较大值
+        v.merge_tsv(&tsv);
+        assert_eq!(v.dot_habit("baidu"), 2);
+
+        u.clear();
+        assert_eq!(u.dot_habit("baidu"), 0);
     }
 }

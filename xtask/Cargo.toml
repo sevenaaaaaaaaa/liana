@@ -7,6 +7,10 @@ license.workspace = true
 description = "松萝构建工具：词典构建/导入/统计、插件包脚手架"
 publish = false
 
+[features]
+default = ["rerank"]
+rerank = ["liana-engine/rerank"]
+
 [dependencies]
 liana-dict = { workspace = true }
 liana-plugin = { workspace = true }

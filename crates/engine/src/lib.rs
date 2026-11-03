@@ -14,6 +14,13 @@ use liana_symbol::SymbolDecoder;
 
 use evolution::EvolutionMemory;
 
+#[cfg(feature = "rerank")]
+use chinese_ime_lm::{Reranker, SentenceModel};
+
+/// 重排模型句柄（rerank 特性）：FFI 与评测工具加载/共享权重用。
+#[cfg(feature = "rerank")]
+pub type SentenceModelHandle = SentenceModel;
+
 pub mod app_mode;
 pub mod evolution;
 pub mod feed;
@@ -26,6 +33,17 @@ pub const MAX_CANDIDATES: usize = 30;
 const MAX_MIXED_ENGLISH: usize = 5;
 /// 中英混输里「精确英文词」判定的最短长度（避免 `he`/`an` 这类拼音噪声；3 字词 get/run/map 放行）。
 const MIN_EXACT_ENGLISH: usize = 3;
+/// 神经重排的上文窗口：最近几段上屏拼接交给模型（上下文窗口强化，P1）。
+const RERANK_CONTEXT_SEGMENTS: usize = 3;
+/// 上文窗口最多保留几段（旧段淡出）。
+const COMMITTED_WINDOW: usize = 8;
+/// 神经重排的融合权重：模型分（去均值后）× 权重加进引擎分。与知你重排的
+/// ±3 封顶同量级；后续用固定语料评测校准。
+#[cfg(feature = "rerank")]
+const NEURAL_WEIGHT: f64 = 2.0;
+/// 停顿档（25M）的融合权重：高精度模型的意见更可信，权重更高。
+#[cfg(feature = "rerank")]
+const PAUSE_WEIGHT: f64 = 4.0;
 
 // ——— AI 辅助短语（不做手动短语表，全部自动学习）———
 /// 参与合并的最近上屏段数：窗口内的所有后缀组合都会被记一次。
@@ -110,6 +128,14 @@ pub struct Session {
     last_selection_deleted: bool,
     /// 删除已发生，等待重选；附带武装时刻用于过期判定。
     reselect_armed_at: Option<u64>,
+    /// 最近提交的文本窗口（最旧在前）：神经重排的上文与后续语境特征用。
+    committed_window: Vec<String>,
+    /// 神经重排器（rerank 特性）：模型文件运行时加载，缺省不启用。
+    #[cfg(feature = "rerank")]
+    reranker: Option<Reranker>,
+    /// 「停顿接手」档的高精度重排器（25M）：打字停顿时由前端触发一次。
+    #[cfg(feature = "rerank")]
+    pause_reranker: Option<Reranker>,
 }
 
 impl Session {
@@ -147,6 +173,11 @@ impl Session {
             last_selection_at: 0,
             last_selection_deleted: false,
             reselect_armed_at: None,
+            committed_window: Vec::new(),
+            #[cfg(feature = "rerank")]
+            reranker: None,
+            #[cfg(feature = "rerank")]
+            pause_reranker: None,
         };
         session.refresh();
         session
@@ -161,6 +192,7 @@ impl Session {
     pub fn reset_context(&mut self) {
         self.last_committed = None;
         self.recent.clear();
+        self.committed_window.clear();
     }
 
     pub fn mode(&self) -> Mode {
@@ -222,7 +254,9 @@ impl Session {
 
     /// 前端按键入口。只接受字母与 `'`、`;`（微软双拼 ing 键）；
     /// 下划线随时可入缓冲（代码标识符意图，getUser/get_user）；
-    /// 英文串（纯字母组合解码不出中文）里允许续接网址/邮箱/版本号符号与数字。
+    /// 英文串（纯字母组合解码不出中文）里允许续接网址/邮箱/版本号符号与数字；
+    /// `@` 是无歧义的邮箱意图（缓冲非空即续接，张三@163.com 也能一路打完）；
+    /// 学过网址习惯的字母段（原样上屏过 baidu.com）按「.」直接续接组合。
     pub fn feed(&mut self, ch: char) -> bool {
         let identifier_underscore =
             ch == '_' && matches!(self.mode, Mode::Pinyin | Mode::Shuangpin(_) | Mode::English);
@@ -233,7 +267,7 @@ impl Session {
             // url_prefix_like 额外放行 `www.`/`http:` 这类「首字符点」：否则 `www`
             // 会命中整词短拼候选（万维网）被当作中文，网址就打不下去。
             if matches!(self.mode, Mode::Pinyin | Mode::Shuangpin(_) | Mode::English)
-                && (self.english_like() || self.url_prefix_like())
+                && (self.english_like() || self.url_prefix_like() || self.ascii_intent(ch))
                 && (ch.is_ascii_punctuation() || ch.is_ascii_digit())
             {
                 self.buffer.push(ch);
@@ -251,17 +285,47 @@ impl Session {
         true
     }
 
+    /// 无歧义的 ASCII 意图续接：`@`（邮箱）与「学过习惯的 `.`」（网址/邮箱）。
+    /// 中文组合照旧拒绝「.」——那是前端「首选 + 句号」的日常流；
+    /// 只有用户原样上屏过同前缀令牌时才放行。
+    fn ascii_intent(&self, ch: char) -> bool {
+        if self.buffer.is_empty()
+            || !self
+                .buffer
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        {
+            return false;
+        }
+        if ch == '@' {
+            return true;
+        }
+        if ch == '.' {
+            let label: String = self
+                .buffer
+                .chars()
+                .filter(|c| c.is_ascii_alphanumeric())
+                .collect::<String>()
+                .to_ascii_lowercase();
+            return !label.is_empty() && self.user.dot_habit(&label) > 0;
+        }
+        false
+    }
+
     /// 组合是否已是「英文串」：缓冲非空、模式可打中文、且没有任何**全覆盖**
-    /// 的汉字候选——整串解码不出中文（`example`，部分覆盖的零星单字不算），
-    /// 或全覆盖命中英文词（`hello`），或含下划线（`get_user`，标识符意图）。
-    /// 中文组合（全覆盖汉字候选）绝不触发。
-    fn english_like(&self) -> bool {
+    /// 的**纯汉字**候选——整串解码不出中文（`example`；部分覆盖的零星单字与
+    /// 带旁路音节的拼装句「e大mo了」不算），或全覆盖命中英文词（`hello`），
+    /// 或含下划线（`get_user`，标识符意图），或已含网址/邮箱分隔符
+    /// （`@` `.` 等，见 `url_prefix_like`）。中文组合绝不触发。
+    /// FFI 的 englishLike 与此同源。
+    pub fn english_like(&self) -> bool {
         let raw_len = self.buffer.chars().count();
         !self.buffer.is_empty()
             && matches!(self.mode, Mode::Pinyin | Mode::Shuangpin(_) | Mode::English)
             && (self.buffer.contains('_')
+                || self.url_prefix_like()
                 || !self.comp.candidates.iter().any(|c| {
-                    c.consumed == raw_len && c.text.chars().any(is_phrase_char)
+                    c.consumed == raw_len && c.text.chars().all(is_phrase_char)
                 }))
     }
 
@@ -327,7 +391,7 @@ impl Session {
         if self.mode != Mode::Emoji {
             self.user.record(&learned);
             // 短语要用「上一段」的按键，必须排在 learn_context 之前
-            self.learn_phrase(&keys, &learned);
+            self.learn_phrase(&keys, &learned, index > 0);
             self.learn_context(&learned);
         }
         Some(cand.text)
@@ -357,6 +421,7 @@ impl Session {
             return None;
         }
         let s = std::mem::take(&mut self.buffer);
+        self.record_url_habits(&s);
         self.learn_context(&s);
         // 原样上屏不是选词：挂起的选词奖励、评估与重选期待一并作废。
         self.pending_selection = None;
@@ -364,6 +429,18 @@ impl Session {
         self.reselect_armed_at = None;
         self.refresh();
         Some(s)
+    }
+
+    /// 原样上屏的 ASCII 令牌里含网址/邮箱分隔符时，把字母段记进网址习惯
+    /// （baidu.com → baidu；someone@example.com → someone、example；v1.2 → v1）。
+    /// 下次打同样前缀按「.」就直接续接组合，而不是变成句号。
+    fn record_url_habits(&mut self, token: &str) {
+        if !token.is_ascii() || !token.contains(['.', '@', ':', '/']) {
+            return;
+        }
+        for seg in token.split(['.', '@', ':', '/', '?', '=']) {
+            self.user.record_dot_habit(seg);
+        }
     }
 
     /// 外部上屏（语音识别结果等）的学习入口：记词 + 更新二元组上下文。
@@ -549,7 +626,9 @@ impl Session {
     /// 自动学习短语：把最近几段上屏与本次拼接，窗口内的每个后缀组合各记一次。
     ///
     /// 这就是「AI 辅助短语」——没有手动短语表，用户重复打出来的搭配自己沉淀下来。
-    fn learn_phrase(&mut self, keys: &str, text: &str) {
+    /// remember_single（用户选了非首选）时，额外把「本次按键 → 本次词」单独记一条：
+    /// 明确纠正过一次，同一个按键串下次就该先给这个词，而不是等第二、三次。
+    fn learn_phrase(&mut self, keys: &str, text: &str, remember_single: bool) {
         if !matches!(self.mode, Mode::Pinyin | Mode::Shuangpin(_)) {
             self.recent.clear();
             return;
@@ -564,7 +643,12 @@ impl Session {
             self.recent.clear();
             return;
         }
-        for start in (0..self.recent.len()).rev() {
+        // start == recent.len() 就是「本次词单独成条」；只有用户明确选了非首选时才记，
+        // 避免每一次上屏都把短语库塞满同义重复。
+        for start in (0..=self.recent.len()).rev() {
+            if start == self.recent.len() && !remember_single {
+                continue;
+            }
             let mut k = String::new();
             let mut t = String::new();
             for (pk, pt) in &self.recent[start..] {
@@ -574,9 +658,17 @@ impl Session {
             k.push_str(&keys);
             t.push_str(text);
             if k.chars().count() <= MAX_PHRASE_KEYS && t.chars().count() <= MAX_PHRASE_CHARS {
-                self.user.record_phrase(&k, &t);
-                if let Some(init) = liana_core::syllables::pinyin_initials(&k) {
-                    self.user.record_phrase(&init, &t);
+                if start == self.recent.len() {
+                    // 明确纠正：同一个按键串的新选择要压过旧词，一次就生效
+                    self.user.record_choice(&k, &t);
+                    if let Some(init) = liana_core::syllables::pinyin_initials(&k) {
+                        self.user.record_choice(&init, &t);
+                    }
+                } else {
+                    self.user.record_phrase(&k, &t);
+                    if let Some(init) = liana_core::syllables::pinyin_initials(&k) {
+                        self.user.record_phrase(&init, &t);
+                    }
                 }
             }
         }
@@ -591,6 +683,11 @@ impl Session {
             self.user.record_pair(&prev, text);
         }
         self.last_committed = Some(text.to_string());
+        // 提交窗口：神经重排的上文（最近几段拼接）；过旧淡出。
+        self.committed_window.push(text.to_string());
+        if self.committed_window.len() > COMMITTED_WINDOW {
+            self.committed_window.remove(0);
+        }
     }
 
     fn consume(&mut self, n: usize) {
@@ -672,10 +769,13 @@ impl Session {
         self.finish(cands, preedit);
     }
 
-    /// 候选收尾：分层排序 → 知你重排 → 截断 → 简繁转换 → 落到组合态。
+    /// 候选收尾：分层排序 → 屏蔽剔除 → 知你重排 → 神经重排 → 钉选置顶 →
+    /// 截断 → 简繁转换 → 落到组合态。
     fn finish(&mut self, mut cands: Vec<liana_core::Candidate>, preedit: String) {
         // 分层排序：literal 垫底、覆盖输入多的优先，用户词只在同层内重排。
         cands.sort_by(liana_core::Candidate::rank_cmp);
+        // 屏蔽的候选直接剔除（微信式「不再显示」）。
+        cands.retain(|c| !self.user.is_banned(&c.text));
         // E3 反事实基线：重排前的顺序（简体原文空间，与 select 的 learned 同空间）。
         self.base_order = if self.evolution_enabled && self.mode != Mode::Emoji && !cands.is_empty()
         {
@@ -684,6 +784,9 @@ impl Session {
             None
         };
         self.apply_evolution_rerank(&mut cands);
+        #[cfg(feature = "rerank")]
+        self.apply_neural_rerank(&mut cands);
+        self.apply_pins(&mut cands);
         cands.truncate(MAX_CANDIDATES);
         if self.traditional {
             self.origins.clear();
@@ -743,6 +846,245 @@ impl Session {
         }
     }
 
+    /// 注入逐键神经重排模型（4M 快速档）：运行时加载的 safetensors 权重，
+    /// 会话内共享一份只读模型；不注入则完全不参与（内核零依赖默认态）。
+    #[cfg(feature = "rerank")]
+    pub fn set_sentence_reranker(&mut self, model: std::sync::Arc<SentenceModel>) {
+        self.reranker = Some(Reranker::new(model));
+    }
+
+    /// 注入「停顿接手」档的高精度模型（25M）：打字停顿时由前端触发一次。
+    #[cfg(feature = "rerank")]
+    pub fn set_pause_reranker(&mut self, model: std::sync::Arc<SentenceModel>) {
+        self.pause_reranker = Some(Reranker::new(model));
+    }
+
+    /// 停顿档模型是否已挂载（前端决定走进程内档还是 llama 兜底）。
+    #[cfg(feature = "rerank")]
+    pub fn pause_rerank_ready(&self) -> bool {
+        self.pause_reranker.is_some()
+    }
+
+    /// 停顿接手：用高精度模型对当前组合态做一次层内融合重排。
+    /// 返回 true 表示首选变了（前端据此刷新候选窗）。不改缓冲、不重解码。
+    #[cfg(feature = "rerank")]
+    pub fn pause_rerank(&mut self) -> bool {
+        if !matches!(self.mode, Mode::Pinyin | Mode::Shuangpin(_)) {
+            return false;
+        }
+        let raw_len = self.buffer.chars().count();
+        if raw_len == 0 || self.comp.candidates.is_empty() {
+            return false;
+        }
+        let mut cands = self.comp.candidates.clone();
+        let before = cands.first().map(|c| c.text.clone()).unwrap_or_default();
+        let context = match self.pause_reranker.as_ref() {
+            Some(r) => Self::build_rerank_context(&self.committed_window, r.model()),
+            None => return false,
+        };
+        let raw_len = self.buffer.chars().count();
+        let origins_backup = self.origins.clone();
+        let mut origins = origins_backup.clone();
+        let mut changed = false;
+        {
+            let Some(reranker) = self.pause_reranker.as_mut() else {
+                return false;
+            };
+            Self::rerank_tier(
+                &self.dict,
+                &self.committed_window,
+                raw_len,
+                &mut cands,
+                reranker,
+                PAUSE_WEIGHT,
+                &mut origins,
+                context,
+            );
+            changed = cands.first().map(|c| c.text.clone()).unwrap_or_default() != before;
+        }
+        self.comp.candidates = cands;
+        if changed {
+            self.origins = origins;
+        }
+        changed
+    }
+
+    /// 钉选候选（微信式「固定到首位」）：提到所在层首并持久化。
+    pub fn pin_candidate(&mut self, text: &str) {
+        self.user.pin(text);
+        self.refresh();
+    }
+
+    /// 屏蔽候选（「不再显示这个词」）：只收多字词；同时清掉它的个人词频。
+    /// 返回是否生效。
+    pub fn ban_candidate(&mut self, text: &str) -> bool {
+        let applied = self.user.ban(text);
+        if applied {
+            self.refresh();
+        }
+        applied
+    }
+
+    /// 钉选置顶：按钉选优先级（最近的最高）从低到高逐个提到所在层首，
+    /// 最高优先级的最后落位。同层内换位，分层不变式不破。
+    fn apply_pins(&mut self, cands: &mut Vec<liana_core::Candidate>) {
+        let pins = self.user.pinned();
+        if pins.is_empty() || cands.is_empty() {
+            return;
+        }
+        for text in pins.iter().rev() {
+            let Some(idx) = cands.iter().position(|c| c.text == *text) else {
+                continue;
+            };
+            if idx == 0 {
+                continue;
+            }
+            let picked = cands[idx].clone();
+            let mut start = idx;
+            while start > 0 && same_tier(&cands[start - 1], &picked) {
+                start -= 1;
+            }
+            if start == idx {
+                continue;
+            }
+            cands.remove(idx);
+            cands.insert(start, picked);
+            if self.origins.len() == cands.len() + 1 {
+                let origin = self.origins.remove(idx);
+                self.origins.insert(start, origin);
+            }
+        }
+    }
+
+    /// 神经重排的上文：最近几段上屏拼接，截到模型上下文长度（保留最近的）。
+    #[cfg(feature = "rerank")]
+    fn rerank_context(&self, model: &SentenceModel) -> String {
+        Self::build_rerank_context(&self.committed_window, model)
+    }
+
+    #[cfg(feature = "rerank")]
+    fn build_rerank_context(window: &[String], model: &SentenceModel) -> String {
+        let segments = window
+            .iter()
+            .rev()
+            .take(RERANK_CONTEXT_SEGMENTS)
+            .rev()
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut joined = segments.join("");
+        let limit = model.context_length();
+        if joined.chars().count() > limit {
+            let skip = joined.chars().count() - limit;
+            joined = joined.chars().skip(skip).collect();
+        }
+        joined
+    }
+
+    /// 神经重排（精准度专项 P1）：把「解码器拼装」的整句候选用字级语言模型
+    /// 的上文概率做层内融合重排，只在同覆盖层内换位，不动分层不变式。
+    ///
+    /// 融合而非独裁（与 `chinese-ime-lm::best_where` 的差别）：我们的拼装候选
+    /// 已带词频与字级搭配证据（引擎分），模型分是**其中一项**——实测让 4M 模型
+    /// 独裁会把「扩招→扩找」「信号→心好」这类词典/搭配赢下的句子翻错（-8pp）。
+    /// 做法：取 `log_probabilities`（官方为此暴露的接口），层内去均值后乘
+    /// NEURAL_WEIGHT 加到引擎分上重排；层首是词典整键命中时整层不动
+    /// （词频证据决定性，见 2052 例实测 0.719 vs 0.690）。
+    ///
+    /// `trusted_dictionary_hit` 的映射：整键**单个词条**命中才算词典背书——
+    /// 用候选读音反查词典验证；拼装句读音虽与所打一致，但整句不是词条。
+    #[cfg(feature = "rerank")]
+    fn apply_neural_rerank(&mut self, cands: &mut Vec<liana_core::Candidate>) {
+        if !matches!(self.mode, Mode::Pinyin | Mode::Shuangpin(_)) || cands.len() < 2 {
+            return;
+        }
+        let weight = std::env::var("LIANA_NEURAL_WEIGHT")
+            .ok()
+            .and_then(|v| v.parse::<f64>().ok())
+            .unwrap_or(NEURAL_WEIGHT);
+        let raw_len = self.buffer.chars().count();
+        let context = match self.reranker.as_ref() {
+            Some(r) => self.rerank_context(r.model()),
+            None => return,
+        };
+        Self::rerank_tier(
+            &self.dict,
+            &self.committed_window,
+            raw_len,
+            cands,
+            self.reranker.as_mut().expect("reranker 在上方已确认存在"),
+            weight,
+            &mut self.origins,
+            context,
+        );
+    }
+
+    /// 层内融合重排（逐键 4M 与停顿 25M 共用）：全覆盖层内，模型分（去均值）
+    /// × 权重加到引擎分上重排；层首是词典整键命中时整层不动（词频证据决定
+    /// 性，2052 例实测 0.719 vs 0.690）。
+    #[cfg(feature = "rerank")]
+    fn rerank_tier(
+        dict: &liana_dict::Dictionary,
+        committed_window: &[String],
+        raw_len: usize,
+        cands: &mut Vec<liana_core::Candidate>,
+        reranker: &mut Reranker,
+        weight: f64,
+        origins: &mut Vec<String>,
+        context: String,
+    ) {
+        use liana_core::CommentRole;
+
+        if raw_len == 0 {
+            return;
+        }
+        // 全覆盖层 = comparable 集（candidates 按 consumed 降序排列，故为连续段）。
+        let Some(start) = cands.iter().position(|c| c.consumed == raw_len) else {
+            return;
+        };
+        let mut end = start + 1;
+        while end < cands.len() && cands[end].consumed == raw_len {
+            end += 1;
+        }
+        if end - start < 2 {
+            return;
+        }
+        // 层首是词典整键命中 → 词频证据决定性，整层不动。
+        let leader_trusted = cands[start].comment_role == CommentRole::ExactReading
+            && cands[start]
+                .comment
+                .as_deref()
+                .map(|reading| {
+                    let key = reading
+                        .split([' ', '\''])
+                        .filter(|s| !s.is_empty())
+                        .collect::<Vec<_>>()
+                        .join("'");
+                    dict.lookup(&key).iter().any(|e| e.word == cands[start].text)
+                })
+                .unwrap_or(false);
+        if leader_trusted {
+            return;
+        }
+        let tier_texts: Vec<&str> = cands[start..end].iter().map(|c| c.text.as_str()).collect();
+        let scores = reranker.log_probabilities(&context, &tier_texts);
+        if scores.len() != end - start {
+            return;
+        }
+        let mean = scores.iter().sum::<f32>() / scores.len() as f32;
+        let mut tier: Vec<liana_core::Candidate> = cands.drain(start..end).collect();
+        for (c, s) in tier.iter_mut().zip(&scores) {
+            let delta = ((*s - mean) * weight as f32).clamp(-3.0, 3.0);
+            c.score += delta as f64;
+        }
+        tier.sort_by(|a, b| b.score.total_cmp(&a.score));
+        cands.splice(start..start, tier);
+        // 繁体显示时 origins 与候选同序。
+        if origins.len() == cands.len() {
+            let moved: Vec<String> = origins.drain(start..end).collect();
+            origins.splice(start..start, moved);
+        }
+    }
+
     /// 短语补全：把学到的短语按当前按键前缀召回。
     ///
     /// 按键完全命中（学过 2 次）时按整句量级给分；只是前缀（学过 3 次）时给较低分，
@@ -759,6 +1101,14 @@ impl Session {
         if raw.chars().count() < MIN_PHRASE_QUERY {
             return;
         }
+        // 候选里已有的最高分：明确选过的词要压过它，而不是再猜一个绝对分。
+        let base_top = cands
+            .iter()
+            .filter(|c| c.consumed == consumed)
+            .map(|c| c.score)
+            .fold(f64::NEG_INFINITY, f64::max);
+        // 同一个按键串只让「计数最高的那个词」（即最近一次明确选择）拿到置顶分。
+        let mut overridden: Vec<&str> = Vec::new();
         for (keys, text, count) in self.user.phrase_matches(&raw, 5) {
             let exact = keys.len() == raw.len();
             let min = if exact {
@@ -773,7 +1123,16 @@ impl Session {
                 PHRASE_SCORE_EXACT
             } else {
                 PHRASE_SCORE_PREFIX
-            } + (count as f64).ln();
+            } + (count as f64).ln()
+                // 短语候选是在用户词加分之后才生成的：这里补上，保证和普通候选同一把尺子
+                + self.user.bonus(text);
+            // 按键完全命中的「明确选择」：压过当前首选，保证同一个按键串先给用户选过的词。
+            let score = if exact && !overridden.contains(&keys) && base_top.is_finite() {
+                overridden.push(keys);
+                score.max(base_top + 0.5)
+            } else {
+                score
+            };
             // 解码器已经给出同样的词时只提分，不塞重复候选
             if let Some(existing) = cands
                 .iter_mut()
@@ -1172,6 +1531,50 @@ mod tests {
         );
     }
 
+    /// 用户明确选了非首选：同一个按键串下一次就该先给这个词；改回来也要一次生效。
+    #[test]
+    fn deliberate_correction_binds_exact_keys_once() {
+        let mut dict = Dictionary::embedded();
+        dict.insert("gong'shi", "公示", 200_000);
+        dict.insert("gong'shi", "攻势", 20_000);
+        let mut s = Session::with_mode(Arc::new(dict), Mode::Pinyin);
+        s.set_evolution_context(Some("dev.test"), 10, true, 1_000);
+
+        type_str(&mut s, "gongshi");
+        let idx = s
+            .composition()
+            .candidates
+            .iter()
+            .position(|c| c.text == "攻势")
+            .expect("应有「攻势」");
+        assert!(idx > 0, "初始首选应是更常用的「公示」");
+        s.select(idx);
+        s.reset_context();
+        type_str(&mut s, "gongshi");
+        assert_eq!(
+            s.composition().candidates[0].text,
+            "攻势",
+            "一次明确纠正后应首选「攻势」"
+        );
+
+        // 又改回「公示」：同样一次生效，并且压过上一次的选择
+        let idx = s
+            .composition()
+            .candidates
+            .iter()
+            .position(|c| c.text == "公示")
+            .expect("应有「公示」");
+        assert!(idx > 0);
+        s.select(idx);
+        s.reset_context();
+        type_str(&mut s, "gongshi");
+        assert_eq!(
+            s.composition().candidates[0].text,
+            "公示",
+            "再次纠正也应立刻生效"
+        );
+    }
+
     #[test]
     fn mixed_input_completes_english_word() {
         let mut s = session(Mode::Pinyin);
@@ -1542,6 +1945,50 @@ mod tests {
         assert_eq!(s.mode(), Mode::English);
     }
 
+    /// 钉选：同层内置顶并持久化；屏蔽：候选消失、单字拒屏蔽（微信式候选管理）。
+    #[test]
+    fn pin_and_ban_manage_candidates() {
+        let mut s = session(Mode::Pinyin);
+        type_str(&mut s, "gongsi");
+        let comp = s.composition().clone();
+        assert_ne!(comp.candidates[0].text, "公是", "预设首选不是公是");
+        // 钉选一个当前可见的候选（菜单只能对可见候选操作）
+        let pinned = comp.candidates[1].text.clone();
+        s.pin_candidate(&pinned);
+        assert_eq!(
+            s.composition().candidates[0].text,
+            pinned,
+            "钉选后应提到所在层首位: {:?}",
+            s.composition().candidates.iter().take(3).map(|c| &c.text).collect::<Vec<_>>()
+        );
+
+        // 屏蔽另一个可见词：从候选消失
+        let banned = s.composition().candidates[2].text.clone();
+        assert!(s.ban_candidate(&banned));
+        assert!(
+            !s.composition().candidates.iter().any(|c| c.text == banned),
+            "屏蔽后不应再出现"
+        );
+        // 单字拒屏蔽（输入结构不可屏蔽）
+        assert!(!s.ban_candidate("的"));
+
+        // TSV 持久化往返
+        let tsv = s.user_model().export_tsv();
+        assert!(tsv.contains("@pin\t"), "{tsv}");
+        assert!(tsv.contains(&format!("@ban\t{banned}")), "{tsv}");
+        let mut s2 = session(Mode::Pinyin);
+        s2.pin_candidate(&pinned);
+        s2.ban_candidate(&banned);
+        let mut fresh = session(Mode::Pinyin);
+        fresh.import_backup(&s2.export_backup(), false);
+        type_str(&mut fresh, "gongsi");
+        assert_eq!(fresh.composition().candidates[0].text, pinned, "导入后钉选仍生效");
+        assert!(
+            !fresh.composition().candidates.iter().any(|c| c.text == banned),
+            "导入后屏蔽仍生效"
+        );
+    }
+
     // ──────────── 知你教学层接线（E1） ────────────
 
     /// 同层内重排：奖励把「先」顶到「现」前面；不同 consumed 的层纹丝不动。
@@ -1849,6 +2296,46 @@ mod tests {
         );
     }
 
+    /// 拼音用户名的邮箱也要能一路直打：zhangsan@163.com 不再被「张三」阻断，
+    /// @ 是无歧义的邮箱意图（缓冲非空即续接）。
+    #[test]
+    fn email_with_pinyin_username_types_through() {
+        let mut s = session(Mode::Pinyin);
+        type_str(&mut s, "zhangsan");
+        assert!(s.feed('@'), "@ 是邮箱意图，即使缓冲解出中文也应续接");
+        for ch in "163.com".chars() {
+            assert!(s.feed(ch), "{ch}");
+        }
+        assert_eq!(s.commit_raw().as_deref(), Some("zhangsan@163.com"));
+    }
+
+    /// 网址习惯：原样上屏过 www.baidu.com 后，打 baidu 再按「.」直接续接
+    /// 组合成 baidu.com，而不是被当成句号；没学过的前缀仍然拒绝。
+    #[test]
+    fn dot_habit_lets_known_domain_continue() {
+        let mut s = session(Mode::Pinyin);
+        // 先通过 www 前缀完整打一遍网址（www. 本就放行）
+        for ch in "www.baidu.com".chars() {
+            assert!(s.feed(ch), "{ch}");
+        }
+        assert_eq!(s.commit_raw().as_deref(), Some("www.baidu.com"));
+
+        // 新会话语境下直接打 baidu：这次「.」应放行（学过习惯）
+        s.clear();
+        type_str(&mut s, "baidu");
+        assert!(s.feed('.'), "学过 baidu.com 后「.」应直接续接");
+        for ch in "com".chars() {
+            assert!(s.feed(ch), "{ch}");
+        }
+        assert_eq!(s.commit_raw().as_deref(), Some("baidu.com"));
+
+        // 没学过的前缀照旧拒绝（日常句号流不受影响）——用内置词典里
+        // 有全覆盖候选的「nihao」验证
+        let mut t = session(Mode::Pinyin);
+        type_str(&mut t, "nihao");
+        assert!(!t.feed('.'), "没学过的前缀仍按句号处理");
+    }
+
     /// 部分覆盖的零星单字不算中文读法：`lov`→咯(consumed 2) 不阻断续接。
     #[test]
     fn partial_cjk_candidates_do_not_block_continuation() {
@@ -1976,7 +2463,7 @@ mod tests {
         s.set_evolution_context(Some("eval.test"), 10, true, 1_000);
         type_str(&mut s, "nihao");
         s.select(0); // 挂起评估
-        s.commit_raw().is_none();
+        let _ = s.commit_raw();
         assert!(s.take_selection_eval().is_none(), "commit_raw 不产出评估");
 
         type_str(&mut s, "nihao");

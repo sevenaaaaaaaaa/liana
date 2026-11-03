@@ -23,25 +23,47 @@ enum LianaTheme {
 /// - 全键触觉反馈（§3.1）
 /// - 候选上滑直上屏（§3.2）
 /// - 退格长按连删（§3.3）
-/// - Pad 宽度 ≥ 600pt 自动分体键盘（§3.4）
+/// - 折叠屏几何守恒 + 中缝工作台（FOLDABLE-ADAPTATION.md §4 §5）
 final class KeyboardViewController: UIInputViewController {
+
+    // MARK: - 输入状态（与视图生命周期解耦：视图重建不得丢失）
 
     private var session: OpaquePointer?
     private var modeIdx = 0
     private var candidates: [String] = []
     private var rawInput = ""
+    private var composingText = ""
+
+    // MARK: - 视图
 
     private var candidateStrip: UIStackView!
     private var modeButton: UIButton!
     private var tradButton: UIButton!
-    private var backspaceButton: UIButton!
+    private var backspaceButtons: [UIButton] = []
+    private var keyboardArea: UIView!
+
+    /// 中缝工作台（仅分体形态存在）
+    private var wbComposing: UILabel?
+    private var wbGrid: UIStackView?
+    private var wbCursor: UIStackView?
+
     private var repeatTimer: Timer?
     private let hapticLight = UIImpactFeedbackGenerator(style: .light)
     private let hapticStrong = UIImpactFeedbackGenerator(style: .medium)
 
     private static let modes = ["pinyin", "en"]
+    private static let rowSpacing: CGFloat = 5
+    private static let stripHeight: CGFloat = 40
+    private static let cursorRowHeight: CGFloat = 34
+    private static let wbCandidateRowHeight: CGFloat = 52
+    private static let keyboardAreaHeight: CGFloat =
+        4 * FoldLayout.keyHeightConst + 3 * rowSpacing
 
-    // ---- 生命周期 ----
+    /// 当前几何签名；空串表示尚未构建。
+    private var layoutSignature = ""
+    private var isAssembling = false
+
+    // MARK: - 生命周期
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -86,7 +108,7 @@ final class KeyboardViewController: UIInputViewController {
         UserDefaults(suiteName: "dev.liana.ime.ios")?.set(tsv, forKey: "user_dict_tsv")
     }
 
-    // ---- UI（程序化构建，无 storyboard） ----
+    // MARK: - UI 骨架（只建一次：候选栏 + 可重建的键盘区）
 
     private func buildUI() {
         view.backgroundColor = LianaTheme.bg
@@ -106,7 +128,7 @@ final class KeyboardViewController: UIInputViewController {
         let scroll = UIScrollView()
         scroll.showsHorizontalScrollIndicator = false
         scroll.translatesAutoresizingMaskIntoConstraints = false
-        scroll.heightAnchor.constraint(equalToConstant: 40).isActive = true
+        scroll.heightAnchor.constraint(equalToConstant: Self.stripHeight).isActive = true
         candidateStrip = UIStackView()
         candidateStrip.axis = .horizontal
         candidateStrip.spacing = 6
@@ -122,88 +144,363 @@ final class KeyboardViewController: UIInputViewController {
         ])
         root.addArrangedSubview(scroll)
 
-        buildLetterRows(into: root)
-
-        // 功能行（Pad 上保持通栏，双手公共区）
-        let fn = UIStackView()
-        fn.axis = .horizontal
-        fn.spacing = 5
-        modeButton = keyButton("中") { self.onModeToggle() }
-        fn.addArrangedSubview(modeButton)
-        tradButton = keyButton("简") { self.onTraditionalToggle() }
-        fn.addArrangedSubview(tradButton)
-        fn.addArrangedSubview(keyButton(",") { self.insertText(",") })
-        let space = keyButton("空格") { self.onSpace() }
-        space.widthAnchor.constraint(equalTo: fn.widthAnchor, multiplier: 0.42).isActive = true
-        fn.addArrangedSubview(space)
-        fn.addArrangedSubview(keyButton(".") { self.insertText(".") })
-        fn.addArrangedSubview(keyButton("⏎") { self.onEnter() })
-        fn.heightAnchor.constraint(equalToConstant: 46).isActive = true
-        root.addArrangedSubview(fn)
-
-        refreshCandidates()
+        // 键盘区：几何随宽度变化整体重建（字母行 + 功能行 + 中缝工作台）
+        let area = UIView()
+        area.translatesAutoresizingMaskIntoConstraints = false
+        area.heightAnchor.constraint(equalToConstant: Self.keyboardAreaHeight).isActive = true
+        keyboardArea = area
+        root.addArrangedSubview(area)
     }
 
-    /** 字母区：手机通栏；Pad（宽度 ≥ 600pt）自动左右分体，向拇指收拢。 */
-    private func buildLetterRows(into root: UIStackView) {
-        let rows = ["qwertyuiop", "asdfghjkl", "zxcvbnm"]
-        guard isPadWidth() else {
-            for (i, keys) in rows.enumerated() {
-                let row = UIStackView()
-                row.axis = .horizontal
-                row.distribution = .fillEqually
-                row.spacing = 5
-                for ch in keys {
-                    row.addArrangedSubview(keyButton(String(ch)) { self.onLetter(ch) })
-                }
-                if i == 2 {
-                    backspaceButton = keyButton("⌫") { self.onBackspace() }
-                    attachBackspaceGestures()
-                    row.addArrangedSubview(backspaceButton)
-                }
-                row.heightAnchor.constraint(equalToConstant: 44).isActive = true
-                root.addArrangedSubview(row)
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        rebuildKeyboardIfNeeded(animated: !layoutSignature.isEmpty)
+    }
+
+    /// L1 连续性：只有几何签名变化才重建，且重建只换视图、不动输入状态。
+    private func rebuildKeyboardIfNeeded(animated: Bool) {
+        guard !isAssembling else { return }
+        let width = view.bounds.width
+        guard width > 0 else { return }
+
+        let layout = FoldLayout.derive(
+            width: width,
+            regularWidth: traitCollection.horizontalSizeClass == .regular,
+            rememberedSoloPitch: FoldLayoutMemory.rememberedSoloPitch
+        )
+        guard layout.signature != layoutSignature else { return }
+
+        let isFirstBuild = layoutSignature.isEmpty
+        layoutSignature = layout.signature
+        if layout.mode == .solo {
+            FoldLayoutMemory.rememberSolo(pitch: layout.pitch, width: width)
+        }
+
+        isAssembling = true
+        let apply: () -> Void = { [weak self] in
+            guard let self else { return }
+            switch layout.mode {
+            case .solo: self.assembleSolo(layout)
+            case .split: self.assembleSplit(layout)
             }
+            self.keyboardArea.layoutIfNeeded()
+        }
+        if animated && !isFirstBuild {
+            // 折叠/展开瞬间不做逐键 morph（v1.1），用交叉淡入消除闪断（D5）
+            UIView.transition(with: keyboardArea,
+                              duration: 0.22,
+                              options: [.transitionCrossDissolve, .allowUserInteraction],
+                              animations: apply,
+                              completion: nil)
+        } else {
+            apply()
+        }
+        isAssembling = false
+
+        // 重建后：中/简/EN 标题、候选都必须原地恢复（L2）
+        syncModeLabels()
+        renderCandidates()
+    }
+
+    // MARK: - 布局 A：单块（外屏 / 手机）
+
+    private func assembleSolo(_ layout: FoldLayout) {
+        resetKeyboardArea()
+
+        let avail = view.bounds.width - 2 * layout.margin
+        let gap = layout.gap
+        let p = layout.pitch
+        let rows = ["qwertyuiop", "asdfghjkl", "zxcvbnm"]
+
+        let column = UIStackView()
+        column.axis = .vertical
+        column.spacing = Self.rowSpacing
+        column.alignment = .center
+        column.translatesAutoresizingMaskIntoConstraints = false
+        keyboardArea.addSubview(column)
+        NSLayoutConstraint.activate([
+            column.centerXAnchor.constraint(equalTo: keyboardArea.centerXAnchor),
+            column.topAnchor.constraint(equalTo: keyboardArea.topAnchor),
+            column.bottomAnchor.constraint(equalTo: keyboardArea.bottomAnchor),
+        ])
+
+        for (i, keys) in rows.enumerated() {
+            var items: [(String, CGFloat, () -> Void)] = []
+            for ch in keys {
+                items.append((String(ch), p, { [weak self] in self?.onLetter(ch) }))
+            }
+            if i == 2 {
+                // 退格吃掉底行剩余宽度：既保持字母键距，又不留空档
+                let used = CGFloat(keys.count) * p + CGFloat(keys.count) * gap
+                items.append(("⌫", max(p, avail - used), { [weak self] in self?.onBackspace() }))
+            }
+            let row = letterRow(items, height: layout.keyHeight)
+            if i == 2 { attachBackspace(in: row) }
+            column.addArrangedSubview(row)
+        }
+
+        // 功能行（外屏通栏，拇指公共区）
+        column.addArrangedSubview(soloFunctionRow(layout, avail: avail))
+    }
+
+    private func soloFunctionRow(_ layout: FoldLayout, avail: CGFloat) -> UIStackView {
+        let gap = layout.gap
+        let fnWidth = max(48, layout.pitch)
+        let spaceWidth = max(72, avail - 5 * fnWidth - 5 * gap)
+
+        let items: [(String, CGFloat, () -> Void)] = [
+            ("中", fnWidth, { [weak self] in self?.onModeToggle() }),
+            ("简", fnWidth, { [weak self] in self?.onTraditionalToggle() }),
+            (",", fnWidth, { [weak self] in self?.insertText(",") }),
+            ("空格", spaceWidth, { [weak self] in self?.onSpace() }),
+            (".", fnWidth, { [weak self] in self?.insertText(".") }),
+            ("⏎", fnWidth, { [weak self] in self?.onEnter() }),
+        ]
+        let row = letterRow(items, height: layout.keyHeight)
+        // letterRow 内部按顺序生成按钮；这里把引用接回可更新的两个标题键
+        if row.arrangedSubviews.count == 6 {
+            modeButton = row.arrangedSubviews[0] as? UIButton
+            tradButton = row.arrangedSubviews[1] as? UIButton
+        }
+        return row
+    }
+
+    // MARK: - 布局 B：左右分体 + 中缝工作台（内屏 / Pad）
+
+    private func assembleSplit(_ layout: FoldLayout) {
+        resetKeyboardArea()
+
+        let gap = layout.gap
+        let p = layout.pitch
+        let cw = layout.clusterWidth
+        let rows = ["qwertyuiop", "asdfghjkl", "zxcvbnm"]
+        // 与既有实现一致的双手分配：10→5/5、9→5/4、7→4/3
+        let mids = [5, 5, 4]
+
+        var leftRows: [UIStackView] = []
+        var rightRows: [UIStackView] = []
+
+        for (i, keys) in rows.enumerated() {
+            let mid = mids[i]
+            let leftKeys = keys.prefix(mid).map(String.init)
+            let rightKeys = keys.dropFirst(mid).map(String.init)
+
+            leftRows.append(clusterLetterRow(leftKeys, layout: layout, backspace: i == 2))
+            rightRows.append(clusterLetterRow(rightKeys, layout: layout, backspace: i == 2))
+        }
+
+        // 功能行：中/简/，/空格 贴内侧，. / ⏎ 靠外侧；空格两侧各一颗（拇指互不越界）
+        let fnWidth = max(48, p)
+        let leftSpace = max(64, cw - 3 * fnWidth - 3 * gap)
+        let leftFnItems: [(String, CGFloat, () -> Void)] = [
+            ("中", fnWidth, { [weak self] in self?.onModeToggle() }),
+            ("简", fnWidth, { [weak self] in self?.onTraditionalToggle() }),
+            (",", fnWidth, { [weak self] in self?.insertText(",") }),
+            ("空格", leftSpace, { [weak self] in self?.onSpace() }),
+        ]
+        let rightSpace = max(64, cw - 2 * fnWidth - 2 * gap)
+        let rightFnItems: [(String, CGFloat, () -> Void)] = [
+            ("空格", rightSpace, { [weak self] in self?.onSpace() }),
+            (".", fnWidth, { [weak self] in self?.insertText(".") }),
+            ("⏎", fnWidth, { [weak self] in self?.onEnter() }),
+        ]
+
+        let leftFn = letterRow(leftFnItems, height: layout.keyHeight)
+        let rightFn = letterRow(rightFnItems, height: layout.keyHeight)
+        modeButton = leftFn.arrangedSubviews.first as? UIButton
+        tradButton = leftFn.arrangedSubviews.count > 1 ? leftFn.arrangedSubviews[1] as? UIButton : nil
+
+        // 左侧键组贴左边缘、右侧贴右边缘：中缝吸收全部富余宽度
+        let leftCluster = clusterStack(leftRows + [leftFn], alignment: .leading, width: cw)
+        let rightCluster = clusterStack(rightRows + [rightFn], alignment: .trailing, width: cw)
+        let gutter = makeWorkbench()
+
+        let halves = UIStackView(arrangedSubviews: [leftCluster, gutter, rightCluster])
+        halves.axis = .horizontal
+        halves.alignment = .fill
+        halves.spacing = 0
+        halves.translatesAutoresizingMaskIntoConstraints = false
+        keyboardArea.addSubview(halves)
+        NSLayoutConstraint.activate([
+            halves.leadingAnchor.constraint(equalTo: keyboardArea.leadingAnchor, constant: layout.margin),
+            halves.trailingAnchor.constraint(equalTo: keyboardArea.trailingAnchor, constant: -layout.margin),
+            halves.topAnchor.constraint(equalTo: keyboardArea.topAnchor),
+            halves.bottomAnchor.constraint(equalTo: keyboardArea.bottomAnchor),
+        ])
+
+        renderWorkbench()
+    }
+
+    private func clusterStack(_ rows: [UIStackView], alignment: UIStackView.Alignment, width: CGFloat) -> UIStackView {
+        let stack = UIStackView(arrangedSubviews: rows)
+        stack.axis = .vertical
+        stack.spacing = Self.rowSpacing
+        stack.alignment = alignment
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.widthAnchor.constraint(equalToConstant: width).isActive = true
+        return stack
+    }
+
+    /// 一侧字母行：字母键距恒为 pitch；底行的退格吸收本组剩余宽度。
+    private func clusterLetterRow(_ titles: [String], layout: FoldLayout, backspace: Bool) -> UIStackView {
+        var items: [(String, CGFloat, () -> Void)] = []
+        for t in titles {
+            guard let ch = t.first else { continue }
+            items.append((t, layout.pitch, { [weak self] in self?.onLetter(ch) }))
+        }
+        if backspace {
+            let used = CGFloat(titles.count) * layout.pitch + CGFloat(titles.count) * layout.gap
+            items.append(("⌫", max(layout.pitch, layout.clusterWidth - used), { [weak self] in self?.onBackspace() }))
+        }
+        let row = letterRow(items, height: layout.keyHeight)
+        if backspace { attachBackspace(in: row) }
+        return row
+    }
+
+    // MARK: - 中缝工作台（候选网格 + 光标移动 + 组合串）
+
+    private func makeWorkbench() -> UIView {
+        let gutter = UIView()
+        gutter.translatesAutoresizingMaskIntoConstraints = false
+
+        let box = UIStackView()
+        box.axis = .vertical
+        box.spacing = 6
+        box.translatesAutoresizingMaskIntoConstraints = false
+        box.layoutMargins = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
+        box.isLayoutMarginsRelativeArrangement = true
+
+        let composing = UILabel()
+        composing.font = .systemFont(ofSize: 12)
+        composing.textColor = LianaTheme.secondary
+        composing.textAlignment = .center
+        composing.lineBreakMode = .byTruncatingTail
+        composing.heightAnchor.constraint(equalToConstant: 16).isActive = true
+        wbComposing = composing
+        box.addArrangedSubview(composing)
+
+        // 候选网格：可竖向滚动，保证每个候选 ≥ 44pt 热区（不可达区不放高频键）
+        let gridScroll = UIScrollView()
+        gridScroll.showsVerticalScrollIndicator = false
+        gridScroll.translatesAutoresizingMaskIntoConstraints = false
+        let grid = UIStackView()
+        grid.axis = .vertical
+        grid.spacing = 4
+        grid.translatesAutoresizingMaskIntoConstraints = false
+        gridScroll.addSubview(grid)
+        NSLayoutConstraint.activate([
+            grid.leadingAnchor.constraint(equalTo: gridScroll.contentLayoutGuide.leadingAnchor),
+            grid.trailingAnchor.constraint(equalTo: gridScroll.contentLayoutGuide.trailingAnchor),
+            grid.topAnchor.constraint(equalTo: gridScroll.contentLayoutGuide.topAnchor),
+            grid.bottomAnchor.constraint(equalTo: gridScroll.contentLayoutGuide.bottomAnchor),
+            grid.widthAnchor.constraint(equalTo: gridScroll.frameLayoutGuide.widthAnchor),
+        ])
+        wbGrid = grid
+        box.addArrangedSubview(gridScroll)
+
+        let cursor = UIStackView()
+        cursor.axis = .horizontal
+        cursor.spacing = 4
+        cursor.distribution = .fillEqually
+        cursor.heightAnchor.constraint(equalToConstant: Self.cursorRowHeight).isActive = true
+        cursor.addArrangedSubview(keyButton("←") { [weak self] in self?.moveCursor(-1) })
+        cursor.addArrangedSubview(keyButton("→") { [weak self] in self?.moveCursor(1) })
+        wbCursor = cursor
+        box.addArrangedSubview(cursor)
+
+        gutter.addSubview(box)
+        NSLayoutConstraint.activate([
+            box.leadingAnchor.constraint(equalTo: gutter.leadingAnchor),
+            box.trailingAnchor.constraint(equalTo: gutter.trailingAnchor),
+            box.topAnchor.constraint(equalTo: gutter.topAnchor),
+            box.bottomAnchor.constraint(equalTo: gutter.bottomAnchor),
+        ])
+        return gutter
+    }
+
+    private func renderWorkbench() {
+        guard let grid = wbGrid, let composing = wbComposing else { return }
+        composing.text = composingText.isEmpty ? "中缝 · 候选与光标" : composingText
+        grid.arrangedSubviews.forEach { $0.removeFromSuperview() }
+
+        let shown = Array(candidates.prefix(9))
+        guard !shown.isEmpty else {
+            let hint = UILabel()
+            hint.text = "候选随输入出现在这里"
+            hint.font = .systemFont(ofSize: 11)
+            hint.textColor = LianaTheme.secondary
+            hint.textAlignment = .center
+            hint.numberOfLines = 2
+            let wrapper = UIStackView(arrangedSubviews: [hint])
+            wrapper.isLayoutMarginsRelativeArrangement = true
+            wrapper.layoutMargins = UIEdgeInsets(top: 6, left: 6, bottom: 6, right: 6)
+            wrapper.heightAnchor.constraint(equalToConstant: Self.wbCandidateRowHeight).isActive = true
+            grid.addArrangedSubview(wrapper)
             return
         }
 
-        // Pad 分体：每行从中间拆开，两半各自贴边，中缝留空
-        let halves = UIStackView()
-        halves.axis = .horizontal
-        halves.distribution = .fillEqually
-        halves.spacing = 24
-        let left = UIStackView(); left.axis = .vertical; left.spacing = 5
-        let right = UIStackView(); right.axis = .vertical; right.spacing = 5
-        for (i, keys) in rows.enumerated() {
-            let mid = (keys.count + 1) / 2
-            let rowL = UIStackView(); rowL.axis = .horizontal; rowL.distribution = .fillEqually; rowL.spacing = 5
-            let rowR = UIStackView(); rowR.axis = .horizontal; rowR.distribution = .fillEqually; rowR.spacing = 5
-            for ch in keys.prefix(mid) {
-                rowL.addArrangedSubview(keyButton(String(ch)) { self.onLetter(ch) })
+        var index = 0
+        while index < shown.count {
+            let row = UIStackView()
+            row.axis = .horizontal
+            row.spacing = 4
+            row.distribution = .fillEqually
+            for offset in 0..<2 {
+                let i = index + offset
+                if i < shown.count {
+                    row.addArrangedSubview(workbenchCandidate(shown[i], index: i))
+                } else {
+                    row.addArrangedSubview(UIView())
+                }
             }
-            for ch in keys.dropFirst(mid) {
-                rowR.addArrangedSubview(keyButton(String(ch)) { self.onLetter(ch) })
-            }
-            if i == 2 {
-                backspaceButton = keyButton("⌫") { self.onBackspace() }
-                attachBackspaceGestures()
-                rowR.addArrangedSubview(backspaceButton)
-            }
-            rowL.heightAnchor.constraint(equalToConstant: 44).isActive = true
-            rowR.heightAnchor.constraint(equalToConstant: 44).isActive = true
-            left.addArrangedSubview(rowL)
-            right.addArrangedSubview(rowR)
+            row.heightAnchor.constraint(equalToConstant: Self.wbCandidateRowHeight).isActive = true
+            grid.addArrangedSubview(row)
+            index += 2
         }
-        halves.addArrangedSubview(left)
-        halves.addArrangedSubview(right)
-        root.addArrangedSubview(halves)
     }
 
-    private func isPadWidth() -> Bool {
-        view.bounds.width >= LianaTheme.padSplitMinWidth
+    private func workbenchCandidate(_ text: String, index: Int) -> UIButton {
+        let b = UIButton(type: .system)
+        b.setTitle(text, for: .normal)
+        b.setTitleColor(LianaTheme.text, for: .normal)
+        b.titleLabel?.font = .systemFont(ofSize: LianaTheme.fontCandidate, weight: .bold)
+        b.titleLabel?.lineBreakMode = .byTruncatingTail
+        b.backgroundColor = LianaTheme.keyPressed
+        b.layer.cornerRadius = 6
+        b.addAction(UIAction { [weak self] _ in
+            self?.hapticStrong.impactOccurred()
+            self?.selectCandidate(index)
+        }, for: .touchUpInside)
+        return b
     }
 
-    // ---- 视图工厂 ----
+    private func moveCursor(_ delta: Int) {
+        textDocumentProxy.adjustTextPosition(byCharacterOffset: delta)
+    }
+
+    private func resetKeyboardArea() {
+        keyboardArea.subviews.forEach { $0.removeFromSuperview() }
+        backspaceButtons.removeAll()
+        wbComposing = nil
+        wbGrid = nil
+        wbCursor = nil
+    }
+
+    // MARK: - 视图工厂
+
+    private func letterRow(_ items: [(String, CGFloat, () -> Void)], height: CGFloat) -> UIStackView {
+        let row = UIStackView()
+        row.axis = .horizontal
+        row.spacing = FoldLayout.gapConst
+        row.alignment = .fill
+        for (title, width, action) in items {
+            let b = keyButton(title, action: action)
+            b.widthAnchor.constraint(equalToConstant: width).isActive = true
+            row.addArrangedSubview(b)
+        }
+        row.heightAnchor.constraint(equalToConstant: height).isActive = true
+        return row
+    }
 
     private func keyButton(_ title: String, action: @escaping () -> Void) -> UIButton {
         let b = UIButton(type: .system)
@@ -212,20 +509,27 @@ final class KeyboardViewController: UIInputViewController {
         b.titleLabel?.font = .systemFont(ofSize: LianaTheme.fontKey, weight: .semibold)
         b.backgroundColor = LianaTheme.key
         b.layer.cornerRadius = 8
-        b.addAction(UIAction { _ in
-            self.hapticLight.impactOccurred()
+        b.addAction(UIAction { [weak self] _ in
+            self?.hapticLight.impactOccurred()
             action()
         }, for: .touchUpInside)
         return b
     }
 
-    // ---- 退格长按连删（§3.3） ----
+    // MARK: - 退格长按连删（§3.3）
 
-    private func attachBackspaceGestures() {
-        guard let backspaceButton else { return }
+    private func attachBackspace(in row: UIStackView) {
+        for v in row.arrangedSubviews {
+            guard let b = v as? UIButton, b.title(for: .normal) == "⌫" else { continue }
+            attachBackspaceGestures(to: b)
+        }
+    }
+
+    private func attachBackspaceGestures(to button: UIButton) {
         let longPress = UILongPressGestureRecognizer(target: self, action: #selector(onBackspaceLongPress(_:)))
         longPress.minimumPressDuration = 0.3
-        backspaceButton.addGestureRecognizer(longPress)
+        button.addGestureRecognizer(longPress)
+        backspaceButtons.append(button)
     }
 
     @objc private func onBackspaceLongPress(_ g: UILongPressGestureRecognizer) {
@@ -257,7 +561,7 @@ final class KeyboardViewController: UIInputViewController {
         repeatTimer = nil
     }
 
-    // ---- 按键行为（与 macOS/Android 端约定一致） ----
+    // MARK: - 按键行为（与 macOS/Android 端约定一致）
 
     private func onLetter(_ ch: Character) {
         guard let session else { return }
@@ -305,7 +609,7 @@ final class KeyboardViewController: UIInputViewController {
         guard let session else { return }
         let on = liana_traditional(session) == 0
         liana_set_traditional(session, on ? 1 : 0)
-        tradButton.setTitle(on ? "繁" : "简", for: .normal)
+        tradButton?.setTitle(on ? "繁" : "简", for: .normal)
         refreshCandidates()
     }
 
@@ -314,11 +618,18 @@ final class KeyboardViewController: UIInputViewController {
         let mode = Self.modes[modeIdx]
         liana_set_mode(session, mode)
         liana_clear(session)
-        modeButton.setTitle(mode == "pinyin" ? "中" : "EN", for: .normal)
+        modeButton?.setTitle(mode == "pinyin" ? "中" : "EN", for: .normal)
         refreshCandidates()
     }
 
     private func currentMode() -> String { Self.modes[modeIdx] }
+
+    /// 视图重建后把状态重新贴回按钮（按钮是新建的，默认显示"中/简"）。
+    private func syncModeLabels() {
+        modeButton?.setTitle(currentMode() == "pinyin" ? "中" : "EN", for: .normal)
+        guard let session else { return }
+        tradButton?.setTitle(liana_traditional(session) == 1 ? "繁" : "简", for: .normal)
+    }
 
     private func selectCandidate(_ index: Int) {
         guard let session, let p = liana_select(session, UInt32(index)) else { return }
@@ -327,6 +638,8 @@ final class KeyboardViewController: UIInputViewController {
         insertText(text)
         // 上屏加强触觉：形成"上屏了"的身体确认（§3.1）
         hapticStrong.impactOccurred()
+        // 引擎可能仍留剩余缓冲，候选要立刻跟着变（L2 而不是等下一次按键）
+        refreshCandidates()
     }
 
     private func commitRaw() {
@@ -335,44 +648,53 @@ final class KeyboardViewController: UIInputViewController {
         liana_free_string(p)
         insertText(text)
         hapticStrong.impactOccurred()
+        refreshCandidates()
     }
 
     private func insertText(_ text: String) {
         textDocumentProxy.insertText(text)
     }
 
-    // ---- 候选刷新 ----
+    // MARK: - 候选刷新（状态 → 渲染，两处入口共用）
 
     private func refreshCandidates() {
-        guard let session else { return }
-        candidateStrip.arrangedSubviews.forEach { $0.removeFromSuperview() }
         candidates = []
         rawInput = ""
+        composingText = ""
 
-        guard let p = liana_composition_json(session) else { return }
-        let jsonString = String(cString: p)
-        liana_free_string(p)
+        if let session, let p = liana_composition_json(session) {
+            let jsonString = String(cString: p)
+            liana_free_string(p)
+            if let data = jsonString.data(using: .utf8),
+               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let raw = obj["raw"] as? String, !raw.isEmpty {
+                rawInput = raw
+                let preedit = obj["preedit"] as? String ?? ""
+                composingText = preedit.isEmpty ? raw : "\(raw) › \(preedit)"
+                let arr = obj["candidates"] as? [[String: Any]] ?? []
+                candidates = arr.prefix(9).compactMap { $0["text"] as? String }
+            }
+        }
+        renderCandidates()
+    }
 
-        guard let data = jsonString.data(using: .utf8),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let raw = obj["raw"] as? String, !raw.isEmpty else { return }
-        rawInput = raw
-        let preedit = obj["preedit"] as? String ?? ""
-
-        let composing = UILabel()
-        composing.text = preedit.isEmpty ? raw : "\(raw) › \(preedit)"
-        composing.font = .systemFont(ofSize: 13)
-        composing.textColor = LianaTheme.secondary
-        candidateStrip.addArrangedSubview(composing)
-
-        let arr = obj["candidates"] as? [[String: Any]] ?? []
-        candidates = arr.prefix(9).compactMap { $0["text"] as? String }
+    private func renderCandidates() {
+        guard candidateStrip != nil else { return }
+        candidateStrip.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        if !composingText.isEmpty {
+            let composing = UILabel()
+            composing.text = composingText
+            composing.font = .systemFont(ofSize: 13)
+            composing.textColor = LianaTheme.secondary
+            candidateStrip.addArrangedSubview(composing)
+        }
         for (i, text) in candidates.enumerated() {
             candidateStrip.addArrangedSubview(candidateButton(text, index: i))
         }
+        renderWorkbench()
     }
 
-    /** 候选条目：点击选中；上滑 ≥ 24pt 直接着该候选上屏（§3.2）。 */
+    /// 候选条目：点击选中；上滑 ≥ 24pt 直接着该候选上屏（§3.2）。
     private func candidateButton(_ text: String, index: Int) -> UIButton {
         let b = UIButton(type: .system)
         b.setTitle(text, for: .normal)
@@ -381,7 +703,7 @@ final class KeyboardViewController: UIInputViewController {
         b.backgroundColor = LianaTheme.keyPressed
         b.layer.cornerRadius = 6
         b.contentEdgeInsets = UIEdgeInsets(top: 4, left: 10, bottom: 4, right: 10)
-        b.addAction(UIAction { _ in self.selectCandidate(index) }, for: .touchUpInside)
+        b.addAction(UIAction { [weak self] _ in self?.selectCandidate(index) }, for: .touchUpInside)
         let swipeUp = UISwipeGestureRecognizer(target: self, action: #selector(onCandidateSwipeUp(_:)))
         swipeUp.direction = .up
         b.addGestureRecognizer(swipeUp)
@@ -392,7 +714,7 @@ final class KeyboardViewController: UIInputViewController {
         guard let b = g.view as? UIButton,
               let idx = candidateStrip.arrangedSubviews.firstIndex(of: b),
               idx > 0, idx - 1 < candidates.count else { return }
-        // arrangedSubviews[0] 是组合提示，候选从 1 开始
+        // arrangedSubviews[0] 只在有组合串时是提示标签
         hapticStrong.impactOccurred()
         selectCandidate(idx - 1)
     }

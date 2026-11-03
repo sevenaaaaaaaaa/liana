@@ -20,6 +20,7 @@ class PetWebView: WKWebView, WKScriptMessageHandler, WKNavigationDelegate {
     var onNeedsRuntime: (() -> Void)?
 
     private var pendingState = "idle"
+    private var pausedForHidden = false
     /// 页面事件（台词 / 特效 / 溜达）是否转给桌面上的桌宠；形象工坊预览关掉。
     var routesToPet = true
 
@@ -61,6 +62,13 @@ class PetWebView: WKWebView, WKScriptMessageHandler, WKNavigationDelegate {
     func setHover(_ on: Bool) { eval("window.petHover && window.petHover(\(on))") }
     func setDragging(_ on: Bool) { eval("window.petSetDrag && window.petSetDrag(\(on))") }
     func setSleepy(_ on: Bool) { eval("window.petSetSleepy && window.petSetSleepy(\(on))") }
+
+    /// 看不见时停画：页面侧停 rAF / ticker，恢复时立刻补一帧。
+    /// 记录状态，页面加载完成后再补一次（首帧前就被暂停的情况）。
+    func setPaused(_ paused: Bool) {
+        pausedForHidden = paused
+        eval("window.petPause && window.petPause(\(paused))")
+    }
     func setMood(_ level: Int) { eval("window.petSetMood && window.petSetMood(\(level))") }
     func greet(_ period: String) { eval("window.petGreet && window.petGreet('\(period)')") }
     func setGaze(dx: Double, dy: Double, near: Double = 0) {
@@ -121,6 +129,7 @@ class PetWebView: WKWebView, WKScriptMessageHandler, WKNavigationDelegate {
         guard let body = message.body as? [String: Any] else { return }
         if body["ready"] as? Bool == true {
             setState(pendingState)
+            if pausedForHidden { setPaused(true) }
             onReady?()
         }
         if let error = body["error"] as? String {
@@ -165,6 +174,7 @@ class PetWebView: WKWebView, WKScriptMessageHandler, WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         setState(pendingState)
+        if pausedForHidden { setPaused(true) }
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
@@ -200,4 +210,12 @@ class PetWebView: WKWebView, WKScriptMessageHandler, WKNavigationDelegate {
             }
         }
     }
+}
+
+// MARK: - 统一的桌宠渲染器接口
+
+/// WebKit 渲染器（VRM / Live2D / 兼容旧纸偶）满足与原生纸偶相同的协议，
+/// 桌宠窗口因此不需要关心底层是 CALayer 还是 WKWebView。
+extension PetWebView: PetRendererView {
+    var view: NSView { self }
 }

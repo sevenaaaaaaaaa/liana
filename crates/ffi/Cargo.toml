@@ -10,6 +10,10 @@ description = "Liana C ABI：供 macOS/Windows/Linux/Android/iOS/HarmonyOS 前�
 name = "liana_ffi"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+default = ["rerank"]
+rerank = ["liana-engine/rerank"]
+
 [dependencies]
 liana-core = { workspace = true }
 liana-dict = { workspace = true }

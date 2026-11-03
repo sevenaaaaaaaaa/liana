@@ -16,3 +16,10 @@ liana-emoji = { workspace = true }
 liana-symbol = { workspace = true }
 liana-radix = { workspace = true }
 liana-zhconv = { workspace = true }
+
+# 神经重排器（精准度专项 P1，可选特性）：内核默认零第三方依赖，
+# 只有启用 rerank 特性（FFI/xtask 构建）才引入 chinese-ime-lm。
+chinese-ime-lm = { version = "0.2", optional = true }
+
+[features]
+rerank = ["dep:chinese-ime-lm"]

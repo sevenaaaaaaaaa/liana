@@ -622,12 +622,27 @@
   }
   // 省电：平时 30fps，打盹 12fps；WebKit 遮挡时会节流 rAF，用定时器兜底
   function frameInterval() { return sleepy && !dragging && !hovered ? 1000 / 12 : 1000 / 30; }
+  let paused = false;
+  let rafId = 0;
   function animate() {
-    requestAnimationFrame(animate);
+    if (paused) { rafId = 0; return; }
+    rafId = requestAnimationFrame(animate);
     if (performance.now() - lastFrameAt < frameInterval() - 2) return;
     step();
   }
-  setInterval(() => { if (performance.now() - lastFrameAt > 150) step(); }, 100);
+  setInterval(() => {
+    if (paused) return;
+    if (performance.now() - lastFrameAt > 150) step();
+  }, 100);
+  window.petPause = (on) => {
+    const next = !!on;
+    if (paused === next) return;
+    paused = next;
+    if (!paused) {
+      lastFrameAt = 0;
+      if (!rafId) animate();
+    }
+  };
 
   function setState(next) {
     state = next;

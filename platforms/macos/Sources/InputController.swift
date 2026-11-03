@@ -1029,11 +1029,23 @@ final class LianaInputController: IMKInputController {
         PermissionCenterWindowController.shared.show()
     }
 
+    /// 会话级缓存的前台应用画像。bundleIdentifier() 是一次跨进程 IPC，
+    /// 原来每个按键最多问 3 次；切应用时在激活/失活里失效即可。
+    private var cachedProfile: AppProfile?
+    private var cachedBundleId: String?
+    private var bundleIdResolved = false
+
+    private func invalidateAppCache() {
+        cachedProfile = nil
+        cachedBundleId = nil
+        bundleIdResolved = false
+    }
+
     /// 当前前台应用画像（代码/浏览器/聊天），决定标点与手势能力；
     /// 「强制半角标点」打开时全局覆盖（快捷配置入口：桌宠右键 / 本菜单）。
     private var profile: AppProfile {
-        let bundleId = currentClient?.bundleIdentifier() ?? NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-        var p = AppProfile.make(bundleId: bundleId)
+        var p = cachedProfile ?? AppProfile.make(bundleId: currentAppId)
+        cachedProfile = p
         if UserDefaults.standard.bool(forKey: "LianaForceHalfPunctuation") {
             p.asciiPunctuation = true
         }
@@ -1096,9 +1108,14 @@ final class LianaInputController: IMKInputController {
         )
     }
 
-    /// 当前前台应用 bundle id（用于每应用中英记忆）。
+    /// 当前前台应用 bundle id（用于每应用中英记忆 / 画像）。按会话缓存，避免每键 IPC。
     private var currentAppId: String? {
-        currentClient?.bundleIdentifier() ?? NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        if !bundleIdResolved {
+            cachedBundleId = currentClient?.bundleIdentifier()
+                ?? NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+            bundleIdResolved = true
+        }
+        return cachedBundleId
     }
 
     /// 把当前模式作为学习信号记录：手动切换是强信号，上屏是弱信号。
@@ -1270,6 +1287,7 @@ final class LianaInputController: IMKInputController {
 
         if engine.hasComposition || engine.mode == "emoji" {
             let pageCount = max(1, Int(ceil(Double(currentCandidateCount()) / Double(CandidateWindowController.pageSize))))
+            let englishLike = engine.hasComposition && engine.composition.englishLike == true
             switch keyCode {
             case 123, 116: // ← / PageUp
                 page = max(0, page - 1)
@@ -1280,10 +1298,13 @@ final class LianaInputController: IMKInputController {
                 update(client)
                 return true
             case 27: // -
+                // 英文串 / 网址里的 - 是内容（my-site.com），不翻页
+                if englishLike { break }
                 page = max(0, page - 1)
                 update(client)
                 return true
             case 24: // =
+                if englishLike { break }
                 page = min(pageCount - 1, page + 1)
                 update(client)
                 return true
@@ -1358,10 +1379,18 @@ final class LianaInputController: IMKInputController {
 
         // 中文模式下的标点映射（未组合时）：`,。？！；：、（）【】《》“”‘’…
         // 代码编辑器/终端保持半角（按应用画像自动判断，无需用户配置）。
+        // 例外：光标前是数字（3.5、v1.2）或正打到一个邮箱/域名中间
+        // （someone@163、www.nownexts）时，「.」保持半角点号。
         let mode = LianaMode(rawValue: engine.mode) ?? .pinyin
         if !engine.hasComposition, mode.usesChinesePunctuation, !profile.asciiPunctuation,
            let punct = chinesePunctuation(inputChars) {
-            client.insertText(punct, replacementRange: NSRange(location: NSNotFound, length: 0))
+            let out: String
+            if inputChars == ".", wantsHalfWidthDotBeforeCursor(client) {
+                out = "."
+            } else {
+                out = punct
+            }
+            client.insertText(out, replacementRange: NSRange(location: NSNotFound, length: 0))
             window.hide()
             return true
         }
@@ -1384,6 +1413,13 @@ final class LianaInputController: IMKInputController {
         }
         // 组合中的不可组合字符：先落组合再落字符，绝不穿透打乱预编辑。
         if engine.hasComposition, let ch = inputChars.first {
+            // 功能键（Home/End/前向删除/F 键/Tab…）：先把组合落屏，再把按键交还应用。
+            // 绝不能把 U+F700 段或控制字符当内容插进文本。
+            let scalar = ch.unicodeScalars.first?.value ?? 0
+            if scalar < 0x20 || scalar == 0x7F || (0xF700...0xF8FF).contains(scalar) {
+                commitTopForFunctionKey(client: client)
+                return false
+            }
             let keys = engine.composition.raw.count
             var committed: String?
             if mode.usesChinesePunctuation, !profile.asciiPunctuation,
@@ -1431,6 +1467,7 @@ final class LianaInputController: IMKInputController {
     }
 
     override func deactivateServer(_ sender: Any!) {
+        invalidateAppCache()
         stopListeningAndVoiceState()
         voiceMarked = false
         window.hide()
@@ -1456,14 +1493,16 @@ final class LianaInputController: IMKInputController {
             clearMarkedText(client)
         }
         persistEvolution(force: true)
+        persistUserModel(force: true)
         window.hide()
-        store.flush()
+        store.flushAsync()
         super.deactivateServer(sender)
     }
 
     override func activateServer(_ sender: Any!) {
         super.activateServer(sender)
         currentClient = sender as? IMKTextInput
+        invalidateAppCache()
         Self.activeController = self
         page = 0
         syncEvolutionContext()
@@ -1502,6 +1541,41 @@ final class LianaInputController: IMKInputController {
     }
 
     // MARK: - 内部
+
+    /// 光标前是否正处在一个「该用半角点号」的 ASCII 令牌里：
+    /// - 前一个字符是数字 → 小数/版本号（3.5、v1.2、192.168）；
+    /// - 光标前的 ASCII 令牌里已有 `@` 或 `.` → 邮箱/域名续接（someone@163.、example.）。
+    /// 读不到上下文（个别应用不支持 surrounding text）时保持句号行为。
+    private func wantsHalfWidthDotBeforeCursor(_ client: IMKTextInput) -> Bool {
+        guard let token = asciiTokenBeforeCursor(client) else { return false }
+        if let last = token.last, last.isASCII, last.isNumber {
+            return true
+        }
+        return token.contains("@") || token.contains(".")
+    }
+
+    /// 读取光标前紧邻的 ASCII 令牌（字母/数字/._@+- 的连续段，最长 32 字符）。
+    /// 应用不给 surrounding text 时返回 nil。
+    private func asciiTokenBeforeCursor(_ client: IMKTextInput) -> String? {
+        let sel = client.selectedRange()
+        guard sel.location != NSNotFound, sel.location > 0 else { return nil }
+        let back = min(32, sel.location)
+        var actual = NSRange()
+        let text = client.string(
+            from: NSRange(location: sel.location - back, length: back),
+            actualRange: &actual
+        )
+        guard let text, !text.isEmpty else { return nil }
+        var chars: [Character] = []
+        for ch in text.reversed() {
+            guard ch.isASCII,
+                  ch.isLetter || ch.isNumber || ".@_+-".contains(ch)
+            else { break }
+            chars.append(ch)
+        }
+        guard !chars.isEmpty else { return nil }
+        return String(chars.reversed())
+    }
 
     /// ASCII 标点 → 中文全角标点；返回 nil 表示不拦截。
     /// 引号成对翻转，`^` 输出省略号，`\` 输出顿号。
@@ -1567,6 +1641,24 @@ final class LianaInputController: IMKInputController {
         commit(text, client: client)
     }
 
+    /// 组合中遇到功能键：先把当前候选落屏，再把按键交还给应用。
+    private func commitTopForFunctionKey(client: IMKTextInput) {
+        let comp = engine.composition
+        let keys = comp.raw.count
+        let text = comp.englishLike == true
+            ? engine.commitRaw()
+            : (engine.select(0) ?? engine.commitRaw())
+        if let text {
+            stats.recordCommit(chars: text.count, keys: keys)
+            client.insertText(text, replacementRange: NSRange(location: NSNotFound, length: 0))
+            recordModeSignal(strong: false)
+            persistUserModel()
+            PetWindowController.shared.react(.commit)
+        }
+        page = 0
+        update(client)
+    }
+
     private func commit(_ text: String, client: IMKTextInput) {
         client.insertText(text, replacementRange: NSRange(location: NSNotFound, length: 0))
         recordModeSignal(strong: false)
@@ -1577,21 +1669,47 @@ final class LianaInputController: IMKInputController {
         update(client)
     }
 
-    /// 把会话内学到的用户词（含上下词二元组）合并进加密存储。
-    private func persistUserModel() {
+    /// 用户词落盘：导出 + 合并是 O(词表大小)（2.5 MB 词表约 200 ms），
+    /// 所以不在打字时做——停手 5 秒后再合并；切应用 / 退出前强制一次。
+    private var userModelPersistWork: DispatchWorkItem?
+
+    private func persistUserModel(force: Bool = false) {
+        userModelPersistWork?.cancel()
+        userModelPersistWork = nil
+        guard !force else {
+            persistUserModelNow()
+            return
+        }
+        let work = DispatchWorkItem { [weak self] in self?.persistUserModelNow() }
+        userModelPersistWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: work)
+    }
+
+    private func persistUserModelNow() {
+        userModelPersistWork = nil
         store.mergeUserModel(tsv: engine.exportUserModel())
     }
 
     // MARK: - 知你教学层（ADR-0008 E1）
 
-    /// 知你账本落盘节流：账本是全量 TSV，没必要跟着每次选词导出；
-    /// 平峰 60 秒一次，会话结束/切换应用前强制一次。
-    private var lastEvolutionPersistAt: TimeInterval = 0
+    /// 知你账本落盘：账本是全量 TSV（5 MB 账本合并约 100 ms），
+    /// 同样挪到「停手 10 秒」之后；会话结束 / 切换应用前强制一次。
+    private var evolutionPersistWork: DispatchWorkItem?
 
     private func persistEvolution(force: Bool = false) {
-        let now = Date().timeIntervalSince1970
-        guard force || now - lastEvolutionPersistAt >= 60 else { return }
-        lastEvolutionPersistAt = now
+        evolutionPersistWork?.cancel()
+        evolutionPersistWork = nil
+        guard !force else {
+            persistEvolutionNow()
+            return
+        }
+        let work = DispatchWorkItem { [weak self] in self?.persistEvolutionNow() }
+        evolutionPersistWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10, execute: work)
+    }
+
+    private func persistEvolutionNow() {
+        evolutionPersistWork = nil
         store.mergeEvolution(tsv: engine.exportEvolution())
     }
 
@@ -1667,6 +1785,43 @@ final class LianaInputController: IMKInputController {
         window.hide()
     }
 
+    // MARK: - 候选管理（微信式：右键固定 / 不再显示）
+
+    /// 右键候选弹出的管理菜单：固定到首位 / 不再显示这个词。
+    private func showCandidateMenu(index: Int, screenPoint: NSPoint) {
+        guard engine.hasComposition, index < engine.composition.candidates.count else { return }
+        let text = engine.composition.candidates[index].text
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        let pin = NSMenuItem(title: "固定到首位", action: #selector(pinCandidateFromMenu(_:)), keyEquivalent: "")
+        pin.target = self
+        pin.representedObject = text
+        pin.isEnabled = true
+        let ban = NSMenuItem(title: "不再显示这个词", action: #selector(banCandidateFromMenu(_:)), keyEquivalent: "")
+        ban.target = self
+        ban.representedObject = text
+        ban.isEnabled = text.count >= 2 // 单字是输入结构，不提供屏蔽
+        menu.items = [pin, ban]
+        menu.popUp(positioning: nil, at: screenPoint, in: nil)
+    }
+
+    @objc private func pinCandidateFromMenu(_ sender: NSMenuItem) {
+        guard let text = sender.representedObject as? String else { return }
+        _ = engine.pinCandidate(text)
+        if let client = currentClient {
+            update(client)
+        }
+        PetWindowController.shared.showToast("已固定「\(text)」", duration: 2)
+    }
+
+    @objc private func banCandidateFromMenu(_ sender: NSMenuItem) {
+        guard let text = sender.representedObject as? String else { return }
+        if engine.banCandidate(text), let client = currentClient {
+            update(client)
+        }
+        PetWindowController.shared.showToast("已屏蔽「\(text)」", duration: 2)
+    }
+
     private func update(_ client: IMKTextInput) {
         let comp = engine.composition
         guard !comp.raw.isEmpty || !comp.candidates.isEmpty else {
@@ -1714,27 +1869,37 @@ final class LianaInputController: IMKInputController {
         window.present(candidates: comp.candidates, page: page, near: caret) { [weak self, weak client] index in
             guard let self, let client else { return }
             self.select(index: index, client: client)
+        } onContext: { [weak self] index, point in
+            guard let self, self.engine.hasComposition else { return }
+            self.showCandidateMenu(index: index, screenPoint: point)
         }
         page = window.page
         scheduleRerank(comp, client: client)
     }
 
-    /// 长句 AI 重排（见 SentenceRerank）：首选是长整句、有几条整句可比时，停顿 0.25 秒后让本机模型挑一次；
-    /// 结果回来时输入没变才生效。
+    /// 长句 AI 重排：首选是长整句、有几条整句可比时，停顿 0.25 秒后让本机模型挑一次。
+    /// 优先用进程内 25M 停顿档（pause-model.safetensors）；没装则回落
+    /// llama-server + Qwen（SentenceRerank）。结果回来时输入没变才生效。
     private func scheduleRerank(_ comp: Composition, client: IMKTextInput) {
         rerankWork?.cancel()
-        guard translateTarget == nil, page == 0, comp.raw != rerankedRaw,
+        guard SentenceRerank.enabled, translateTarget == nil, page == 0, comp.raw != rerankedRaw,
               let first = comp.candidates.first, first.kind == "sentence",
               first.text.count >= SentenceRerank.minChars else { return }
         let sentences = comp.candidates.prefix(5).enumerated()
             .filter { $0.element.kind == "sentence" && $0.element.consumed == first.consumed }
-        guard sentences.count >= 2, SentenceRerank.available else { return }
+        guard sentences.count >= 2 else { return }
         let raw = comp.raw
         let work = DispatchWorkItem { [weak self, weak client] in
-            guard let self, self.engine.composition.raw == raw else { return }
+            guard let self, let client, self.engine.composition.raw == raw else { return }
+            self.rerankedRaw = raw
+            // 进程内 25M 停顿档：同步跑（数十毫秒级），变了直接刷新
+            if self.engine.pauseRerankAvailable, self.engine.pauseRerank() {
+                self.update(client)
+                return
+            }
+            // 兜底：llama-server + Qwen（装了才可用）
             SentenceRerank.pick(sentences.map(\.element.text)) { [weak self, weak client] best in
                 guard let self, let client, let best, self.engine.composition.raw == raw else { return }
-                self.rerankedRaw = raw
                 if best > 0, self.engine.promote(sentences[best].offset) {
                     self.update(client)
                 }

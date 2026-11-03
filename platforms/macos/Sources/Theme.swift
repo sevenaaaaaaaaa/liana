@@ -8,7 +8,7 @@ import AppKit
 ///           "accent":"#337BFF","radius":18,"font_size":17},
 ///  "dark":{...}}
 struct CandidateTheme {
-    struct Side {
+    struct Side: Equatable {
         var surface: NSColor?
         var text: NSColor?
         var comment: NSColor?

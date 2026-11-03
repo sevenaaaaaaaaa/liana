@@ -47,6 +47,10 @@ struct SelectionEvalData: Codable {
 /// 内核 C ABI 的 Swift 封装。会话只在本进程内存中，不做任何网络访问。
 final class LianaEngine {
     private var handle: OpaquePointer?
+    /// 组合态缓存：内核的 JSON 编解码 + Swift JSONDecoder 每次约 90µs，
+    /// 而每个按键会问 3~5 次（hasComposition / mode / 候选 / 英文串判定），
+    /// 缓存后只在真正变更内核状态后失效。
+    private var cachedComposition: Composition?
 
     /// 可选的外部词典：~/Library/Application Support/Liana/base.ifd
     private static let externalDict: String? = {
@@ -82,32 +86,52 @@ final class LianaEngine {
     }
 
     var composition: Composition {
+        if let cached = cachedComposition { return cached }
         guard let h = handle,
               let json = takeString(liana_composition_json(h)),
               let data = json.data(using: .utf8),
               let comp = try? JSONDecoder().decode(Composition.self, from: data)
         else { return .empty }
+        cachedComposition = comp
         return comp
     }
 
-    var hasComposition: Bool { !composition.raw.isEmpty }
+    /// 内核状态变了：下一次读组合态重新解码。
+    private func invalidateComposition() {
+        cachedComposition = nil
+    }
 
-    var mode: String { composition.mode }
+    /// 只问「有没有组合」：走 C ABI 的位判断，不产生 JSON。
+    var hasComposition: Bool {
+        guard let h = handle else { return false }
+        return liana_has_composition(h) == 1
+    }
+
+    /// 当前模式 id：同样不走组合态 JSON。
+    var mode: String {
+        guard let h = handle, let s = takeString(liana_mode(h)) else { return "pinyin" }
+        return s
+    }
 
     @discardableResult
     func feed(_ ch: Character) -> Bool {
         guard let h = handle else { return false }
-        return String(ch).withCString { liana_feed(h, $0) == 1 }
+        let ok = String(ch).withCString { liana_feed(h, $0) == 1 }
+        invalidateComposition()
+        return ok
     }
 
     @discardableResult
     func backspace() -> Bool {
         guard let h = handle else { return false }
-        return liana_backspace(h) == 1
+        let ok = liana_backspace(h) == 1
+        invalidateComposition()
+        return ok
     }
 
     func clear() {
         if let h = handle { liana_clear(h) }
+        invalidateComposition()
     }
 
     /// 候选是否以繁体呈现（学习与重排仍以简体为准）。
@@ -118,27 +142,69 @@ final class LianaEngine {
 
     func setTraditional(_ on: Bool) {
         if let h = handle { _ = liana_set_traditional(h, on ? 1 : 0) }
+        invalidateComposition()
     }
 
     func setMode(_ id: String) {
         if let h = handle { _ = id.withCString { liana_set_mode(h, $0) } }
+        invalidateComposition()
     }
 
     func select(_ index: Int) -> String? {
         guard let h = handle else { return nil }
-        return takeString(liana_select(h, UInt32(index)))
+        let text = takeString(liana_select(h, UInt32(index)))
+        invalidateComposition()
+        return text
     }
 
     /// 把第 index 个候选提到第一位（同层内换位，不改学习记录）。
     @discardableResult
     func promote(_ index: Int) -> Bool {
         guard let h = handle else { return false }
-        return liana_promote(h, UInt32(index)) == 1
+        let ok = liana_promote(h, UInt32(index)) == 1
+        invalidateComposition()
+        return ok
+    }
+
+    /// 钉选候选（微信式「固定到首位」）：同层内置顶并持久化。
+    @discardableResult
+    func pinCandidate(_ text: String) -> Bool {
+        guard let h = handle else { return false }
+        let ok = text.withCString { liana_pin_candidate(h, $0) } == 1
+        invalidateComposition()
+        return ok
+    }
+
+    /// 屏蔽候选（「不再显示这个词」）：多字词才生效；同时清除其个人词频。
+    @discardableResult
+    func banCandidate(_ text: String) -> Bool {
+        guard let h = handle else { return false }
+        let ok = text.withCString { liana_ban_candidate(h, $0) } == 1
+        invalidateComposition()
+        return ok
+    }
+
+    /// 停顿档模型是否已挂载（决定长句重排走进程内档还是 llama 兜底）。
+    var pauseRerankAvailable: Bool {
+        guard let h = handle else { return false }
+        return liana_pause_rerank_ready(h) == 1
+    }
+
+    /// 停顿接手：25M 高精度模型对当前组合态做一次层内融合重排。
+    /// 返回 true 表示首选变了（调用方刷新候选窗）。
+    @discardableResult
+    func pauseRerank() -> Bool {
+        guard let h = handle else { return false }
+        let changed = liana_pause_rerank(h) == 1
+        invalidateComposition()
+        return changed
     }
 
     func commitRaw() -> String? {
         guard let h = handle else { return nil }
-        return takeString(liana_commit_raw(h))
+        let text = takeString(liana_commit_raw(h))
+        invalidateComposition()
+        return text
     }
 
     func exportUserModel() -> String {
@@ -149,13 +215,16 @@ final class LianaEngine {
     @discardableResult
     func importUserModel(_ tsv: String) -> Int {
         guard let h = handle else { return -1 }
-        return Int(tsv.withCString { liana_user_import(h, $0) })
+        let n = Int(tsv.withCString { liana_user_import(h, $0) })
+        invalidateComposition()
+        return n
     }
 
     /// 外部上屏（语音识别结果）的学习：记词 + 二元组上下文，与打字共享一套学习。
     func recordCommit(_ text: String) {
         guard let h = handle, !text.isEmpty else { return }
         _ = text.withCString { liana_record_commit(h, $0) }
+        invalidateComposition()
     }
 
     // MARK: - 知你教学层（ADR-0008 E1）：选词/删除序列 → 共享账本，排序接 adjust
@@ -166,18 +235,21 @@ final class LianaEngine {
         let now = UInt64(Date().timeIntervalSince1970)
         let cApp = app ?? ""
         _ = cApp.withCString { liana_set_evolution_context(h, $0, hour, enabled ? 1 : 0, now) }
+        invalidateComposition()
     }
 
     /// 选词上屏后确认一次：数字键选了第 2+ 候选时 altRank = true。
     func noteEvolutionSelection(altRank: Bool) {
         guard let h = handle else { return }
         _ = liana_evolution_note_selection(h, altRank ? 1 : 0, UInt64(Date().timeIntervalSince1970))
+        invalidateComposition()
     }
 
     /// 无组合态的删除键：交给内核判定是否「选了又删」。
     func noteEvolutionDelete() {
         guard let h = handle else { return }
         _ = liana_evolution_note_delete(h, UInt64(Date().timeIntervalSince1970))
+        invalidateComposition()
     }
 
     /// 取走最近一次选词的评估（note_selection 之后调用；取走即清）。
@@ -198,11 +270,14 @@ final class LianaEngine {
     @discardableResult
     func importEvolution(_ tsv: String) -> Int {
         guard let h = handle else { return -1 }
-        return Int(tsv.withCString { liana_evolution_session_import(h, $0) })
+        let n = Int(tsv.withCString { liana_evolution_session_import(h, $0) })
+        invalidateComposition()
+        return n
     }
 
     func forgetEvolution() {
         if let h = handle { liana_evolution_session_forget(h) }
+        invalidateComposition()
     }
 
     // MARK: - 知你喂食层（ADR-0008 E2）：术语提炼 + 营养库
@@ -221,11 +296,13 @@ final class LianaEngine {
     @discardableResult
     func nutritionAdd(term: String, source: String, strength: UInt32) -> Bool {
         guard let h = handle else { return false }
-        return term.withCString { t in
+        let ok = term.withCString { t in
             source.withCString { s in
                 liana_nutrition_add(h, t, s, strength, UInt64(Date().timeIntervalSince1970)) == 1
             }
         }
+        invalidateComposition()
+        return ok
     }
 
     func nutritionList() -> [NutritionItem] {
@@ -240,11 +317,14 @@ final class LianaEngine {
     @discardableResult
     func nutritionForget(_ term: String) -> Bool {
         guard let h = handle else { return false }
-        return term.withCString { liana_nutrition_forget(h, $0) == 1 }
+        let ok = term.withCString { liana_nutrition_forget(h, $0) == 1 }
+        invalidateComposition()
+        return ok
     }
 
     func nutritionForgetAll() {
         if let h = handle { liana_nutrition_forget_all(h) }
+        invalidateComposition()
     }
 
     func nutritionExport() -> String {
@@ -255,7 +335,9 @@ final class LianaEngine {
     @discardableResult
     func nutritionImport(_ tsv: String) -> Int {
         guard let h = handle else { return -1 }
-        return Int(tsv.withCString { liana_nutrition_import(h, $0) })
+        let n = Int(tsv.withCString { liana_nutrition_import(h, $0) })
+        invalidateComposition()
+        return n
     }
 
     /// 导出备份包（明文 TSV + 版本头 + CRC32）；加密由 `BackupManager` 负责。
@@ -268,7 +350,9 @@ final class LianaEngine {
     @discardableResult
     func importBackup(_ text: String, merge: Bool) -> Int {
         guard let h = handle else { return -1 }
-        return Int(text.withCString { liana_backup_import(h, $0, merge ? 1 : 0) })
+        let n = Int(text.withCString { liana_backup_import(h, $0, merge ? 1 : 0) })
+        invalidateComposition()
+        return n
     }
 
     // MARK: - 本地 AI 增强（目录与推荐；下载由 AIModelStore 负责）

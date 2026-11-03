@@ -7,7 +7,7 @@
 
 use std::ffi::{CStr, CString, c_char};
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use liana_core::Mode;
@@ -16,6 +16,8 @@ use liana_engine::Session;
 use liana_engine::app_mode::AppModeMemory;
 use liana_engine::evolution::{self, EvolutionMemory};
 use liana_plugin::Pack as PluginPack;
+#[cfg(feature = "rerank")]
+use liana_engine::SentenceModelHandle;
 
 pub struct LianaSession {
     inner: Session,
@@ -87,12 +89,63 @@ fn json_escape(s: &str) -> String {
 }
 
 impl LianaSession {
-    fn new(dict: Arc<Dictionary>, mode: Mode) -> Self {
+    fn new(dict: Arc<Dictionary>, mode: Mode, base_path: Option<&str>) -> Self {
         let mut inner = Session::with_mode(dict, mode);
         // 知你账本是进程级单例：IMK 下每个应用各有一个会话，
         // 学习必须跨应用沉淀才叫「越用越懂你」。
         inner.set_evolution_memory(shared_evolution());
+        // 神经重排器（rerank 特性）：base.ifd 旁的 sentence-model.safetensors，
+        // 找不到就是「不启用」，零行为差异。
+        #[cfg(feature = "rerank")]
+        attach_reranker(&mut inner, base_path);
         Self { inner }
+    }
+}
+
+/// 进程级重排模型缓存：文件（路径 + 大小 + 修改时间）没变就复用同一份权重。
+#[cfg(feature = "rerank")]
+static RERANK_CACHE: Mutex<Option<(String, std::sync::Arc<SentenceModelHandle>)>> = Mutex::new(None);
+
+/// 找到并加载神经重排模型。查找顺序：环境变量（LIANA_RERANK_MODEL /
+/// LIANA_PAUSE_RERANK_MODEL）→ base.ifd 同目录 → 同目录 models/rerank/。
+/// 解析失败按「不存在」处理。
+#[cfg(feature = "rerank")]
+fn load_reranker(base_path: Option<&str>, env_key: &str, file_name: &str) -> Option<std::sync::Arc<SentenceModelHandle>> {
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if let Ok(env_path) = std::env::var(env_key) {
+        candidates.push(PathBuf::from(env_path));
+    }
+    if let Some(base) = base_path {
+        if let Some(parent) = Path::new(base).parent() {
+            candidates.push(parent.join(file_name));
+            candidates.push(parent.join("models/rerank").join(file_name));
+        }
+    }
+    let path = candidates.into_iter().find(|p| p.is_file())?;
+    let signature = file_signature(&path);
+    if let Ok(cache) = RERANK_CACHE.lock() {
+        if let Some((sig, model)) = cache.as_ref() {
+            if *sig == signature {
+                return Some(model.clone());
+            }
+        }
+    }
+    let bytes = std::fs::read(&path).ok()?;
+    let model = std::sync::Arc::new(SentenceModelHandle::load(&bytes).ok()?);
+    if let Ok(mut cache) = RERANK_CACHE.lock() {
+        *cache = Some((signature, model.clone()));
+    }
+    Some(model)
+}
+
+/// 模型存在就挂到会话上：4M 逐键档 + 25M 停顿档（两档独立，缺哪个跳哪个）。
+#[cfg(feature = "rerank")]
+fn attach_reranker(inner: &mut Session, base_path: Option<&str>) {
+    if let Some(model) = load_reranker(base_path, "LIANA_RERANK_MODEL", "sentence-model.safetensors") {
+        inner.set_sentence_reranker(model);
+    }
+    if let Some(model) = load_reranker(base_path, "LIANA_PAUSE_RERANK_MODEL", "pause-model.safetensors") {
+        inner.set_pause_reranker(model);
     }
 }
 
@@ -141,6 +194,7 @@ pub unsafe extern "C" fn liana_new(mode: *const c_char) -> *mut LianaSession {
         Box::into_raw(Box::new(LianaSession::new(
             Arc::new(Dictionary::embedded()),
             mode_of(mode),
+            None,
         )))
     }))
     .unwrap_or(std::ptr::null_mut())
@@ -162,6 +216,7 @@ pub unsafe extern "C" fn liana_new_with_dict(
         Box::into_raw(Box::new(LianaSession::new(
             Arc::new(dict),
             mode_of(mode),
+            path.as_deref(),
         )))
     }))
     .unwrap_or(std::ptr::null_mut())
@@ -255,7 +310,11 @@ pub unsafe extern "C" fn liana_new_with_layers(
     let layers = unsafe { cstr(layers_dir) };
     catch_unwind(AssertUnwindSafe(|| {
         let dict = load_layered(path.as_deref(), layers.as_deref());
-        Box::into_raw(Box::new(LianaSession::new(dict, mode_of(mode))))
+        Box::into_raw(Box::new(LianaSession::new(
+            dict,
+            mode_of(mode),
+            path.as_deref(),
+        )))
     }))
     .unwrap_or(std::ptr::null_mut())
 }
@@ -340,6 +399,15 @@ pub unsafe extern "C" fn liana_mode(session: *mut LianaSession) -> *mut c_char {
     })
 }
 
+/// 是否处于组合态：只读缓冲，不生成 JSON；前端每次按键的快路径。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn liana_has_composition(session: *mut LianaSession) -> i32 {
+    if session.is_null() {
+        return 0;
+    }
+    guard_int(|| i32::from(!unsafe { &*session }.inner.buffer().is_empty()))
+}
+
 /// 简繁显示开关：非 0 表示候选转成繁体。返回 1 表示设置成功。
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn liana_set_traditional(session: *mut LianaSession, on: i32) -> i32 {
@@ -385,6 +453,61 @@ pub unsafe extern "C" fn liana_promote(session: *mut LianaSession, index: u32) -
     guard_int(|| {
         let session = unsafe { &mut *session };
         i32::from(session.inner.promote(index as usize))
+    })
+}
+
+/// 钉选候选（微信式「固定到首位」）：同层内置顶并持久化。返回 1 表示已记录。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn liana_pin_candidate(session: *mut LianaSession, text: *const c_char) -> i32 {
+    if session.is_null() {
+        return 0;
+    }
+    let text = unsafe { cstr(text) };
+    guard_int(|| {
+        let session = unsafe { &mut *session };
+        let Some(text) = text else { return 0 };
+        session.inner.pin_candidate(&text);
+        1
+    })
+}
+
+/// 屏蔽候选（「不再显示这个词」）：多字词才生效；同时清除其个人词频。
+/// 返回 1 表示已屏蔽。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn liana_ban_candidate(session: *mut LianaSession, text: *const c_char) -> i32 {
+    if session.is_null() {
+        return 0;
+    }
+    let text = unsafe { cstr(text) };
+    guard_int(|| {
+        let session = unsafe { &mut *session };
+        let Some(text) = text else { return 0 };
+        i32::from(session.inner.ban_candidate(&text))
+    })
+}
+
+/// 停顿档模型是否已挂载。返回 1 表示 liana_pause_rerank 可用。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn liana_pause_rerank_ready(session: *mut LianaSession) -> i32 {
+    if session.is_null() {
+        return 0;
+    }
+    guard_int(|| {
+        let session = unsafe { &*session };
+        i32::from(session.inner.pause_rerank_ready())
+    })
+}
+
+/// 停顿接手：用 25M 高精度模型对当前组合态做一次层内融合重排。
+/// 返回 1 表示首选变了（前端据此刷新候选窗）；没挂模型/没变化返回 0。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn liana_pause_rerank(session: *mut LianaSession) -> i32 {
+    if session.is_null() {
+        return 0;
+    }
+    guard_int(|| {
+        let session = unsafe { &mut *session };
+        i32::from(session.inner.pause_rerank())
     })
 }
 
@@ -517,14 +640,10 @@ pub extern "C" fn liana_version() -> *const c_char {
 
 fn composition_json(session: &Session) -> String {
     let comp = session.composition();
-    // 英文串判定与内核同源：没有任何全覆盖汉字候选 → 前端空格原样上屏、
+    // 英文串判定与内核同源（Session::english_like：无全覆盖汉字候选 /
+    // 英文词命中 / 标识符 / 网址邮箱分隔符）→ 前端空格原样上屏、
     // 数字键不再选候选（网址/邮箱/版本号直打）。
-    let raw_len = comp.raw.chars().count();
-    let english_like = !comp.raw.is_empty()
-        && !comp
-            .candidates
-            .iter()
-            .any(|c| c.consumed == raw_len && c.text.chars().any(liana_engine::is_cjk_char));
+    let english_like = session.english_like();
     let mut out = String::with_capacity(96 + comp.candidates.len() * 48);
     out.push_str("{\"mode\":\"");
     out.push_str(session.mode().id());

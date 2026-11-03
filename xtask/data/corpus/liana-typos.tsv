@@ -1,0 +1,20 @@
+# 错拼语料集（精准度专项 P2 整句级纠错实验的闸门）
+# 格式：类别<TAB>全拼（**故意打错的**）<TAB>期望句子
+# 每条 = 真实快打失误模式：漏字母 / 键序跨界 / 邻键+漏字组合。
+# 评测口径与主语料一致；实验开关 LIANA_EDSEG=1 前后对比本集句准确率。
+漏字母	jntian	今天
+漏字母	gonzuo	工作
+漏字母	migtian	明天
+漏字母	beijin	北京
+漏字母	meti	媒体
+漏字母	wngluo	网络
+漏字母	dnnao	电脑
+漏字母	zhanye	专业
+漏字母	liln	理论
+漏字母	tozi	投资
+漏字母	suorn	虽然
+键序跨界	shoduao	收到
+键序跨界	xihna	喜欢
+键序跨界	zhogneguo	中国
+漏字母	jntianxiuxi	今天休息
+键序跨界	shoduwoyaohuifu	收到我要回复

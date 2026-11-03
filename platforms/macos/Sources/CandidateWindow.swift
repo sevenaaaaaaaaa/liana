@@ -10,7 +10,12 @@ final class CandidateWindowController {
     private var background: NSView
     private let row = NSStackView()
     private let pageLabel = NSTextField(labelWithString: "")
+    /// 候选格复用池：每个按键都重建 9 个 NSTextField 太贵（~0.2-0.5ms），
+    /// 同一页尺寸固定，格子只换内容不换视图。
+    private var cellPool: [CandidateCell] = []
+    private var poolSide: CandidateTheme.Side?
     private var onPick: ((Int) -> Void)?
+    private var onContext: ((Int, NSPoint) -> Void)?
     private var theme: CandidateTheme
     private var themeObserver: NSObjectProtocol?
 
@@ -62,6 +67,8 @@ final class CandidateWindowController {
     /// 切换皮肤时重建背景并让后续渲染走新主题。
     func reloadTheme() {
         theme = ThemeStore.activeTheme()
+        cellPool.removeAll()
+        poolSide = nil
         background = Self.makeBackground(theme.current)
         applyBackground()
         panel.contentView = background
@@ -119,8 +126,9 @@ final class CandidateWindowController {
     }
 
     /// 更新内容并定位在光标下方；没有候选时自动隐藏。
-    func present(candidates: [Candidate], page newPage: Int, near lineRect: NSRect?, onPick: @escaping (Int) -> Void) {
+    func present(candidates: [Candidate], page newPage: Int, near lineRect: NSRect?, onPick: @escaping (Int) -> Void, onContext: ((Int, NSPoint) -> Void)? = nil) {
         self.onPick = onPick
+        self.onContext = onContext
         let total = candidates.count
         guard total > 0 else {
             hide()
@@ -133,11 +141,29 @@ final class CandidateWindowController {
 
         row.arrangedSubviews.forEach { $0.removeFromSuperview() }
         let side = theme.current
+        if poolSide != side {
+            // 皮肤 / 明暗切换：颜色烘在 CandidateCell 的 init 里，整池重建
+            cellPool.removeAll()
+            poolSide = side
+        }
         for (offset, candidate) in slice.enumerated() {
-            let cell = CandidateCell(index: offset + 1, side: side)
+            let cell: CandidateCell
+            if offset < cellPool.count {
+                cell = cellPool[offset]
+            } else {
+                let created = CandidateCell(index: offset + 1, side: side)
+                cellPool.append(created)
+                cell = created
+            }
             cell.configure(candidate, isFirst: offset == 0)
             cell.onClick = { [weak self] in
                 self?.onPick?(start + offset)
+            }
+            if onContext != nil {
+                let index = start + offset
+                cell.onContext = { [weak self] point in
+                    self?.onContext?(index, point)
+                }
             }
             row.addArrangedSubview(cell)
         }
@@ -280,6 +306,8 @@ private final class CandidateCell: NSView {
     static let maxTextWidth: CGFloat = 320
 
     var onClick: (() -> Void)?
+    /// 右键（微信式候选管理）：把 cell 中心的屏幕坐标交给宿主弹菜单。
+    var onContext: ((NSPoint) -> Void)?
     private let indexLabel = NSTextField(labelWithString: "")
     private let textLabel = NSTextField(labelWithString: "")
     private let commentLabel = NSTextField(labelWithString: "")
@@ -428,6 +456,15 @@ private final class CandidateCell: NSView {
             ? accent.cgColor
             : NSColor.labelColor.withAlphaComponent(0.14).cgColor
         onClick?()
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        // NSEvent.mouseLocation 即屏幕坐标（AppKit 原点），菜单直接可用
+        onContext?(NSEvent.mouseLocation)
+    }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        nil // 右键统一走 rightMouseDown 的回调，菜单由宿主组装
     }
 
     override func mouseUp(with event: NSEvent) {

@@ -6,9 +6,9 @@ import SwiftUI
 
 // MARK: - 松萝设置中心
 //
-// 一个窗口管所有配置：侧栏分区 + 系统设置同款分组表单。
-// macOS 26 上 NavigationSplitView 的侧栏、工具栏、按钮自动是 Liquid Glass；
-// 旧系统回退为毛玻璃侧栏。原来散落在菜单、权限中心、AI 窗口里的开关都在这里有入口。
+// 一个窗口管所有配置：自绘侧栏（品牌区 + 分组 + 搜索 + 状态页脚）+ 品牌色头图 + 圆角卡片。
+// 原来散落在菜单、权限中心、AI 窗口里的开关都在这里有入口。
+// 视觉与设计令牌（docs/design-tokens.json）对齐：暖白底、18/22 圆角、品牌蓝 + 松萝绿。
 
 enum SettingsSection: String, CaseIterable, Identifiable {
     case overview, input, voice, learning, pet, appearance, clipboard, ai, privacy, about
@@ -63,7 +63,19 @@ enum SettingsSection: String, CaseIterable, Identifiable {
 
 /// 设置状态：真实数据源仍是各模块（UserDefaults / 单例），这里只负责刷新视图。
 final class SettingsModel: ObservableObject {
-    @Published var section: SettingsSection? = .overview
+    private static let sectionKey = "LianaSettingsSection"
+
+    @Published var section: SettingsSection? = SettingsModel.storedSection() {
+        didSet {
+            if let section { UserDefaults.standard.set(section.rawValue, forKey: Self.sectionKey) }
+        }
+    }
+
+    /// 原生应用的基本礼貌：重开设置时回到上次的分区，而不是每次从「概览」开始。
+    private static func storedSection() -> SettingsSection {
+        UserDefaults.standard.string(forKey: sectionKey)
+            .flatMap(SettingsSection.init(rawValue:)) ?? .overview
+    }
     @Published private(set) var revision = 0
 
     func touch() {
@@ -153,6 +165,7 @@ final class SettingsCenter {
         window.setContentSize(NSSize(width: 860, height: 600))
         window.center()
         window.setFrameAutosaveName("LianaSettingsCenter")
+        window.isRestorable = true
         self.window = window
         return window
     }
@@ -162,21 +175,58 @@ final class SettingsCenter {
 
 struct SettingsRootView: View {
     @ObservedObject var model: SettingsModel
+    @State private var query = ""
+    @State private var hoveredSection: SettingsSection?
+
+    private struct SidebarGroup: Identifiable {
+        let id: String
+        let sections: [SettingsSection]
+    }
+
+    private static let groups: [SidebarGroup] = [
+        SidebarGroup(id: "体验", sections: [.overview, .input, .voice, .learning, .pet]),
+        SidebarGroup(id: "系统", sections: [.appearance, .clipboard, .ai, .privacy, .about]),
+    ]
+
+    private var trimmedQuery: String { query.trimmingCharacters(in: .whitespaces) }
+
+    private func matches(_ section: SettingsSection) -> Bool {
+        trimmedQuery.isEmpty || section.title.localizedCaseInsensitiveContains(trimmedQuery)
+    }
 
     var body: some View {
         NavigationSplitView {
-            List(SettingsSection.allCases, selection: $model.section) { section in
-                NavigationLink(value: section) {
-                    HStack(spacing: 10) {
-                        LianaIconBadge(symbol: section.symbol, color: section.color, size: 22)
-                        Text(section.title)
-                            .font(.system(size: 13))
+            VStack(spacing: 0) {
+                brand
+                searchField
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 8)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(Self.groups) { group in
+                            let visible = group.sections.filter(matches)
+                            if !visible.isEmpty {
+                                Text(group.id)
+                                    .font(.system(size: 10.5, weight: .semibold))
+                                    .foregroundStyle(.tertiary)
+                                    .padding(.horizontal, 10)
+                                    .padding(.top, 10)
+                                    .padding(.bottom, 3)
+                                ForEach(visible) { section in
+                                    sidebarRow(section)
+                                }
+                            }
+                        }
+                        Spacer(minLength: 8)
                     }
-                    .padding(.vertical, 2)
+                    .padding(.horizontal, 8)
                 }
+                .scrollIndicators(.never)
+                Divider().opacity(0.4)
+                footer
             }
-            .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 260)
+            .background(SidebarBackground())
+            .navigationSplitViewColumnWidth(min: 198, ideal: 216, max: 264)
         } detail: {
             Group {
                 switch model.section ?? .overview {
@@ -192,37 +242,336 @@ struct SettingsRootView: View {
                 case .about: AboutPage()
                 }
             }
-            .frame(minWidth: 520, maxWidth: .infinity, maxHeight: .infinity)
+            .frame(minWidth: 560, maxWidth: .infinity, maxHeight: .infinity)
+            .background(SettingsBackground())
         }
-        .frame(minWidth: 760, minHeight: 520)
+        .frame(minWidth: 820, minHeight: 560)
+    }
+
+    // MARK: 侧栏
+
+    private var brand: some View {
+        HStack(spacing: 10) {
+            Image(nsImage: NSImage(named: "Liana") ?? NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 32, height: 32)
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .shadow(color: .black.opacity(0.18), radius: 6, y: 3)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("松萝")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                Text("Liana · \(LianaUpdater.currentVersion)")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 6)
+        .padding(.bottom, 12)
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 7) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+            TextField("搜索设置", text: $query)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+            if !query.isEmpty {
+                Button {
+                    query = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Color.primary.opacity(0.055))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.8)
+        )
+    }
+
+    private func sidebarRow(_ section: SettingsSection) -> some View {
+        let selected = (model.section ?? .overview) == section
+        return Button {
+            model.section = section
+        } label: {
+            HStack(spacing: 10) {
+                LianaIconBadge(symbol: section.symbol, color: section.color, size: 22)
+                Text(section.title)
+                    .font(.system(size: 13, weight: selected ? .semibold : .regular))
+                    .foregroundStyle(.primary)
+                Spacer(minLength: 0)
+                if selected {
+                    Circle()
+                        .fill(LianaDesign.brand)
+                        .frame(width: 5, height: 5)
+                }
+            }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(
+                        selected
+                            ? LianaDesign.brand.opacity(0.15)
+                            : (hoveredSection == section ? Color.primary.opacity(0.05) : Color.clear)
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .strokeBorder(selected ? LianaDesign.brand.opacity(0.22) : Color.clear, lineWidth: 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .onHover { inside in
+            if inside {
+                hoveredSection = section
+            } else if hoveredSection == section {
+                hoveredSection = nil
+            }
+        }
+    }
+
+    private var footer: some View {
+        HStack(spacing: 7) {
+            Circle()
+                .fill(model.imeIsCurrent ? Color.green : Color.orange)
+                .frame(width: 6, height: 6)
+                .shadow(color: (model.imeIsCurrent ? Color.green : Color.orange).opacity(0.45), radius: 3)
+            Text(model.imeIsCurrent ? "松萝正在使用中" : "未选中松萝")
+                .font(.system(size: 10.5))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+}
+
+/// 侧栏底色：上冷下暖的极淡渐变，与候选窗的玻璃底色同源。
+private struct SidebarBackground: View {
+    var body: some View {
+        ZStack {
+            Color(nsColor: .windowBackgroundColor)
+            LinearGradient(
+                colors: [LianaDesign.brand.opacity(0.07), .clear, LianaDesign.pine.opacity(0.045)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+        .ignoresSafeArea()
+    }
+}
+
+/// 内容区底色：暖白 + 两团很淡的品牌色光晕，替代系统表单的白底。
+struct SettingsBackground: View {
+    var body: some View {
+        ZStack {
+            Color(nsColor: .windowBackgroundColor)
+            RadialGradient(
+                colors: [LianaDesign.brand.opacity(0.10), .clear],
+                center: .topTrailing,
+                startRadius: 20,
+                endRadius: 460
+            )
+            RadialGradient(
+                colors: [LianaDesign.pine.opacity(0.055), .clear],
+                center: .bottomLeading,
+                startRadius: 10,
+                endRadius: 420
+            )
+        }
+        .ignoresSafeArea()
     }
 }
 
 /// 分组表单页面骨架：大标题 + 系统设置同款 grouped Form。
+/// 分区页面骨架：品牌色标题区 + 一列圆角卡片。
+/// 原来用系统 grouped Form，观感与系统设置无差别；改成自绘卡片后
+/// 排版（留白 / 层级 / 强调色）在各版本 macOS 上都一致。
 struct SettingsPage<Content: View>: View {
     let section: SettingsSection
     let subtitle: String
     @ViewBuilder var content: Content
 
     var body: some View {
-        Form {
-            Section {
-                HStack(spacing: 14) {
-                    LianaIconBadge(symbol: section.symbol, color: section.color, size: 44)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(section.title)
-                            .font(.system(size: 20, weight: .semibold))
-                        Text(subtitle)
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                .padding(.vertical, 6)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                SettingsPageHeader(section: section, subtitle: subtitle)
+                content
             }
-            content
+            .padding(.horizontal, 30)
+            .padding(.top, 26)
+            .padding(.bottom, 40)
+            .frame(maxWidth: 780, alignment: .leading)
+            .frame(maxWidth: .infinity)
         }
-        .formStyle(.grouped)
+        .scrollIndicators(.never)
+    }
+}
+
+/// 页头：品牌色渐变横幅 + 大图标 + 标题 / 一句话说明 + 超大底纹符号。
+struct SettingsPageHeader: View {
+    let section: SettingsSection
+    let subtitle: String
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 16) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [section.color, section.color.opacity(0.66)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 54, height: 54)
+                    .shadow(color: section.color.opacity(0.38), radius: 12, y: 6)
+                Image(systemName: section.symbol)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(section.title)
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                Text(subtitle)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 18)
+        .padding(.horizontal, 20)
+        .background(
+            ZStack(alignment: .trailing) {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [section.color.opacity(0.16), section.color.opacity(0.045)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                Image(systemName: section.symbol)
+                    .font(.system(size: 104, weight: .heavy))
+                    .foregroundStyle(section.color.opacity(0.09))
+                    .offset(x: 22, y: 8)
+                    .clipped()
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(section.color.opacity(0.14), lineWidth: 1)
+            }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+}
+
+/// 一组设置：小标题 + 圆角卡片。页内的 `SettingsGroup` 已整体替换成它。
+struct SettingsGroup<Content: View>: View {
+    private let title: String?
+    private let header: AnyView?
+    private let content: Content
+
+    init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.header = nil
+        self.content = content()
+    }
+
+    init(@ViewBuilder content: () -> Content) {
+        self.title = nil
+        self.header = nil
+        self.content = content()
+    }
+
+    init<H: View>(@ViewBuilder content: () -> Content, @ViewBuilder header: () -> H) {
+        self.title = nil
+        self.header = AnyView(header())
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let title {
+                Text(title)
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 6)
+            } else if let header {
+                header.padding(.leading, 6)
+            }
+            VStack(alignment: .leading, spacing: 14) {
+                content
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(SettingsCardBackground())
+        }
+    }
+}
+
+/// 卡片底：半透明控件底色 + 顶部高光 + 细描边 + 柔和投影。
+struct SettingsCardBackground: View {
+    var tint: Color = .clear
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+        shape
+            .fill(Color(nsColor: .controlBackgroundColor).opacity(0.72))
+            .overlay(
+                shape.fill(
+                    LinearGradient(
+                        colors: [tint.opacity(0.22), .clear],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+            )
+            .overlay(
+                shape.fill(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.09), .clear],
+                        startPoint: .top,
+                        endPoint: .center
+                    )
+                )
+            )
+            .overlay(shape.strokeBorder(Color.primary.opacity(0.06), lineWidth: 1))
+            .shadow(color: .black.opacity(0.06), radius: 12, y: 5)
+    }
+}
+
+/// 一行一个下拉选择：左边标题，右边菜单（自绘卡片里补回 Form 的右对齐）。
+struct SettingsPickerRow<Value: Hashable, Options: View>: View {
+    let title: String
+    @Binding var selection: Value
+    @ViewBuilder var options: Options
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(title)
+                .font(.system(size: 13, weight: .medium))
+            Spacer(minLength: 12)
+            Picker("", selection: $selection) { options }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .fixedSize()
+        }
     }
 }
 
@@ -235,19 +584,19 @@ struct StatusRow: View {
     var badText = "未就绪"
 
     var body: some View {
-        HStack {
+        HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
+                Text(title).font(.system(size: 13, weight: .medium))
                 Text(detail)
-                    .font(.system(size: 11))
+                    .font(.system(size: 11.5))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer()
+            Spacer(minLength: 8)
             Label(ok ? okText : badText, systemImage: ok ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(ok ? Color.green : Color.orange)
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 9)
                 .padding(.vertical, 3)
                 .background(Capsule().fill((ok ? Color.green : Color.orange).opacity(0.14)))
         }
@@ -263,14 +612,15 @@ struct ToggleRow: View {
     var body: some View {
         Toggle(isOn: $isOn) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
+                Text(title).font(.system(size: 13, weight: .medium))
                 Text(detail)
-                    .font(.system(size: 11))
+                    .font(.system(size: 11.5))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .toggleStyle(.switch)
+        .tint(LianaDesign.brand)
     }
 }
 
@@ -283,12 +633,42 @@ struct OverviewPage: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 20) {
                 hero
-                Text("常用功能")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                LazyVGrid(columns: columns, spacing: 12) {
+                today
+                features
+                shortcuts
+            }
+            .padding(.horizontal, 30)
+            .padding(.top, 26)
+            .padding(.bottom, 40)
+            .frame(maxWidth: 820, alignment: .leading)
+            .frame(maxWidth: .infinity)
+        }
+        .scrollIndicators(.never)
+    }
+
+    // MARK: 今日数据
+
+    private var today: some View {
+        let day = PetStats.shared.today
+        return HStack(spacing: 12) {
+            StatTile(value: "\(day.chars)", unit: "字", caption: "今日输入", symbol: "keyboard", color: LianaDesign.brand)
+            StatTile(value: "\(day.saved)", unit: "键", caption: "候选省下的按键", symbol: "bolt.fill", color: LianaDesign.pine)
+            StatTile(value: "\(Int(day.activeSecs / 60))", unit: "分", caption: "活跃打字", symbol: "clock.fill", color: Color(red: 0.95, green: 0.55, blue: 0.25))
+            StatTile(value: "\(model.nutritionCount)", unit: "词", caption: "营养词库", symbol: "leaf.fill", color: Color(red: 0.18, green: 0.64, blue: 0.78))
+        }
+    }
+
+    // MARK: 常用功能
+
+    private var features: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("常用功能")
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .padding(.leading, 6)
+            LazyVGrid(columns: columns, spacing: 12) {
                     FeatureCard(symbol: "text.viewfinder", color: LianaDesign.pine, title: "截图快速学习",
                                 detail: "框选屏幕上的文字，新词立刻能打出来") {
                         LianaActions.perform(.screenshotLearn)
@@ -313,22 +693,35 @@ struct OverviewPage: View {
                                 detail: "本地加密保存，默认关闭") {
                         model.section = .clipboard
                     }
-                }
-                shortcuts
             }
-            .padding(24)
         }
     }
 
     private var hero: some View {
-        HStack(spacing: 18) {
-            Image(nsImage: NSImage(named: "Liana") ?? NSApp.applicationIconImage)
-                .resizable()
-                .frame(width: 72, height: 72)
-                .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
-            VStack(alignment: .leading, spacing: 6) {
-                Text("松萝")
-                    .font(.system(size: 26, weight: .bold))
+        HStack(alignment: .center, spacing: 20) {
+            ZStack {
+                Circle()
+                    .fill(RadialGradient(colors: [LianaDesign.brand.opacity(0.35), .clear],
+                                         center: .center, startRadius: 6, endRadius: 76))
+                    .frame(width: 150, height: 150)
+                Image(nsImage: NSImage(named: "Liana") ?? NSApp.applicationIconImage)
+                    .resizable()
+                    .frame(width: 82, height: 82)
+                    .clipShape(RoundedRectangle(cornerRadius: 19, style: .continuous))
+                    .shadow(color: .black.opacity(0.22), radius: 14, y: 7)
+            }
+            .frame(width: 100, height: 100)
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 8) {
+                    Text("松萝")
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                    Text("Liana")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary.opacity(0.8))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Color.primary.opacity(0.06)))
+                }
                 Text("越用越懂你的本地输入法 · 零云 · 零遥测")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
@@ -337,35 +730,90 @@ struct OverviewPage: View {
                          symbol: model.imeIsCurrent ? "checkmark.circle.fill" : "keyboard",
                          color: model.imeIsCurrent ? .green : .orange)
                     Chip(text: "默认 \(model.currentMode.title)", symbol: "character.cursor.ibeam", color: LianaDesign.brand)
-                    Chip(text: "营养词 \(model.nutritionCount)", symbol: "leaf.fill", color: LianaDesign.pine)
+                    Chip(text: "v\(LianaUpdater.currentVersion)", symbol: "shippingbox.fill", color: .secondary)
                 }
             }
-            Spacer()
+            Spacer(minLength: 0)
+            Image(systemName: "leaf.fill")
+                .font(.system(size: 110, weight: .bold))
+                .foregroundStyle(LianaDesign.pine.opacity(0.09))
+                .offset(x: 10, y: 12)
         }
-        .padding(20)
-        .lianaGlass(cornerRadius: LianaDesign.radiusLarge, tint: LianaDesign.brand.opacity(0.12))
+        .padding(.horizontal, 24)
+        .padding(.vertical, 22)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            ZStack(alignment: .topTrailing) {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [LianaDesign.brand.opacity(0.22), LianaDesign.pine.opacity(0.08), Color(nsColor: .controlBackgroundColor).opacity(0.55)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+            }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .shadow(color: LianaDesign.brand.opacity(0.18), radius: 22, y: 10)
     }
 
     private var shortcuts: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("快捷操作")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 11.5, weight: .semibold))
                 .foregroundStyle(.secondary)
+                .padding(.leading, 6)
             VStack(spacing: 0) {
                 ShortcutRow(keys: "⌃ `", title: "功能面板", detail: "截图学习、语音、同传、桌宠一键直达")
-                Divider()
+                Divider().opacity(0.5)
                 ShortcutRow(keys: "单按 ⇧", title: "中英切换", detail: "左 Shift 单击，不打断当前输入")
-                Divider()
+                Divider().opacity(0.5)
                 ShortcutRow(keys: "a a", title: "网址 / 表情模式", detail: "浏览器里连按两下 a 进网址模式，聊天工具里进表情")
-                Divider()
+                Divider().opacity(0.5)
                 ShortcutRow(keys: "u…", title: "符号输入", detail: "u 开头检索符号，如 uduihao → ✓")
-                Divider()
+                Divider().opacity(0.5)
                 ShortcutRow(keys: "uu…", title: "拆字输入", detail: "不会读的字按部件拼音拼：uuriyue → 明、uuyu yang → 鲜")
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 4)
-            .lianaGlass(cornerRadius: LianaDesign.radiusMedium)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 6)
+            .background(SettingsCardBackground())
         }
+    }
+}
+
+/// 数据小卡：大数字 + 单位 + 说明，图标染色。
+struct StatTile: View {
+    let value: String
+    let unit: String
+    let caption: String
+    let symbol: String
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: symbol)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(color)
+                Text(caption)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+                Text(value)
+                    .font(.system(size: 24, weight: .semibold, design: .rounded))
+                Text(unit)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(SettingsCardBackground(tint: color))
     }
 }
 
@@ -381,6 +829,7 @@ struct Chip: View {
             .padding(.horizontal, 9)
             .padding(.vertical, 4)
             .background(Capsule().fill(color.opacity(0.14)))
+            .overlay(Capsule().strokeBorder(color.opacity(0.16), lineWidth: 0.8))
     }
 }
 
@@ -395,23 +844,36 @@ struct FeatureCard: View {
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 10) {
-                LianaIconBadge(symbol: symbol, color: color, size: 34)
+                HStack(alignment: .top) {
+                    LianaIconBadge(symbol: symbol, color: color, size: 36)
+                    Spacer(minLength: 0)
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(color.opacity(hovering ? 0.9 : 0.3))
+                        .padding(5)
+                        .background(Circle().fill(color.opacity(hovering ? 0.14 : 0.06)))
+                        .scaleEffect(hovering ? 1.05 : 1)
+                }
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 13.5, weight: .semibold))
                     .foregroundStyle(.primary)
                 Text(detail)
-                    .font(.system(size: 11))
+                    .font(.system(size: 11.5))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, minHeight: 128, alignment: .topLeading)
-            .lianaGlass(cornerRadius: LianaDesign.radiusMedium, tint: hovering ? color.opacity(0.18) : nil, interactive: true)
-            .scaleEffect(hovering ? 1.015 : 1)
-            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: hovering)
-            .contentShape(RoundedRectangle(cornerRadius: LianaDesign.radiusMedium, style: .continuous))
+            .padding(15)
+            .frame(maxWidth: .infinity, minHeight: 142, alignment: .topLeading)
+            .background(SettingsCardBackground(tint: hovering ? color : .clear))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(color.opacity(hovering ? 0.35 : 0), lineWidth: 1)
+            )
+            .scaleEffect(hovering ? 1.012 : 1)
+            .animation(.spring(response: 0.28, dampingFraction: 0.82), value: hovering)
+            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
@@ -426,14 +888,21 @@ struct ShortcutRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Text(keys)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .frame(minWidth: 64)
-                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.08)))
+                .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4)
+                .frame(minWidth: 66)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(Color.primary.opacity(0.07))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.05), lineWidth: 0.8)
+                )
             VStack(alignment: .leading, spacing: 1) {
-                Text(title).font(.system(size: 13))
-                Text(detail).font(.system(size: 11)).foregroundStyle(.secondary)
+                Text(title).font(.system(size: 13, weight: .medium))
+                Text(detail).font(.system(size: 11.5)).foregroundStyle(.secondary)
             }
             Spacer()
         }
@@ -448,8 +917,8 @@ struct InputPage: View {
 
     var body: some View {
         SettingsPage(section: .input, subtitle: "输入方案、标点与中英切换习惯。改动立即生效，无需重启。") {
-            Section("输入方案") {
-                Picker("默认输入模式", selection: model.binding({ model.currentMode }, { mode in
+            SettingsGroup("输入方案") {
+                SettingsPickerRow(title: "默认输入模式", selection: model.binding({ model.currentMode }, { mode in
                     UserDefaults.standard.set(mode.rawValue, forKey: "LianaMode")
                     if mode.isChinese {
                         UserDefaults.standard.set(mode.rawValue, forKey: "LianaLastChineseMode")
@@ -469,8 +938,8 @@ struct InputPage: View {
                     })
                 )
             }
-            Section("候选") {
-                Picker("拼音提示", selection: model.binding({ ReadingDisplay.current }, { ReadingDisplay.current = $0 })) {
+            SettingsGroup("候选") {
+                SettingsPickerRow(title: "拼音提示", selection: model.binding({ ReadingDisplay.current }, { ReadingDisplay.current = $0 })) {
                     ForEach(ReadingDisplay.allCases, id: \.self) { option in
                         Text(option.title).tag(option)
                     }
@@ -479,7 +948,7 @@ struct InputPage: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
-            Section("标点") {
+            SettingsGroup("标点") {
                 ToggleRow(
                     title: "所有应用强制半角标点",
                     detail: "关闭时按应用自动：代码编辑器 / 终端用半角，其余用全角",
@@ -488,14 +957,14 @@ struct InputPage: View {
                     })
                 )
             }
-            Section("中英切换") {
+            SettingsGroup("中英切换") {
                 ToggleRow(
                     title: "按应用记忆中 / 英",
                     detail: "在终端里习惯英文、在微信里习惯中文？切过去自动恢复。关闭会清空已学习的偏好",
                     isOn: model.binding({ AppModeMemory.shared.isEnabled }, { AppModeMemory.shared.isEnabled = $0 })
                 )
             }
-            Section("词库") {
+            SettingsGroup("词库") {
                 LabeledContent("内置词库") {
                     Text("20 万词条 · 语料词频校准")
                         .foregroundStyle(.secondary)
@@ -518,14 +987,14 @@ struct VoicePage: View {
 
     var body: some View {
         SettingsPage(section: .voice, subtitle: "端上语音识别，边说边落字；同声传译用本机小模型，原文与译文都不离开这台 Mac。") {
-            Section {
+            SettingsGroup {
                 HowToRow(step: "1", text: "在任意输入框里打字时，按 ⌃`（Control + 反引号）打开功能面板")
                 HowToRow(step: "2", text: "按 2 开始语音输入；按 3 / 4 开始同传（译成英文 / 日文）")
                 HowToRow(step: "3", text: "说完会给出标点候选，空格确认；按 Esc 随时取消")
             } header: {
                 Text("怎么用")
             }
-            Section("语音识别") {
+            SettingsGroup("语音识别") {
                 StatusRow(title: "端上识别", detail: "语音模型在本机运行，不回退云端",
                           ok: model.voiceOnDevice, okText: "可用", badText: "此 Mac 不支持")
                 StatusRow(title: "麦克风权限", detail: "首次使用会弹出系统授权",
@@ -547,7 +1016,7 @@ struct VoicePage: View {
                     isOn: model.binding({ DevDictation.enabled }, { DevDictation.enabled = $0 })
                 )
             }
-            Section("同声传译") {
+            SettingsGroup("同声传译") {
                 StatusRow(title: "翻译运行时（llama.cpp）",
                           detail: model.translateRuntime ?? "终端执行 brew install llama.cpp（不自动下载可执行文件）",
                           ok: model.translateRuntime != nil, okText: "已安装", badText: "未安装")
@@ -598,7 +1067,7 @@ struct LearningPage: View {
 
     var body: some View {
         SettingsPage(section: .learning, subtitle: "选词、纠错、你喂给它的资料都会变成排序依据——全部只在本机。") {
-            Section("截图快速学习") {
+            SettingsGroup("截图快速学习") {
                 HStack(spacing: 14) {
                     LianaIconBadge(symbol: "text.viewfinder", color: LianaDesign.pine, size: 36)
                     VStack(alignment: .leading, spacing: 2) {
@@ -621,7 +1090,7 @@ struct LearningPage: View {
                         .lianaGlassButton()
                 }
             }
-            Section("喂它一段") {
+            SettingsGroup("喂它一段") {
                 LabeledContent("营养词") {
                     Text("\(model.nutritionCount) 个")
                         .foregroundStyle(.secondary)
@@ -635,7 +1104,7 @@ struct LearningPage: View {
                         .lianaGlassButton()
                 }
             }
-            Section("自进化") {
+            SettingsGroup("自进化") {
                 ToggleRow(
                     title: "知你学习",
                     detail: "把选词与选后删除当作教学信号，按应用、时段调整排序",
@@ -679,17 +1148,41 @@ struct PetPage: View {
         let installedIds = Set(installed.map { $0.id })
         let downloadable = PetCatalogStore.entries().filter { !installedIds.contains($0.id) }
         return SettingsPage(section: .pet, subtitle: "陪你打字的小伙伴：会对输入做出反应。点它摸头、双击戳一戳，右键看统计与更多设置。") {
-            Section {
+            SettingsGroup("显示与外观") {
                 ToggleRow(
                     title: "显示桌宠",
                     detail: "在桌面角落常驻，可拖动",
                     isOn: model.binding({ PetWindowController.isEnabled }, { PetWindowController.setEnabled($0) })
                 )
+                HStack(spacing: 12) {
+                    Text("画幅").font(.system(size: 13, weight: .medium))
+                    Spacer(minLength: 12)
+                    Picker("", selection: model.binding({ PetWindowController.framingOverride }, { PetWindowController.framingOverride = $0 })) {
+                        Text("全身").tag("full")
+                        Text("半身").tag("bust")
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+                }
+                HStack {
+                    Text("大小")
+                    Slider(value: model.binding({ PetWindowController.zoomOverride * 100 }, { PetWindowController.zoomOverride = $0 / 100 }),
+                           in: (PetWindowController.zoomRange.lowerBound * 100)...(PetWindowController.zoomRange.upperBound * 100))
+                    Text("\(Int((PetWindowController.zoomOverride * 100).rounded()))%")
+                        .font(.system(size: 12, design: .monospaced))
+                        .frame(width: 44, alignment: .trailing)
+                }
+                Text("也可以在桌宠身上双指捏合，或按住 ⌥ 滚动滚轮调节")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
                 ToggleRow(
-                    title: "安静模式",
-                    detail: "不主动问候和闲聊，只在你摸它时回应",
-                    isOn: model.binding({ PetWindowController.quietMode }, { PetWindowController.quietMode = $0 })
+                    title: "入场 / 离场动画",
+                    detail: "出现时从天而降、从底下冒出来、从边上走进来或弹出来；隐藏时跳着离开",
+                    isOn: model.binding({ PetWindowController.entranceEnabled }, { PetWindowController.entranceEnabled = $0 })
                 )
+            }
+            SettingsGroup("场景与互动") {
                 ToggleRow(
                     title: "场景跟随应用",
                     detail: "打游戏拿手柄、写代码有桌子键盘、听歌摇摆、看视频吃爆米花……只看前台应用是哪个，不看窗口内容",
@@ -701,10 +1194,17 @@ struct PetPage: View {
                     isOn: model.binding({ PetWindowController.followMouse }, { PetWindowController.followMouse = $0 })
                 )
                 ToggleRow(
-                    title: "入场 / 离场动画",
-                    detail: "出现时从天而降、从底下冒出来、从边上走进来或弹出来；隐藏时跳着离开",
-                    isOn: model.binding({ PetWindowController.entranceEnabled }, { PetWindowController.entranceEnabled = $0 })
+                    title: "安静模式",
+                    detail: "不主动问候和闲聊，只在你摸它时回应",
+                    isOn: model.binding({ PetWindowController.quietMode }, { PetWindowController.quietMode = $0 })
                 )
+                ToggleRow(
+                    title: "休息提醒",
+                    detail: "连续打字 \(PetWindowController.breakMinutes) 分钟后提醒你起身活动",
+                    isOn: model.binding({ PetWindowController.breakReminder }, { PetWindowController.breakReminder = $0 })
+                )
+            }
+            SettingsGroup("输入联动") {
                 ToggleRow(
                     title: "不在输入框时打字就聊天",
                     detail: "在桌面等没有输入框的地方连续敲字母，会打开对话气泡。需要辅助功能权限，只用来判断当前是不是输入框，不记录任何按键；聊天内容不保存",
@@ -730,29 +1230,8 @@ struct PetPage: View {
                     Spacer()
                     Button("打开菜谱目录…") { LinkRecipeStore.openFolder() }.controlSize(.small)
                 }
-                ToggleRow(
-                    title: "休息提醒",
-                    detail: "连续打字 \(PetWindowController.breakMinutes) 分钟后提醒你起身活动",
-                    isOn: model.binding({ PetWindowController.breakReminder }, { PetWindowController.breakReminder = $0 })
-                )
-                Picker("画幅", selection: model.binding({ PetWindowController.framingOverride }, { PetWindowController.framingOverride = $0 })) {
-                    Text("全身").tag("full")
-                    Text("半身").tag("bust")
-                }
-                .pickerStyle(.segmented)
-                HStack {
-                    Text("大小")
-                    Slider(value: model.binding({ PetWindowController.zoomOverride * 100 }, { PetWindowController.zoomOverride = $0 / 100 }),
-                           in: (PetWindowController.zoomRange.lowerBound * 100)...(PetWindowController.zoomRange.upperBound * 100))
-                    Text("\(Int((PetWindowController.zoomOverride * 100).rounded()))%")
-                        .font(.system(size: 12, design: .monospaced))
-                        .frame(width: 44, alignment: .trailing)
-                }
-                Text("也可以在桌宠身上双指捏合，或按住 ⌥ 滚动滚轮调节")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
             }
-            Section("形象") {
+            SettingsGroup("形象") {
                 if installed.isEmpty {
                     Text("还没有安装形象包").foregroundStyle(.secondary)
                 }
@@ -798,7 +1277,7 @@ struct PetPage: View {
                         .lianaGlassButton()
                 }
             }
-            Section("自定义形象") {
+            SettingsGroup("自定义形象") {
                 CustomPetRow(symbol: "wand.and.stars", title: "用图片做桌宠",
                              detail: "1 张或几张图片，本机抠图生成会动的纸偶形象", button: "打开形象工坊…") {
                     let active = PetWindowController.activePackId
@@ -876,7 +1355,7 @@ struct AppearancePage: View {
     var body: some View {
         let skins = ThemeStore.availableSkins()
         return SettingsPage(section: .appearance, subtitle: "候选窗在 macOS 26 上是系统 Liquid Glass；皮肤包只改色调、圆角与字号。") {
-            Section("候选窗皮肤") {
+            SettingsGroup("候选窗皮肤") {
                 SkinRow(name: "跟随系统（素玻璃）", detail: "与系统输入法一致，推荐", active: ThemeStore.activeId.isEmpty) {
                     ThemeStore.activeId = ""
                     model.touch()
@@ -888,7 +1367,7 @@ struct AppearancePage: View {
                     }
                 }
             }
-            Section {
+            SettingsGroup {
                 HStack {
                     Text("皮肤包放在插件目录，格式见 docs/adr/0005-plugin-system.md")
                         .font(.system(size: 12))
@@ -934,7 +1413,7 @@ struct ClipboardPage: View {
     var body: some View {
         let recent = Array(EncryptedStore.shared.clipboard.prefix(5))
         return SettingsPage(section: .clipboard, subtitle: "复制过的文字加密存在本机；密码管理器等敏感应用自动跳过。") {
-            Section {
+            SettingsGroup {
                 ToggleRow(
                     title: "记录剪切板历史",
                     detail: "默认关闭。关闭后已有历史仍保留，可随时清空",
@@ -946,7 +1425,7 @@ struct ClipboardPage: View {
                 }
             }
             if !recent.isEmpty {
-                Section("最近") {
+                SettingsGroup("最近") {
                     ForEach(Array(recent.enumerated()), id: \.offset) { _, item in
                         let line = item.text.split(separator: "\n").first.map(String.init) ?? item.text
                         Text(line)
@@ -955,7 +1434,7 @@ struct ClipboardPage: View {
                     }
                 }
             }
-            Section {
+            SettingsGroup {
                 HStack {
                     Button("打开剪切板历史…") { LianaActions.perform(.clipboard) }
                         .lianaProminentButton()
@@ -1010,8 +1489,8 @@ struct AIPage: View {
     var body: some View {
         let store = ai.store
         let used = ByteCountFormatter.string(fromByteCount: store.diskUsage(), countStyle: .file)
-        return SettingsPage(section: .ai, subtitle: "没有云 API。可选的小模型只在你点击后下载，并做 sha256 校验。") {
-            Section("内置") {
+        return SettingsPage(section: .ai, subtitle: "聊天默认走在线供应商（需自己配置并勾选同意）；本机模型是可选的离线方案，不会自动安装。") {
+            SettingsGroup("内置") {
                 StatusRow(title: "统计语言模型", detail: "用户词 + 上下词 + 自动短语，内存 < 1 MB，随输入学习",
                           ok: true, okText: "运行中", badText: "")
                 ToggleRow(title: "长句 AI 重排",
@@ -1024,7 +1503,7 @@ struct AIPage: View {
                         if !on { TranslateClient.rerank.stop() }
                     }
             }
-            Section("本机") {
+            SettingsGroup("本机") {
                 LabeledContent("内存") {
                     Text(store.totalRamText).foregroundStyle(.secondary)
                 }
@@ -1045,7 +1524,7 @@ struct AIPage: View {
                     }
                 }
             }
-            Section("可下载模型") {
+            SettingsGroup("可下载模型") {
                 ForEach(store.catalog) { item in
                     AIModelRow(model: item, store: store)
                 }
@@ -1144,14 +1623,14 @@ struct PrivacyPage: View {
 
     var body: some View {
         SettingsPage(section: .privacy, subtitle: "内核不发起任何网络请求。每项敏感能力都能关闭，关闭即清除对应数据。") {
-            Section("统计") {
+            SettingsGroup("统计") {
                 ToggleRow(
                     title: "输入统计",
                     detail: "只记次数与秒数（速度、纠错、省键），绝不记录按键内容。关闭即清空",
                     isOn: model.binding({ PetStats.shared.isEnabled }, { PetStats.shared.isEnabled = $0 })
                 )
             }
-            Section("权限总览") {
+            SettingsGroup("权限总览") {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("权限与隐私中心")
@@ -1162,7 +1641,7 @@ struct PrivacyPage: View {
                         .lianaGlassButton()
                 }
             }
-            Section("备份与恢复") {
+            SettingsGroup("备份与恢复") {
                 Text("只含用户词与短语，不含剪切板。加密备份用你设定的密码（PBKDF2 + ChaCha20-Poly1305）。换设备请走备份，不要拷 userdata.enc（密钥在本机钥匙串）。")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
@@ -1176,7 +1655,7 @@ struct PrivacyPage: View {
                         .buttonStyle(.link)
                 }
             }
-            Section("钥匙串") {
+            SettingsGroup("钥匙串") {
                 StatusRow(
                     title: "用户数据密钥",
                     detail: EncryptedStore.shared.keyAvailable

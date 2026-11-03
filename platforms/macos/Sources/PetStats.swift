@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 /// 输入统计：只计数、不存内容。键数/删除/回车/上屏字数/节省击键/活跃秒数/最长发呆。
@@ -47,41 +48,87 @@ final class PetStats {
     private let storeKey = "LianaStatsDays"
     private let enabledKey = "LianaStatsEnabled"
 
+    /// 内存态缓存：计数每键都在涨，但没必要每键都「解码 JSON → 改 → 编码 → 写
+    /// UserDefaults（cfprefsd IPC + 落盘）」。内存里改，1.5 秒静默后再落盘一次；
+    /// 退出前 flush。统计值不变，只是延迟写。
+    private var cache: [String: Day] = [:]
+    private var loaded = false
+    private var saveWork: DispatchWorkItem?
+    private var enabledCache: Bool?
+
+    private init() {
+        // 进程被杀前尽量把最后几秒的计数落盘
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.flush()
+        }
+    }
+
     var isEnabled: Bool {
         get {
-            UserDefaults.standard.object(forKey: enabledKey) == nil
+            if let cached = enabledCache { return cached }
+            let value = UserDefaults.standard.object(forKey: enabledKey) == nil
                 ? true
                 : UserDefaults.standard.bool(forKey: enabledKey)
+            enabledCache = value
+            return value
         }
         set {
             UserDefaults.standard.set(newValue, forKey: enabledKey)
+            enabledCache = newValue
             if !newValue {
                 wipeAll()
             }
         }
     }
 
-    private func days() -> [String: Day] {
+    private func loadIfNeeded() {
+        guard !loaded else { return }
+        loaded = true
         guard let data = UserDefaults.standard.data(forKey: storeKey),
               let dict = try? JSONDecoder().decode([String: Day].self, from: data)
-        else { return [:] }
-        return dict
+        else { return }
+        cache = dict
     }
 
-    private func save(_ days: [String: Day]) {
-        // 只保留最近 7 天
+    private func days() -> [String: Day] {
+        loadIfNeeded()
+        return cache
+    }
+
+    /// 内存态写回：保留最近 7 天，延迟合并成一次编码 + 一次 UserDefaults 写。
+    private func scheduleSave() {
+        saveWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.flush() }
+        saveWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
+    }
+
+    /// 立即落盘（退出 / 设置页读取前的兜底）。
+    func flush() {
+        saveWork?.cancel()
+        saveWork = nil
+        guard loaded else { return }
         let cutoff = Self.dayKey(Date().addingTimeInterval(-7 * 86_400))
-        let trimmed = days.filter { $0.key >= cutoff }
-        if let data = try? JSONEncoder().encode(trimmed) {
+        cache = cache.filter { $0.key >= cutoff }
+        if let data = try? JSONEncoder().encode(cache) {
             UserDefaults.standard.set(data, forKey: storeKey)
         }
     }
 
+    /// 与界面展示同源的日期键（本地时区）。DateFormatter 创建很贵，复用同一个。
     static func dayKey(_ date: Date = Date()) -> String {
-        let df = DateFormatter()
-        df.dateFormat = "yyyy-MM-dd"
-        return df.string(from: date)
+        dayFormatter.string(from: date)
     }
+
+    private static let dayFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.timeZone = .current
+        df.dateFormat = "yyyy-MM-dd"
+        return df
+    }()
 
     private func mutate(_ transform: (inout Day) -> Void) {
         guard isEnabled else { return }
@@ -90,7 +137,8 @@ final class PetStats {
         var day = days[key] ?? Day()
         transform(&day)
         days[key] = day
-        save(days)
+        cache = days
+        scheduleSave()
     }
 
     // MARK: - 记录（InputController 调）
@@ -138,6 +186,8 @@ final class PetStats {
 
     func wipeAll() {
         UserDefaults.standard.removeObject(forKey: storeKey)
+        cache = [:]
+        loaded = true
     }
 
     // MARK: - 指标（内核计算）

@@ -1,0 +1,6 @@
+# 热词词包：baidu 实时热榜，2026-11-03 抓取（tools/hotwords.py）
+# 只补新词（主库已有的不重复）；词频按榜位衰减，下限 800
+九寨沟游客冲突	jiu'zhai'gou'you'ke'chong'tu	60000
+许飞什么都敢回	xu'fei'shen'me'dou'gan'hui	55800
+退休时间按哪天算	tui'xiu'shi'jian'an'na'tian'suan	51894
+黑龙江大雪	hei'long'jiang'da'xue	48261

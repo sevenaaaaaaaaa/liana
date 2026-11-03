@@ -28,6 +28,8 @@ from statistics import median
 
 from wordfreq import get_frequency_dict
 
+from clean_junk_dict import clean_rows
+
 ALPHA = 0.75
 
 
@@ -109,7 +111,11 @@ def main():
                 new = max(new, round(modern[(w, p)]))
             out.append((i, w, p, new))
     out.sort()
-    for _, w, p, new in out:
+    # 精准度专项 P0-3：输出前清洗双虚字分词伪影（到的/是在/是有 类），
+    # 规则与报告见 tools/clean_junk_dict.py。
+    cleaned, details = clean_rows([(w, p, new) for _, w, p, new in out], wf)
+    print(f"伪影清洗：删除 {len(details)} 条", file=sys.stderr)
+    for w, p, new in cleaned:
         print(f"{w}\t{p}\t{new}")
     print(f"校准分箱 {len(table)} 个；语料命中 {sum(1 for w in readings if w in wf)}/{len(readings)} 词形",
           file=sys.stderr)

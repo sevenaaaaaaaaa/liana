@@ -175,6 +175,11 @@
     }
   };
   window.petSetMood = (level) => { moodLevel = Math.max(0, Math.min(3, level | 0)); };
+  // 看不见时停 ticker（隐藏 / 遮挡 / 息屏）
+  window.petPause = (on) => {
+    if (!app) return;
+    if (on) app.ticker.stop(); else app.ticker.start();
+  };
   window.petGreet = (period) => { say(LINES[period] || LINES.idle); };
   window.petSetGaze = (x, y) => {
     gaze.x = Math.max(-1, Math.min(1, x));

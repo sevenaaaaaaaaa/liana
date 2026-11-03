@@ -151,6 +151,13 @@ log "Nightly ${VERSION}（基于正式版本 ${BASE_VERSION}，提交 ${SHORT_SH
 log "运行测试：cargo test"
 cargo test --workspace --quiet || die "cargo test failed"
 
+# 精准度专项（ops/docs/输入精准度专项.md）P0：固定语料趋势线。
+# 只跑轻量种子集（~120 句），完整评测手动跑 `xtask eval-corpus`；
+# 失败不阻断发版——这个数字用于观察趋势，不是闸门。
+log "整句准确率趋势（种子语料）："
+cargo run -q --release -p xtask -- eval-corpus --set liana-seed --show 0 2>/dev/null \
+    | grep -E "liana-seed" | sed 's/^/  /' || true
+
 # ──────────────────── 3. 构建 macOS DMG ────────────────────
 
 # LIANA_VERSION is applied to the build copies only (build.sh + dist.sh patch the bundled

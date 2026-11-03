@@ -97,6 +97,7 @@ SWIFT_SOURCES=("$HERE/Sources/main.swift" "$HERE/Sources/Engine.swift" \
     "$HERE/Sources/MediaController.swift" \
     "$HERE/Sources/StagingShelf.swift" \
     "$HERE/Sources/QuickPanel.swift" \
+    "$HERE/Sources/PetRendering.swift" \
     "$HERE/Sources/SettingsCenter.swift")
 if [[ "$UNIVERSAL" == "1" ]]; then
     SWIFT_ARCHS=(arm64 x86_64)

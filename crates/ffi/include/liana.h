@@ -32,6 +32,19 @@ LianaSession *liana_new_with_layers(const char *mode, const char *dict_path, con
 /* 把第 index 个候选提到第一位（同层内换位，不改学习记录；前端本机模型重排长句用）。返回 1 表示换了位置。 */
 int32_t liana_promote(LianaSession *session, uint32_t index);
 
+/* 钉选候选（微信式「固定到首位」）：同层内置顶并持久化（用户模型 TSV @pin 段）。返回 1 表示已记录。 */
+int32_t liana_pin_candidate(LianaSession *session, const char *text);
+
+/* 屏蔽候选（「不再显示这个词」）：只对多字词生效，同时清除其个人词频（@ban 段）。返回 1 表示已屏蔽。 */
+int32_t liana_ban_candidate(LianaSession *session, const char *text);
+
+/* 停顿档模型是否已挂载（pause-model.safetensors，与 base.ifd 同目录或
+ * models/rerank/ 下）。返回 1 表示 liana_pause_rerank 可用。 */
+int32_t liana_pause_rerank_ready(LianaSession *session);
+
+/* 停顿接手：用 25M 高精度模型对当前组合态做一次层内融合重排。返回 1 表示首选变了。 */
+int32_t liana_pause_rerank(LianaSession *session);
+
 void liana_free(LianaSession *session);
 
 /* 输入一个字符（UTF-8，单个码点）。返回 1 表示被接受。 */
@@ -46,6 +59,9 @@ int32_t liana_set_mode(LianaSession *session, const char *mode);
 
 /* 当前模式 id。 */
 char *liana_mode(LianaSession *session);
+
+/* 是否处于组合态：不生成 JSON，供前端每键走快路径。 */
+int32_t liana_has_composition(LianaSession *session);
 
 /* 简繁显示：on 非 0 时候选转成繁体（学习与重排仍以简体为准）。 */
 int32_t liana_set_traditional(LianaSession *session, int32_t on);

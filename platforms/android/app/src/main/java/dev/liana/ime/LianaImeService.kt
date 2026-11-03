@@ -14,6 +14,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import org.json.JSONObject
 
@@ -30,8 +31,8 @@ object LianaTheme {
     const val RADIUS_KEY = 8f          // dp
     const val FONT_CANDIDATE = 17f
     const val FONT_KEY = 16f
-    const val KEY_HEIGHT = 46          // dp
-    const val PAD_SPLIT_MIN_WIDTH = 600 // dp，Pad 分体键盘阈值
+    const val KEY_HEIGHT = 46          // dp（可见键高，与 iOS 一致）
+    const val PAD_SPLIT_MIN_WIDTH = 600 // dp，Pad / 折叠内屏分体阈值
 }
 
 /**
@@ -44,20 +45,33 @@ object LianaTheme {
  * - 全键触觉反馈（§3.1）
  * - 候选上滑直上屏（§3.2）
  * - 退格长按连删 + 左滑整段清除（§3.3）
- * - Pad 宽度 ≥ 600dp 自动分体键盘（§3.4）
+ * - 折叠屏几何守恒 + 中缝工作台（FOLDABLE-ADAPTATION.md §4 §5）
  */
 class LianaImeService : InputMethodService() {
 
+    // ---- 输入状态（与视图生命周期解耦：折叠/展开重建视图不得丢失） ----
     private var session: Long = 0
     private var modeIdx = 0
     private var candidates: List<String> = emptyList()
     private var rawInput: String = ""
+    private var composingText: String = ""
 
+    // ---- 视图 ----
     private lateinit var candidateStrip: LinearLayout
-    private lateinit var modeButton: TextView
-    private lateinit var tradButton: TextView
-    private val repeatHandler = Handler(Looper.getMainLooper())
+    private lateinit var keyboardArea: LinearLayout
+    private var modeButton: TextView? = null
+    private var tradButton: TextView? = null
+
+    /** 中缝工作台（仅分体形态存在） */
+    private var wbComposing: TextView? = null
+    private var wbGrid: LinearLayout? = null
+
+    private var layoutSignature = ""
+    private var building = false
     private var inputViewRef: View? = null
+
+    private val repeatHandler = Handler(Looper.getMainLooper())
+    private val prefs by lazy { getSharedPreferences("liana_layout", MODE_PRIVATE) }
 
     // ---- 生命周期 ----
 
@@ -113,7 +127,7 @@ class LianaImeService : InputMethodService() {
             setBackgroundColor(LianaTheme.BG)
         }
 
-        // 候选栏
+        // 候选栏（横向滚动）
         candidateStrip = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -126,89 +140,299 @@ class LianaImeService : InputMethodService() {
         }
         root.addView(candidateScroll)
 
-        buildLetterRows(root)
+        // 键盘区：只换视图，不动 session / 候选 / 中英简繁（L1 L2）
+        keyboardArea = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        root.addView(keyboardArea, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(keyboardAreaHeightDp())))
 
-        // 底部功能行（Pad 上也保持通栏，便于双手公共区）
-        val fnRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
+        // 宽度变化（折叠 / 展开 / 分屏 / 旋转）→ 按签名重建
+        root.addOnLayoutChangeListener { v, _, _, _, _, _, _, _, _ ->
+            maybeRebuildKeyboard(v.width)
         }
-        modeButton = keyView("中", weight = 1.2f) { onModeToggle() }
-        fnRow.addView(modeButton)
-        tradButton = keyView("简", weight = 1f) { onTraditionalToggle() }
-        fnRow.addView(tradButton)
-        fnRow.addView(keyView(",", weight = 1f) { commitText(",") })
-        fnRow.addView(keyView("空格", weight = 4f) { onSpace() })
-        fnRow.addView(keyView(".", weight = 1f) { commitText(".") })
-        fnRow.addView(keyView("回车", weight = 1.6f) { onEnter() })
-        root.addView(fnRow, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dp(48)))
-
-        refreshCandidates()
         inputViewRef = root
+        maybeRebuildKeyboard(0)
         return root
     }
 
-    /** 字母区：手机通栏；Pad（宽度 ≥ 600dp）自动左右分体，向拇指收拢。 */
-    private fun buildLetterRows(root: LinearLayout) {
+    /** 单行槽高：可见键高 46 + 上下各 4dp 留白（触控热区仍 ≥ 46dp）。 */
+    private fun slotHeightDp(): Float = FoldLayout.KEY_HEIGHT + 2 * ROW_INSET_DP
+
+    private fun keyboardAreaHeightDp(): Float = 4 * slotHeightDp()
+
+    private fun maybeRebuildKeyboard(widthPx: Int) {
+        if (building) return
+        val width = if (widthPx > 0) widthPx else resources.displayMetrics.widthPixels
+        val density = resources.displayMetrics.density
+        val widthDp = width / density
+        if (widthDp <= 0f) return
+
+        val remembered = if (prefs.contains(KEY_SOLO_PITCH)) prefs.getFloat(KEY_SOLO_PITCH, 0f) else null
+        val layout = FoldLayout.derive(
+            widthDp = widthDp,
+            heightDp = resources.configuration.screenHeightDp.toFloat(),
+            rememberedSoloPitch = remembered
+        )
+        if (layout.signature == layoutSignature) return
+        layoutSignature = layout.signature
+        if (layout.mode == FoldLayout.Mode.SOLO) {
+            prefs.edit().putFloat(KEY_SOLO_PITCH, layout.pitchDp).apply()
+        }
+
+        building = true
+        keyboardArea.removeAllViews()
+        modeButton = null
+        tradButton = null
+        wbComposing = null
+        wbGrid = null
+        when (layout.mode) {
+            FoldLayout.Mode.SOLO -> buildSolo(layout, widthDp)
+            FoldLayout.Mode.SPLIT -> buildSplit(layout)
+        }
+        building = false
+        renderCandidates()
+    }
+
+    // ---- 布局 A：单块（外屏 / 手机） ----
+
+    private fun buildSolo(layout: FoldLayout, widthDp: Float) {
         val rows = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
-        if (!isPadWidth()) {
-            rows.forEachIndexed { i, keys ->
-                val row = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER
-                }
-                keys.forEach { ch -> row.addView(keyView(ch.toString(), weight = 1f) { onLetter(ch) }) }
-                if (i == 2) row.addView(backspaceView())
-                root.addView(row, LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, dp(LianaTheme.KEY_HEIGHT)))
+        val avail = widthDp - 2 * layout.marginDp
+        val slot = dp(slotHeightDp()).toInt()
+
+        rows.forEachIndexed { i, keys ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_HORIZONTAL
             }
+            keys.forEach { ch ->
+                row.addView(slotKey(ch.toString(), layout.pitchDp) { onLetter(ch) })
+            }
+            if (i == 2) {
+                val used = keys.length * layout.pitchDp + keys.length * layout.gapDp
+                row.addView(backspaceView(maxOf(layout.pitchDp, avail - used)))
+            }
+            keyboardArea.addView(row, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, slot))
+        }
+
+        keyboardArea.addView(buildSoloFnRow(layout, avail), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, slot))
+    }
+
+    private fun buildSoloFnRow(layout: FoldLayout, avail: Float): LinearLayout {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_HORIZONTAL
+        }
+        val fnWidth = maxOf(48f, layout.pitchDp)
+        val spaceWidth = maxOf(72f, avail - 5 * fnWidth - 5 * layout.gapDp)
+
+        modeButton = slotKey("中", fnWidth) { onModeToggle() }
+        tradButton = slotKey("简", fnWidth) { onTraditionalToggle() }
+        row.addView(modeButton)
+        row.addView(tradButton)
+        row.addView(slotKey(",", fnWidth) { commitText(",") })
+        row.addView(slotKey("空格", spaceWidth) { onSpace() })
+        row.addView(slotKey(".", fnWidth) { commitText(".") })
+        row.addView(slotKey("回车", fnWidth) { onEnter() })
+        return row
+    }
+
+    // ---- 布局 B：左右分体 + 中缝工作台（内屏 / Pad） ----
+
+    private fun buildSplit(layout: FoldLayout) {
+        val rows = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
+        // 与既有实现一致的双手分配：10→5/5、9→5/4、7→4/3
+        val mids = listOf(5, 5, 4)
+        val clusterPx = dp(layout.clusterWidthDp).toInt()
+        val slot = dp(slotHeightDp()).toInt()
+        val gapPx = dp(layout.marginDp)
+
+        val left = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.START
+        }
+        val right = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.END
+        }
+
+        rows.forEachIndexed { i, keys ->
+            val mid = mids[i]
+            val leftRow = clusterRow(layout, keys.take(mid).map(Char::toString), backspace = i == 2, alignEnd = false)
+            val rightRow = clusterRow(layout, keys.drop(mid).map(Char::toString), backspace = i == 2, alignEnd = true)
+            left.addView(leftRow, LinearLayout.LayoutParams(clusterPx, slot))
+            right.addView(rightRow, LinearLayout.LayoutParams(clusterPx, slot))
+        }
+
+        // 功能行：中/简/，/空格 贴内侧；空格两侧各一颗，拇指互不越界
+        val fnWidth = maxOf(48f, layout.pitchDp)
+        val leftSpace = maxOf(64f, layout.clusterWidthDp - 3 * fnWidth - 3 * layout.gapDp)
+        val rightSpace = maxOf(64f, layout.clusterWidthDp - 2 * fnWidth - 2 * layout.gapDp)
+
+        val leftFn = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.START
+        }
+        modeButton = slotKey("中", fnWidth) { onModeToggle() }
+        tradButton = slotKey("简", fnWidth) { onTraditionalToggle() }
+        leftFn.addView(modeButton)
+        leftFn.addView(tradButton)
+        leftFn.addView(slotKey(",", fnWidth) { commitText(",") })
+        leftFn.addView(slotKey("空格", leftSpace) { onSpace() })
+
+        val rightFn = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.END
+        }
+        rightFn.addView(slotKey("空格", rightSpace) { onSpace() })
+        rightFn.addView(slotKey(".", fnWidth) { commitText(".") })
+        rightFn.addView(slotKey("回车", fnWidth) { onEnter() })
+
+        left.addView(leftFn, LinearLayout.LayoutParams(clusterPx, slot))
+        right.addView(rightFn, LinearLayout.LayoutParams(clusterPx, slot))
+
+        val halves = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 0, 0, 0)
+        }
+        halves.addView(left, LinearLayout.LayoutParams(clusterPx, ViewGroup.LayoutParams.MATCH_PARENT))
+        halves.addView(buildWorkbench(), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
+        halves.addView(right, LinearLayout.LayoutParams(clusterPx, ViewGroup.LayoutParams.MATCH_PARENT))
+        val lp = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        lp.setMargins(gapPx, 0, gapPx, 0)
+        keyboardArea.addView(halves, lp)
+    }
+
+    private fun clusterRow(
+        layout: FoldLayout,
+        titles: List<String>,
+        backspace: Boolean,
+        alignEnd: Boolean
+    ): LinearLayout {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = if (alignEnd) Gravity.END else Gravity.START
+        }
+        titles.forEach { t ->
+            val ch = t.firstOrNull() ?: return@forEach
+            row.addView(slotKey(t, layout.pitchDp) { onLetter(ch) })
+        }
+        if (backspace) {
+            val used = titles.size * layout.pitchDp + titles.size * layout.gapDp
+            row.addView(backspaceView(maxOf(layout.pitchDp, layout.clusterWidthDp - used)))
+        }
+        return row
+    }
+
+    // ---- 中缝工作台（候选网格 + 光标移动 + 组合串） ----
+
+    private fun buildWorkbench(): LinearLayout {
+        val gutter = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+        }
+
+        val composing = TextView(this).apply {
+            text = "中缝 · 候选与光标"
+            textSize = 12f
+            setTextColor(LianaTheme.SECONDARY)
+            gravity = Gravity.CENTER
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        wbComposing = composing
+        gutter.addView(composing, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(16)))
+
+        // 候选网格：可竖向滚动，每个候选热区 ≥ 52dp
+        val gridScroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false }
+        val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        gridScroll.addView(grid, ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        wbGrid = grid
+        gutter.addView(gridScroll, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+
+        val cursorRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        cursorRow.addView(weightKey("←") { moveCursor(-1) },
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
+        cursorRow.addView(weightKey("→") { moveCursor(1) },
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
+        gutter.addView(cursorRow, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(34)))
+        return gutter
+    }
+
+    private fun renderWorkbench() {
+        val grid = wbGrid ?: return
+        wbComposing?.text = if (composingText.isEmpty()) "中缝 · 候选与光标" else composingText
+        grid.removeAllViews()
+
+        val shown = candidates.take(MAX_CANDIDATES)
+        if (shown.isEmpty()) {
+            val hint = TextView(this).apply {
+                text = "候选随输入出现在这里"
+                textSize = 11f
+                setTextColor(LianaTheme.SECONDARY)
+                gravity = Gravity.CENTER
+            }
+            grid.addView(hint, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(52)))
             return
         }
 
-        // Pad 分体：每行从中间拆开，两半各自贴边，中缝留空
-        val halves = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; weightSum = 1f }
-        val right = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; weightSum = 1f }
-        rows.forEachIndexed { i, keys ->
-            val mid = if (i == 2) (keys.length + 1) / 2 else (keys.length + 1) / 2
-            val rowL = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                setPadding(dp(6), 0, 0, 0)
+        var index = 0
+        while (index < shown.size) {
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            for (offset in 0..1) {
+                val i = index + offset
+                val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
+                lp.setMargins(dp(2), dp(2), dp(2), dp(2))
+                if (i < shown.size) {
+                    row.addView(workbenchCandidate(shown[i], i), lp)
+                } else {
+                    row.addView(View(this), lp)
+                }
             }
-            val rowR = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                setPadding(0, 0, dp(6), 0)
-            }
-            keys.take(mid).forEach { ch -> rowL.addView(keyView(ch.toString(), weight = 1f) { onLetter(ch) }) }
-            if (i == 2 && mid <= keys.length) {
-                // 退格键归属右半（右手习惯）
-            }
-            keys.drop(mid).forEach { ch -> rowR.addView(keyView(ch.toString(), weight = 1f) { onLetter(ch) }) }
-            if (i == 2) rowR.addView(backspaceView())
-            left.addView(rowL, LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(LianaTheme.KEY_HEIGHT)))
-            right.addView(rowR, LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(LianaTheme.KEY_HEIGHT)))
+            grid.addView(row, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(52)))
+            index += 2
         }
-        halves.addView(left, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
-        val gap = View(this).apply { setBackgroundColor(Color.TRANSPARENT) }
-        halves.addView(gap, LinearLayout.LayoutParams(0, 1, 0.08f))
-        halves.addView(right, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
-        root.addView(halves, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
     }
 
-    private fun isPadWidth(): Boolean {
-        val widthDp = resources.displayMetrics.widthPixels / resources.displayMetrics.density
-        return widthDp >= LianaTheme.PAD_SPLIT_MIN_WIDTH
+    private fun workbenchCandidate(text: String, index: Int): TextView {
+        return baseKey(text).apply {
+            textSize = LianaTheme.FONT_CANDIDATE
+            background = GradientDrawable().apply {
+                cornerRadius = dp(6).toFloat()
+                setColor(LianaTheme.KEY_PRESSED)
+            }
+            setOnClickListener {
+                haptic(HapticFeedbackConstants.LONG_PRESS)
+                selectCandidate(index)
+            }
+        }
+    }
+
+    private fun moveCursor(delta: Int) {
+        val ic = currentInputConnection ?: return
+        val text = ic.getExtractedText(android.view.inputmethod.ExtractedTextRequest(), 0) ?: return
+        val start = text.selectionStart
+        if (start < 0) return
+        val target = (start + delta).coerceAtLeast(0)
+        ic.setSelection(target, target)
     }
 
     // ---- 按键视图工厂 ----
 
-    private fun keyView(label: String, weight: Float, onClick: () -> Unit): TextView {
+    /** 槽宽恒定 = pitch：键距在两种形态间不跳变。 */
+    private fun slotKey(label: String, slotWidthDp: Float, onClick: () -> Unit): TextView {
         return baseKey(label).apply {
-            val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, weight)
-            lp.setMargins(dp(3), dp(4), dp(3), dp(4))
+            val w = (dp(slotWidthDp) - 2 * dp(KEY_INSET_DP)).coerceAtLeast(dp(14))
+            val lp = LinearLayout.LayoutParams(w, ViewGroup.LayoutParams.MATCH_PARENT)
+            lp.setMargins(dp(KEY_INSET_DP), dp(ROW_INSET_DP), dp(KEY_INSET_DP), dp(ROW_INSET_DP))
             layoutParams = lp
             setOnClickListener {
                 haptic(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -217,14 +441,24 @@ class LianaImeService : InputMethodService() {
         }
     }
 
+    private fun weightKey(label: String, onClick: () -> Unit): TextView {
+        return baseKey(label).apply {
+            setOnClickListener {
+                haptic(HapticFeedbackConstants.KEYBOARD_TAP)
+                onClick()
+            }
+        }
+    }
+
     /** 退格键：点击退一码；长按连删（§3.3）；左滑整段清除。 */
-    private fun backspaceView(): TextView {
+    private fun backspaceView(slotWidthDp: Float): TextView {
         val swipeThreshold = dp(64)
         var downX = 0f
         var swiped = false
         return baseKey("⌫").apply {
-            val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
-            lp.setMargins(dp(3), dp(4), dp(3), dp(4))
+            val w = (dp(slotWidthDp) - 2 * dp(KEY_INSET_DP)).coerceAtLeast(dp(14))
+            val lp = LinearLayout.LayoutParams(w, ViewGroup.LayoutParams.MATCH_PARENT)
+            lp.setMargins(dp(KEY_INSET_DP), dp(ROW_INSET_DP), dp(KEY_INSET_DP), dp(ROW_INSET_DP))
             layoutParams = lp
 
             val repeatRunnable = object : Runnable {
@@ -291,6 +525,7 @@ class LianaImeService : InputMethodService() {
     }
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+    private fun dp(v: Float): Int = (v * resources.displayMetrics.density).toInt()
 
     // ---- 按键行为（与 macOS 端行为约定一致） ----
 
@@ -336,17 +571,19 @@ class LianaImeService : InputMethodService() {
     }
 
     private fun onTraditionalToggle() {
+        if (session == 0L) return
         val on = !LianaJni.traditional(session)
         LianaJni.setTraditional(session, on)
-        tradButton.text = if (on) "繁" else "简"
+        tradButton?.text = if (on) "繁" else "简"
         refreshCandidates()
     }
 
     private fun applyMode() {
+        if (session == 0L) return
         val mode = MODES[modeIdx]
         LianaJni.setMode(session, mode)
         LianaJni.clear(session)
-        modeButton.text = when (mode) {
+        modeButton?.text = when (mode) {
             "pinyin" -> "中"
             "en" -> "EN"
             else -> mode
@@ -361,56 +598,70 @@ class LianaImeService : InputMethodService() {
         commitText(text)
         // 上屏加强触觉：形成"上屏了"的身体确认（§3.1）
         haptic(HapticFeedbackConstants.LONG_PRESS)
+        // 引擎可能留剩余缓冲，候选要立刻跟着变
+        refreshCandidates()
     }
 
     private fun commitRaw() {
         val text = LianaJni.commitRaw(session) ?: return
         commitText(text)
         haptic(HapticFeedbackConstants.LONG_PRESS)
+        refreshCandidates()
     }
 
     private fun commitText(text: String) {
         currentInputConnection?.commitText(text, 1)
     }
 
-    // ---- 候选刷新 ----
+    // ---- 候选刷新（状态 → 渲染，两处入口共用） ----
 
     private fun refreshCandidates() {
-        if (session == 0L) return
+        candidates = emptyList()
+        rawInput = ""
+        composingText = ""
+
+        if (session != 0L) {
+            val json = LianaJni.compositionJson(session)
+            if (json != null) {
+                try {
+                    val obj = JSONObject(json)
+                    val raw = obj.optString("raw", "")
+                    if (raw.isNotEmpty()) {
+                        rawInput = raw
+                        val preedit = obj.optString("preedit", "")
+                        composingText = if (preedit.isNotEmpty()) "$raw › $preedit" else raw
+                        val arr = obj.optJSONArray("candidates")
+                        if (arr != null) {
+                            candidates = (0 until minOf(arr.length(), MAX_CANDIDATES)).mapNotNull { i ->
+                                arr.optJSONObject(i)?.optString("text")?.takeIf { it.isNotEmpty() }
+                            }
+                        }
+                    }
+                } catch (_: Exception) {
+                    // 畸形 JSON 不影响键盘可用性
+                }
+            }
+        }
+        renderCandidates()
+    }
+
+    private fun renderCandidates() {
+        if (!::candidateStrip.isInitialized) return
         candidateStrip.removeAllViews()
-
-        val json = LianaJni.compositionJson(session)
-        if (json == null) {
-            candidates = emptyList()
-            rawInput = ""
-            return
-        }
-        val obj = JSONObject(json)
-        rawInput = obj.optString("raw", "")
-        val preedit = obj.optString("preedit", "")
-
-        if (rawInput.isEmpty()) {
-            candidates = emptyList()
-            return
-        }
-
-        // 组合中提示：raw › preedit
-        val composing = TextView(this).apply {
-            text = if (preedit.isNotEmpty()) "$rawInput › $preedit" else rawInput
-            textSize = 14f
-            setTextColor(LianaTheme.SECONDARY)
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), 0, dp(12), 0)
-        }
-        candidateStrip.addView(composing)
-
-        val arr = obj.optJSONArray("candidates") ?: return
-        candidates = (0 until minOf(arr.length(), MAX_CANDIDATES)).mapNotNull { i ->
-            arr.optJSONObject(i)?.optString("text")?.takeIf { it.isNotEmpty() }
+        if (composingText.isNotEmpty()) {
+            val composing = TextView(this).apply {
+                text = composingText
+                textSize = 14f
+                setTextColor(LianaTheme.SECONDARY)
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(8), 0, dp(12), 0)
+            }
+            candidateStrip.addView(composing)
         }
         candidates.forEachIndexed { i, text ->
             candidateStrip.addView(candidateView(text, i))
         }
+        renderWorkbench()
     }
 
     /** 候选条目：点击选中；上滑 ≥ 24dp 直接着该候选上屏（§3.2）。 */
@@ -458,6 +709,9 @@ class LianaImeService : InputMethodService() {
 
     companion object {
         private const val MAX_CANDIDATES = 9
+        private const val KEY_INSET_DP = 2f   // 槽位左右留白（槽宽 = pitch 时，可见键宽 = pitch - 4dp）
+        private const val ROW_INSET_DP = 4f   // 槽位上下留白（可见键高 46dp）
+        private const val KEY_SOLO_PITCH = "layout.pitchSolo"
         private val MODES = arrayOf("pinyin", "en")
     }
 }

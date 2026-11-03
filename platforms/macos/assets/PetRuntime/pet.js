@@ -356,15 +356,30 @@ function step() {
   renderer.render(scene, camera);
   lastFrameAt = performance.now();
 }
+let paused = false;
+let rafId = 0;
 function animate() {
-  requestAnimationFrame(animate);
+  if (paused) { rafId = 0; return; }
+  rafId = requestAnimationFrame(animate);
   if (performance.now() - lastFrameAt < frameInterval() - 2) return;
   step();
 }
-// WebKit 在非激活/遮挡时会节流 rAF：用定时器兜底，保证桌宠始终有动作
+// WebKit 在非激活/遮挡时会节流 rAF：用定时器兜底，保证桌宠始终有动作。
+// 看不见时（Swift 侧下发 petPause）两套循环都停，不要再画。
 setInterval(() => {
+  if (paused) return;
   if (performance.now() - lastFrameAt > 150) step();
 }, 100);
+window.petPause = (on) => {
+  const next = !!on;
+  if (paused === next) return;
+  paused = next;
+  if (!paused) {
+    clock.getDelta();      // 丢掉暂停期间累积的 dt，避免恢复时动作瞬移
+    lastFrameAt = 0;
+    if (!rafId) animate();
+  }
+};
 
 const loader = new GLTFLoader();
 loader.register((parser) => new VRMLoaderPlugin(parser));

@@ -192,6 +192,9 @@ final class PetWindowController {
     private var propLabel: NSTextField?
     private var unsupportedRenderer: String?
     private var petView: PetWebView?
+    private enum PauseReason: Hashable { case hidden, occluded, system }
+    private var pauseReasons: Set<PauseReason> = []
+    private var visibilityObservers: [NSObjectProtocol] = []
     private var gazeTick = 0
     /// 最后一次输入/互动时间：长时间无输入就让桌宠发呆睡着
     private var lastActivity = Date()
@@ -371,7 +374,9 @@ final class PetWindowController {
 
     private var pack: PetPack?
 
-    private init() {}
+    private init() {
+        observeVisibility()
+    }
 
     private func loadPack() {
         let id = Self.activePackId
@@ -420,15 +425,20 @@ final class PetWindowController {
         loadPack()
         if Self.isEnabled {
             show()
+        } else {
+            setPause(.hidden, true)
         }
     }
 
     func show() {
+        setPause(.hidden, false)
         let wasVisible = panel?.isVisible == true
         if panel == nil {
             loadPack()
             panel = makePanel()
             restoreOrigin()
+            // 新建的渲染器按当前「看不见就别画」状态立即生效
+            petView?.setPaused(!pauseReasons.isEmpty)
         }
         if !wasVisible, let panel {
             // WebKit 形象等页面准备好再入场，避免空窗口在飞
@@ -473,6 +483,7 @@ final class PetWindowController {
         hideToast()
         guard let panel, panel.isVisible, Self.entranceEnabled else {
             self.panel?.orderOut(nil)
+            setPause(.hidden, true)
             return
         }
         // 离场：跳一下再消失
@@ -488,8 +499,42 @@ final class PetWindowController {
             panel.orderOut(nil)
             panel.setFrameOrigin(origin)
             panel.alphaValue = 1
-            _ = self
+            self.setPause(.hidden, true)
         })
+    }
+
+    /// 看不见就停画：暂停/恢复只在状态真的变化时下发，避免恢复时闪。
+    private func setPause(_ reason: PauseReason, _ on: Bool) {
+        let before = pauseReasons.isEmpty
+        if on { pauseReasons.insert(reason) } else { pauseReasons.remove(reason) }
+        guard before != pauseReasons.isEmpty else { return }
+        petView?.setPaused(!pauseReasons.isEmpty)
+    }
+
+    /// 遮挡 / 息屏 / 锁屏：桌宠常驻时最容易被忽略的耗电来源。
+    private func observeVisibility() {
+        guard visibilityObservers.isEmpty else { return }
+        visibilityObservers.append(NotificationCenter.default.addObserver(
+            forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: .main
+        ) { [weak self] note in
+            guard let self, let w = note.object as? NSWindow, w === self.panel else { return }
+            self.setPause(.occluded, !w.occlusionState.contains(.visible))
+        })
+        let workspace = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.screensDidSleepNotification, NSWorkspace.sessionDidResignActiveNotification] {
+            visibilityObservers.append(workspace.addObserver(forName: name, object: nil, queue: .main) {
+                [weak self] _ in
+                self?.setPause(.system, true)
+            })
+        }
+        for name in [NSWorkspace.screensDidWakeNotification, NSWorkspace.sessionDidBecomeActiveNotification] {
+            visibilityObservers.append(workspace.addObserver(forName: name, object: nil, queue: .main) {
+                [weak self] _ in
+                guard let self else { return }
+                self.setPause(.system, false)
+                self.setPause(.occluded, self.panel?.occlusionState.contains(.visible) == false)
+            })
+        }
     }
 
     // MARK: - 大小（5%～150%）

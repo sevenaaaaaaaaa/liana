@@ -12,12 +12,17 @@ M0 的用户词只在内存，重启即失；候选重排与「上下词预测�
 
 ### 存储容器
 
-- 单文件：`~/Library/Application Support/Liana/userdata.enc`，权限 0600。
+- 主档：`~/Library/Application Support/Liana/userdata.enc`，权限 0600。
 - 格式：`magic("IFUE") + version(1) + ChaChaPoly combined(nonce ‖ ciphertext ‖ tag)`；
   头部作为 AEAD 的 AAD 一并认证，防止版本降级/篡改。
-- 明文载荷是 JSON（`userModelTsv` + `clipboard` 数组），带 `schemaVersion` 字段；
-  解析失败视为无数据，不阻塞输入。
+- 明文载荷是 JSON（`userModelTsv` + `evolutionTsv` + `nutritionTsv` + `clipboard` 数组），
+  带 `schemaVersion` 字段；解析失败视为无数据，不阻塞输入。
 - 写入为**原子替换**（同目录临时文件 + rename），避免断电留下半截文件。
+- v4 起剪切板历史拆到 `userdata.clip.enc`（同一密钥、同一格式），主档只放用户词/账本：
+  剪切板历史可达数 MB，跟着主档一起重加密会让每次上屏/落盘都重写整份历史。
+  旧档（v3 及更早，剪切板在主档里）加载时就地迁移，写盘顺序为先剪切板后主档。
+- 写盘在串行后台队列执行：主线程只做快照，JSON 编码 + 加密 + 原子写（用户词上万条时
+  可达上百毫秒）不阻塞按键；进程退出前同步写完（`flush()`）。
 
 ### 密钥管理
 
@@ -30,7 +35,7 @@ M0 的用户词只在内存，重启即失；候选重排与「上下词预测�
 
 ### 剪切板历史
 
-- **默认关闭**；开启后仅保留最近 200 条、单条 ≤ 100 KB，超出丢弃。
+- **默认关闭**；开启后仅保留最近 200 条、单条 ≤ 100 KB，超出丢弃；存于 `userdata.clip.enc`。
 - 跳过系统标记为 Concealed/Transient 的内容（`org.nspasteboard.ConcealedType`、
   `org.nspasteboard.TransientType`，密码管理器使用），跳过连续重复项。
 - 不记录来源 App、不记录时间线之外的元数据；时间戳仅用于展示排序。

@@ -38,6 +38,8 @@ fn run(args: &[String]) -> Result<(), String> {
             accuracy_hard_cmd(&args[2..])
         }
         Some("accuracy") => accuracy_cmd(),
+        Some("eval-corpus") => eval_corpus_cmd(&args[1..]),
+        Some("learn-eval") => learn_eval_cmd(&args[1..]),
         Some("query") => query_cmd(&args[1..]),
         Some("lm") => lm_cmd(&args[1..]),
         Some("-h") | Some("--help") => {
@@ -729,6 +731,606 @@ fn lm_build(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+/// `xtask learn-eval`：本机学习曲线——同一个词被选 1/2/3 次后，
+/// 同一个按键串的首选是否稳定变成它。用来验证「一次纠正就记住」。
+fn learn_eval_cmd(args: &[String]) -> Result<(), String> {
+    use std::collections::BTreeMap;
+    use std::sync::Arc;
+
+    use liana_core::Mode;
+    use liana_engine::Session;
+
+    let mut dict_path = "crates/dict/data/base-large.tsv".to_string();
+    let mut lm_path: Option<String> = None;
+    let mut per_bucket = 18usize;
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--dict" => dict_path = args.get(i + 1).ok_or("--dict 缺值")?.clone(),
+            "--lm" => lm_path = Some(args.get(i + 1).ok_or("--lm 缺值")?.clone()),
+            "--per-bucket" => {
+                per_bucket = args.get(i + 1).ok_or("--per-bucket 缺值")?.parse().map_err(|_| "--per-bucket 需要数字")?
+            }
+            other => return Err(format!("未知参数: {other}")),
+        }
+        i += 2;
+    }
+    let mut dict = if dict_path.ends_with(".ifd") {
+        let bytes = std::fs::read(&dict_path).map_err(|e| format!("读不到 {dict_path}: {e}"))?;
+        Dictionary::from_bytes(&bytes).map_err(|e| format!("{dict_path}: {e}"))?
+    } else {
+        let tsv = std::fs::read_to_string(&dict_path)
+            .map_err(|e| format!("读不到 {dict_path}: {e}（请在仓库根目录运行）"))?;
+        let mut d = parse_tsv(&tsv).0;
+        merge_default_packs(&mut d, Path::new(&dict_path))?;
+        d
+    };
+    if let Some(path) = &lm_path {
+        attach_lm(&mut dict, path)?;
+    }
+    let dict = Arc::new(dict);
+
+    // 分级用例自动生成（精准度专项 P1）：同键多词里，目标词非首选但在候选
+    // 可达范围内，按「首选与目标的词频差（ln 尺度）」分 1/2/3 三桶——
+    // 个人加分的曲线设计目标就是：差 1~2 分选 1 次翻、2~3 分选 2 次翻、
+    // 3~4 分选 3 次翻。确定性取样（按键名排序），跑分可对比。
+    let tsv = dict.to_tsv();
+    let mut by_key: BTreeMap<String, Vec<(String, u32)>> = BTreeMap::new();
+    for line in tsv.lines() {
+        let f: Vec<&str> = line.split('\t').collect();
+        if f.len() < 3 || !f[1].contains(' ') {
+            continue; // 只要多字词（含空格分隔音节）
+        }
+        let Ok(fr) = f[2].parse::<u32>() else { continue };
+        by_key.entry(f[1].to_string()).or_default().push((f[0].to_string(), fr));
+    }
+    let mut buckets: BTreeMap<u32, Vec<(String, String, u32)>> = BTreeMap::new();
+    let mut seen_targets: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for (key, mut entries) in by_key {
+        if entries.len() < 2 {
+            continue;
+        }
+        entries.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        let (top_word, top_freq) = &entries[0];
+        if *top_freq < 2000 {
+            continue; // 首选太冷门的键没有代表性
+        }
+        let ln_top = (*top_freq as f64).ln();
+        for (word, freq) in entries.iter().skip(1) {
+            if freq < &500 || seen_targets.contains(word) {
+                continue;
+            }
+            let gap = ln_top - (*freq as f64).ln();
+            if !(1.0..4.0).contains(&gap) {
+                continue;
+            }
+            let bucket = gap as u32; // 1 / 2 / 3
+            buckets.entry(bucket).or_default().push((key.clone(), word.clone(), *freq));
+            seen_targets.insert(word.clone());
+            break; // 每键只取一个对手，避免同键刷屏
+        }
+    }
+    let mut cases: Vec<(String, String)> = Vec::new();
+    let mut bucket_of: BTreeMap<String, u32> = BTreeMap::new();
+    for (bucket, mut list) in buckets {
+        list.sort_by(|a, b| a.0.cmp(&b.0).then(b.2.cmp(&a.2)));
+        for (key, word, _) in list.into_iter().take(per_bucket) {
+            bucket_of.insert(word.clone(), bucket);
+            cases.push((key, word));
+        }
+    }
+    const N_BUCKETS: usize = 3;
+    let mut after = [[0usize; 3]; N_BUCKETS];
+    let mut totals = [0usize; N_BUCKETS];
+    let mut unavailable = 0usize;
+    let mut trivial = 0usize;
+    println!("分级用例 {} 组（词频差 1~2 / 2~3 / 3~4 分桶）", cases.len());
+    for (keys, target) in &cases {
+        let bucket = (bucket_of[target].checked_sub(1).unwrap_or(0) as usize).min(N_BUCKETS - 1);
+        let mut s = Session::with_mode(dict.clone(), Mode::Pinyin);
+        s.set_evolution_context(Some("dev.xtask.learn"), 10, true, 1_000);
+        // 预检：目标必须在候选里；若已是首选（简拼先验/搭配翻上来了）则跳过
+        for ch in keys.chars() {
+            s.feed(ch);
+        }
+        let pos = s.composition().candidates.iter().position(|c| c.text == *target);
+        let Some(start_idx) = pos else {
+            unavailable += 1;
+            s.clear();
+            continue;
+        };
+        if start_idx == 0 {
+            trivial += 1;
+            s.clear();
+            continue;
+        }
+        totals[bucket] += 1;
+        s.clear(); // 预检的组合态清掉，轮次从干净缓冲开始
+        let mut line = format!("  [差{bucket}] {keys:<16} → {target}");
+        for round in 0..3 {
+            for ch in keys.chars() {
+                s.feed(ch);
+            }
+            let Some(idx) = s.composition().candidates.iter().position(|c| c.text == *target)
+            else {
+                line.push_str("  (候选丢了)");
+                break;
+            };
+            s.select(idx);
+            s.reset_context();
+            for ch in keys.chars() {
+                s.feed(ch);
+            }
+            let top = s
+                .composition()
+                .candidates
+                .first()
+                .map(|c| c.text.clone())
+                .unwrap_or_default();
+            if top == *target {
+                after[bucket][round] += 1;
+                line.push_str("  ✓");
+            } else {
+                line.push_str("  ✗");
+            }
+            s.clear();
+        }
+        println!("{line}");
+    }
+    let sum = |round: usize| -> usize { (0..N_BUCKETS).map(|b| after[b][round]).sum() };
+    let total: usize = totals.iter().sum();
+    println!("  ──────────────────────────────");
+    for b in 0..N_BUCKETS {
+        if totals[b] == 0 {
+            continue;
+        }
+        println!(
+            "  词频差 {}~{} 分（{} 例）：选1次 {:>2}/{}  选2次 {:>2}/{}  选3次 {:>2}/{}",
+            b + 1,
+            b + 2,
+            totals[b],
+            after[b][0],
+            totals[b],
+            after[b][1],
+            totals[b],
+            after[b][2],
+            totals[b],
+        );
+    }
+    println!(
+        "  全部（{} 例）：选1次 {}/{}（{:.0}%）  选2次 {}/{}（{:.0}%）  选3次 {}/{}（{:.0}%）",
+        total,
+        sum(0),
+        total,
+        sum(0) as f64 / total.max(1) as f64 * 100.0,
+        sum(1),
+        total,
+        sum(1) as f64 / total.max(1) as f64 * 100.0,
+        sum(2),
+        total,
+        sum(2) as f64 / total.max(1) as f64 * 100.0,
+    );
+    if unavailable > 0 || trivial > 0 {
+        println!("  （候选里没有 {unavailable} 例；本就首选 {trivial} 例，不计入）");
+    }
+    Ok(())
+}
+
+/// 整句解码的字母上限（与内核 `MAX_INPUT_CHARS` 对齐）。
+const CORPUS_MAX_LETTERS: usize = 64;
+/// 分段口径每次喂入的字母数（留出已打未选的尾巴余量）。
+const CORPUS_CHUNK_LETTERS: usize = 60;
+
+/// `xtask eval-corpus`：固定语料整句评测（精准度专项 P0，对齐社区口径）。
+///
+/// 语料文件在 `xtask/data/corpus/`：
+///   2 列 `全拼<TAB>句子`（Sime cases 格式，Apache-2.0 引入）；
+///   3 列 `类别<TAB>全拼<TAB>句子`（自建种子集）。
+///
+/// 指标（对齐白霜/水杉协议）：
+///   句准确率 = 首选与句子完全一致的比率；Top-3 = 句子出现在前三候选；
+///   字准确率 = 1 − 总编辑距离 / 总字数（全语料按字数加权）。
+/// 每句独立会话（隔离个人数据、不跨句学习）。全拼 ≤64 字母走整句口径；
+/// 更长的句子单独走「喂 60 字母→选首选→续打」的分段口径，不与整句混算。
+fn eval_corpus_cmd(args: &[String]) -> Result<(), String> {
+    use std::sync::Arc;
+    use liana_core::Mode;
+    use liana_engine::Session;
+
+    let mut corpus_dir = PathBuf::from("xtask/data/corpus");
+    let mut dict_path = "crates/dict/data/base-large.tsv".to_string();
+    let mut lm_path: Option<String> = None;
+    let mut filter: Option<String> = None;
+    let mut limit: usize = usize::MAX;
+    let mut dump_path: Option<String> = None;
+    let mut show = 10usize;
+    let mut rerank_path: Option<String> = None;
+    let mut no_rerank = false;
+    let mut i = 0;
+    while i < args.len() {
+        let mut step = 2usize;
+        match args[i].as_str() {
+            "--corpus-dir" => corpus_dir = PathBuf::from(args.get(i + 1).ok_or("--corpus-dir 缺值")?),
+            "--dict" => dict_path = args.get(i + 1).ok_or("--dict 缺值")?.clone(),
+            "--lm" => lm_path = Some(args.get(i + 1).ok_or("--lm 缺值")?.clone()),
+            "--set" => filter = Some(args.get(i + 1).ok_or("--set 缺值")?.clone()),
+            "--limit" => limit = args.get(i + 1).ok_or("--limit 缺值")?.parse().map_err(|_| "--limit 需要数字")?,
+            "--dump" => dump_path = Some(args.get(i + 1).ok_or("--dump 缺值")?.clone()),
+            "--show" => show = args.get(i + 1).ok_or("--show 缺值")?.parse().map_err(|_| "--show 需要数字")?,
+            "--rerank" => rerank_path = Some(args.get(i + 1).ok_or("--rerank 缺值")?.clone()),
+            "--no-rerank" => {
+                no_rerank = true;
+                step = 1;
+            }
+            other => return Err(format!("未知参数: {other}")),
+        }
+        i += step;
+    }
+    // 神经重排模型（精准度专项 P1）：给了 --rerank 就逐会话挂载；未给路径时
+    // 依次找环境变量/生产目录的 sentence-model.safetensors。
+    #[cfg(feature = "rerank")]
+    let rerank_model: Option<std::sync::Arc<liana_engine::SentenceModelHandle>> = if no_rerank {
+        None
+    } else {
+        use liana_engine::SentenceModelHandle;
+        let candidates: Vec<String> = match &rerank_path {
+            Some(p) => vec![p.clone()],
+            None => {
+                let mut v = Vec::new();
+                if let Ok(p) = std::env::var("LIANA_RERANK_MODEL") {
+                    v.push(p);
+                }
+                if let Ok(home) = std::env::var("HOME") {
+                    v.push(format!("{home}/Library/Application Support/Liana/models/rerank/sentence-model.safetensors"));
+                }
+                v
+            }
+        };
+        match candidates.iter().find_map(|p| {
+            let bytes = std::fs::read(p).ok()?;
+            SentenceModelHandle::load(&bytes)
+                .ok()
+                .map(|m| (p.clone(), std::sync::Arc::new(m)))
+        }) {
+            Some((p, m)) => {
+                println!("神经重排 {p}");
+                Some(m)
+            }
+            None => {
+                if rerank_path.is_some() {
+                    return Err(format!("重排模型加载失败: {:?}", rerank_path));
+                }
+                println!("神经重排：未配置模型（--rerank <safetensors> 可开启）");
+                None
+            }
+        }
+    };
+    #[cfg(not(feature = "rerank"))]
+    let rerank_model: Option<()> = {
+        if rerank_path.is_some() {
+            return Err("本 xtask 构建未启用 rerank 特性".to_string());
+        }
+        None
+    };
+
+    // 词典与搭配模型（同 accuracy --hard 的加载方式；未指定 --lm 时回落生产 base.lm）
+    let mut dict = if dict_path.ends_with(".ifd") {
+        let bytes = std::fs::read(&dict_path).map_err(|e| format!("读不到 {dict_path}: {e}"))?;
+        Dictionary::from_bytes(&bytes).map_err(|e| format!("{dict_path}: {e}"))?
+    } else {
+        let tsv = std::fs::read_to_string(&dict_path)
+            .map_err(|e| format!("读不到 {dict_path}: {e}（请在仓库根目录运行）"))?;
+        let mut d = parse_tsv(&tsv).0;
+        merge_default_packs(&mut d, Path::new(&dict_path))?;
+        d
+    };
+    let mut lm_used = "无".to_string();
+    match lm_path {
+        Some(p) => {
+            attach_lm(&mut dict, &p)?;
+            lm_used = p;
+        }
+        None => {
+            let p = format!(
+                "{}/Library/Application Support/Liana/base.lm",
+                std::env::var("HOME").unwrap_or_default()
+            );
+            if Path::new(&p).exists() {
+                attach_lm(&mut dict, &p)?;
+                lm_used = format!("{p}（生产）");
+            }
+        }
+    }
+    let dict = Arc::new(dict);
+    println!(
+        "词典 {}（{} 条）· 搭配模型 {lm_used}",
+        dict_path,
+        dict.entry_count()
+    );
+
+    // 收集语料文件（按文件名排序，--set 按文件名子串过滤）
+    let mut paths: Vec<PathBuf> = std::fs::read_dir(&corpus_dir)
+        .map_err(|e| format!("读不到语料目录 {}: {e}", corpus_dir.display()))?
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| matches!(p.extension().and_then(|x| x.to_str()), Some("txt") | Some("tsv")))
+        .collect();
+    paths.sort();
+    if let Some(f) = &filter {
+        paths.retain(|p| p.file_name().and_then(|x| x.to_str()).is_some_and(|n| n.contains(f)));
+    }
+    if paths.is_empty() {
+        return Err(format!("{} 下没有语料文件", corpus_dir.display()));
+    }
+
+    let mut key_micros: Vec<u32> = Vec::new();
+
+    #[derive(Default)]
+    struct Metrics {
+        n: usize,
+        whole_n: usize,
+        top1: usize,
+        top3: usize,
+        chars: usize,
+        dist: usize,
+        long_n: usize,
+        long_top1: usize,
+        long_chars: usize,
+        long_dist: usize,
+        skipped: usize,
+    }
+    let mut dump = String::from("set\tidx\t口径\t全拼\t期望\t实际\t句命中\tTop3\n");
+    let mut grand = Metrics::default();
+
+    println!("\n═══ 松萝固定语料整句评测 ══");
+    println!("  语料集               N    整句Top-1   Top-3     字准确率    长句连打Top-1");
+
+    for path in &paths {
+        let set = path
+            .file_stem()
+            .and_then(|x| x.to_str())
+            .unwrap_or("corpus")
+            .to_string();
+        let src =
+            std::fs::read_to_string(path).map_err(|e| format!("读不到 {}: {e}", path.display()))?;
+        let mut cases: Vec<(String, String, String)> = Vec::new(); // (类别, 全拼, 句子)
+        for line in src.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            let cols: Vec<&str> = line.split('\t').collect();
+            let (cat, py, text) = match cols.len() {
+                2 => (set.clone(), cols[0], cols[1]),
+                3 => (cols[0].to_string(), cols[1], cols[2]),
+                _ => continue,
+            };
+            let py: String = py
+                .chars()
+                .filter(|c| c.is_ascii_alphabetic())
+                .map(|c| c.to_ascii_lowercase())
+                .collect();
+            let text = text.trim().to_string();
+            if py.is_empty() || text.is_empty() {
+                continue;
+            }
+            cases.push((cat, py, text));
+        }
+        if cases.len() > limit {
+            cases.truncate(limit);
+        }
+
+        let mut m = Metrics::default();
+        let mut misses: Vec<String> = Vec::new();
+        for (idx, (cat, py, text)) in cases.iter().enumerate() {
+            let letters: Vec<char> = py.chars().collect();
+            let expected: Vec<char> = text.chars().collect();
+            if letters.len() <= CORPUS_MAX_LETTERS {
+                // 整句口径
+                let mut s = Session::with_mode(dict.clone(), Mode::Pinyin);
+                #[cfg(feature = "rerank")]
+                if let Some(model) = &rerank_model {
+                    s.set_sentence_reranker(model.clone());
+                }
+                for ch in &letters {
+                    let t = std::time::Instant::now();
+                    s.feed(*ch);
+                    key_micros.push(t.elapsed().as_micros() as u32);
+                }
+                let cands = s.composition().candidates.clone();
+                let top1 = cands.first().map(|c| c.text.clone()).unwrap_or_default();
+                let top3 = cands.iter().take(3).any(|c| c.text == *text);
+                let got: Vec<char> = top1.chars().collect();
+                let hit = got == expected;
+                m.n += 1;
+                m.whole_n += 1;
+                m.chars += expected.len();
+                m.dist += edit_distance(&got, &expected);
+                if hit {
+                    m.top1 += 1;
+                }
+                if top3 {
+                    m.top3 += 1;
+                }
+                if !hit && misses.len() < show {
+                    misses.push(format!(
+                        "  [{cat}] {} → 期望「{text}」实际「{top1}」",
+                        short_pinyin(py)
+                    ));
+                }
+                dump.push_str(&format!(
+                    "{set}\t{idx}\t整句\t{py}\t{text}\t{top1}\t{}\t{top3}\n",
+                    hit as u8
+                ));
+            } else {
+                // 分段口径：喂 60 字母 → 选首选 → 续打
+                let mut s = Session::with_mode(dict.clone(), Mode::Pinyin);
+                #[cfg(feature = "rerank")]
+                if let Some(model) = &rerank_model {
+                    s.set_sentence_reranker(model.clone());
+                }
+                let mut committed = String::new();
+                let mut fed = 0usize;
+                while fed < letters.len() {
+                    let take = (letters.len() - fed).min(CORPUS_CHUNK_LETTERS);
+                    for ch in &letters[fed..fed + take] {
+                        let t = std::time::Instant::now();
+                        s.feed(*ch);
+                        key_micros.push(t.elapsed().as_micros() as u32);
+                    }
+                    fed += take;
+                    if s.composition().is_empty() {
+                        break;
+                    }
+                    match s.select(0) {
+                        Some(t) => committed.push_str(&t),
+                        None => break,
+                    }
+                }
+                let got: Vec<char> = committed.chars().collect();
+                let hit = got == expected;
+                m.n += 1;
+                m.long_n += 1;
+                m.long_chars += expected.len();
+                m.long_dist += edit_distance(&got, &expected);
+                if hit {
+                    m.long_top1 += 1;
+                }
+                if !hit && misses.len() < show {
+                    misses.push(format!(
+                        "  [{cat}] {}（长句分段）→ 期望「{text}」实际「{committed}」",
+                        short_pinyin(py)
+                    ));
+                }
+                dump.push_str(&format!(
+                    "{set}\t{idx}\t分段\t{py}\t{text}\t{committed}\t{}\t\n",
+                    hit as u8
+                ));
+            }
+        }
+
+        let pct = |a: usize, b: usize| {
+            if b == 0 {
+                "  -  ".to_string()
+            } else {
+                format!("{:>5.1}%", a as f64 / b as f64 * 100.0)
+            }
+        };
+        let char_acc = |chars: usize, dist: usize| {
+            if chars == 0 {
+                "  -  ".to_string()
+            } else {
+                format!("{:>5.1}%", (1.0 - dist as f64 / chars as f64) * 100.0)
+            }
+        };
+        println!(
+            "  {:<18} {:>5}    {}     {}     {}       {}",
+            set,
+            m.n,
+            pct(m.top1, m.whole_n),
+            pct(m.top3, m.whole_n),
+            char_acc(m.chars, m.dist),
+            pct(m.long_top1, m.long_n),
+        );
+        for miss in &misses {
+            println!("{miss}");
+        }
+        grand.n += m.n;
+        grand.whole_n += m.whole_n;
+        grand.top1 += m.top1;
+        grand.top3 += m.top3;
+        grand.chars += m.chars;
+        grand.dist += m.dist;
+        grand.long_n += m.long_n;
+        grand.long_top1 += m.long_top1;
+        grand.long_chars += m.long_chars;
+        grand.long_dist += m.long_dist;
+        grand.skipped += m.skipped;
+    }
+
+    let pct = |a: usize, b: usize| {
+        if b == 0 {
+            "  -  ".to_string()
+        } else {
+            format!("{:>5.1}%", a as f64 / b as f64 * 100.0)
+        }
+    };
+    let char_acc = |chars: usize, dist: usize| {
+        if chars == 0 {
+            "  -  ".to_string()
+        } else {
+            format!("{:>5.1}%", (1.0 - dist as f64 / chars as f64) * 100.0)
+        }
+    };
+    println!("  ──────────────────────────────────────────────");
+    println!(
+        "  整句子集(≤64字母)  {:>5}    {}     {}     {}",
+        grand.whole_n,
+        pct(grand.top1, grand.whole_n),
+        pct(grand.top3, grand.whole_n),
+        char_acc(grand.chars, grand.dist),
+    );
+    println!(
+        "  长句分段(>64字母)  {:>5}    {}     字准确率 {}",
+        grand.long_n,
+        pct(grand.long_top1, grand.long_n),
+        char_acc(grand.long_chars, grand.long_dist),
+    );
+
+    if !key_micros.is_empty() {
+        let mut sorted = key_micros.clone();
+        sorted.sort_unstable();
+        let p = |q: f64| -> f64 {
+            let idx = ((sorted.len() as f64) * q).ceil() as usize;
+            sorted[idx.min(sorted.len()) - 1] as f64 / 1000.0
+        };
+        println!(
+            "  逐键延迟 ms：p50 {:.1}  p95 {:.1}  max {:.1}（{} 键）",
+            p(0.50),
+            p(0.95),
+            *sorted.last().unwrap_or(&0) as f64 / 1000.0,
+            sorted.len(),
+        );
+    }
+
+    if let Some(p) = &dump_path {
+        std::fs::write(p, &dump).map_err(|e| format!("写入 {p} 失败: {e}"))?;
+        println!("逐句明细已写入 {p}");
+    }
+    Ok(())
+}
+
+/// 全拼超过 20 字母时截断展示（失败明细里避免刷屏）。
+fn short_pinyin(py: &str) -> String {
+    if py.chars().count() <= 20 {
+        py.to_string()
+    } else {
+        let head: String = py.chars().take(20).collect();
+        format!("{head}…")
+    }
+}
+
+/// Levenshtein 编辑距离（按 char 计）。
+fn edit_distance(a: &[char], b: &[char]) -> usize {
+    let (m, n) = (a.len(), b.len());
+    if m == 0 {
+        return n;
+    }
+    if n == 0 {
+        return m;
+    }
+    let mut prev: Vec<usize> = (0..=n).collect();
+    let mut cur = vec![0usize; n + 1];
+    for i in 1..=m {
+        cur[0] = i;
+        for j in 1..=n {
+            let cost = usize::from(a[i - 1] != b[j - 1]);
+            cur[j] = (prev[j] + 1).min(cur[j - 1] + 1).min(prev[j - 1] + cost);
+        }
+        std::mem::swap(&mut prev, &mut cur);
+    }
+    prev[n]
+}
+
 fn attach_lm(dict: &mut Dictionary, path: &str) -> Result<(), String> {
     let bytes = std::fs::read(path).map_err(|e| format!("读不到 {path}: {e}"))?;
     let lm =
@@ -880,7 +1482,14 @@ fn usage() {
          xtask plugin new --kind <skin|pet> --id <包id> --name <显示名> [-o 输出目录]\n      \
              生成一个可编辑的插件包骨架（清单 + 入口文件），并通过内核校验回读。\n  \
          xtask plugin check <包目录>\n      \
-             用内核校验一个插件包，打印通过/失败原因。"
+             用内核校验一个插件包，打印通过/失败原因。\n  \
+         xtask learn-eval [--lm <base.lm>] [--dict <file>]\n      \
+             本机学习曲线：同一个词被选 1/2/3 次后，同一按键串的首选是否变成它。\n  \
+         xtask eval-corpus [--corpus-dir <dir>] [--set <名字>] [--dict <file>] \\\n      \
+             [--lm <base.lm>] [--limit N] [--dump <out.tsv>]\n      \
+             固定语料整句评测：句准确率 / Top-3 / 字准确率（Levenshtein 加权）。\n      \
+             全拼 ≤64 字母逐句整体解码（整句口径）；更长的句子按「喂 60 字母选首选续打」\n      \
+             的分段口径单独统计。每句独立会话，不加载个人数据（对齐水杉评测协议）。"
     );
 }
 
