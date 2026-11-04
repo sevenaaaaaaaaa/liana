@@ -29,32 +29,8 @@ cp "$HERE/ibus-liana" "$HERE/libliana.py" "$HERE/liana.xml" "$STAGE/"
 cp "$HERE/build/base.ifd" "$STAGE/base.ifd"
 chmod +x "$STAGE/ibus-liana"
 
-# install.sh：与 build.sh 的安装段同一口径，脱机 tarball 自带
-cat > "$STAGE/install.sh" <<'EOF'
-#!/usr/bin/env bash
-# 松萝 ibus 引擎一键安装（与 platforms/linux/build.sh 的安装段一致）
-set -euo pipefail
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-sudo mkdir -p /usr/local/lib/liana
-sudo cp "$HERE/libliana_ffi.so" /usr/local/lib/liana/libliana_ffi.so
-sudo cp "$HERE/ibus-liana" /usr/local/lib/liana/ibus-liana
-sudo chmod +x /usr/local/lib/liana/ibus-liana
-sudo cp "$HERE/libliana.py" /usr/local/lib/liana/libliana.py
-sudo cp "$HERE/base.ifd" /usr/local/lib/liana/base.ifd
-sudo mkdir -p /usr/share/ibus/component
-sudo cp "$HERE/liana.xml" /usr/share/ibus/component/liana.xml
-
-# 词典放用户数据目录（ibus 引擎以当前用户身份运行）
-mkdir -p "$HOME/.local/share/liana"
-cp "$HERE/base.ifd" "$HOME/.local/share/liana/base.ifd"
-
-echo
-echo "安装完成。启用步骤："
-echo "  1. 重启 ibus:  ibus restart"
-echo "  2. ibus-setup → 输入法 → 添加 → 中文 → 松萝"
-echo "  3. Win+Space 切换到「松萝」"
-EOF
+# install.sh：直接复用 platforms/linux/install.sh（单一来源，装完自带自检与启用指引）
+cp "$HERE/install.sh" "$STAGE/install.sh"
 chmod +x "$STAGE/install.sh"
 
 mkdir -p "$OUT"

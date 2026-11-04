@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 输入法声明：与 Squirrel/搜狗同构，启用入口在系统"键盘管理"里 -->
 <input-method xmlns:android="http://schemas.android.com/apk/res/android"
-    android:settingsActivity="dev.liana.ime.LianaImeService">
+    android:settingsActivity="dev.liana.ime.SetupActivity">
     <subtype
         android:label="@string/subtype_zh"
         android:imeSubtypeLocale="zh_CN"

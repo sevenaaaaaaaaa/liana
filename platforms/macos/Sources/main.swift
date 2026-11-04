@@ -93,6 +93,141 @@ private func dedupeInputSourcePersistence() -> (hitoolboxRemoved: Int, thirdPart
     return (removed, tpClean.count, tpDupes)
 }
 
+// 把本输入法写进第三方表（幂等）。返回 true 表示这次真的写入了。
+// 为什么需要：TISEnableInputSource 在 macOS 26/27 上只改内存态不落盘，
+// 进程退出后第三方表又空了——用户下次登录输入法就「消失」。安装/启用必须显式写盘。
+private func ensureThirdPartyRegistration() -> Bool {
+    let bid = inputSourceID()
+    let domain = "com.apple.inputsources" as CFString
+    let key = "AppleEnabledThirdPartyInputSources" as CFString
+    var table = (CFPreferencesCopyAppValue(key, domain) as? [[String: Any]]) ?? []
+    guard !table.contains(where: { ($0["Bundle ID"] as? String) == bid }) else { return false }
+    table.append(["Bundle ID": bid, "InputSourceKind": "Keyboard Input Method"])
+    CFPreferencesSetAppValue(key, table as CFArray, domain)
+    CFPreferencesAppSynchronize(domain)
+    return true
+}
+
+// MARK: - 安装自检（--verify-install）
+// 首次安装出问题的地方几乎都在这里：同一 bundle 装了两份（~/Library 与 /Library）、
+// 注册被写进两张表导致菜单出现两条同名条目、启用后没人告诉用户怎么切过去。
+// 这个自检把这四件事各自判一次并给出下一步，安装脚本/安装器都以它收尾。
+
+private func installedAppCopies() -> [String] {
+    [NSHomeDirectory() + "/Library/Input Methods/Liana.app", "/Library/Input Methods/Liana.app"]
+        .filter { FileManager.default.fileExists(atPath: $0) }
+}
+
+private func oursInRegistry(_ domain: String, _ key: String) -> [[String: Any]] {
+    ((CFPreferencesCopyAppValue(key as CFString, domain as CFString) as? [[String: Any]]) ?? [])
+        .filter { ($0["Bundle ID"] as? String) == inputSourceID() }
+}
+
+private func menuVisibleCount() -> Int {
+    guard let list = TISCreateInputSourceList(nil, false)?.takeRetainedValue() as? [TISInputSource] else { return 0 }
+    return list.filter { source in
+        (unsafeBitCast(TISGetInputSourceProperty(source, kTISPropertyBundleID), to: CFString?.self) as String?) == inputSourceID()
+    }.count
+}
+
+@discardableResult
+private func runInstallCheck() -> Bool {
+    let bid = inputSourceID()
+    var hardOK = true
+    func line(_ ok: Bool, _ title: String, _ detail: String, hint: String? = nil) {
+        print("\(ok ? "✓" : "✗") \(title)：\(detail)")
+        if !ok, let hint { print("   → \(hint)") }
+    }
+
+    print("松萝（Liana）安装自检 · bundle \(bid)")
+    print("────────────────────────────────────────")
+
+    // 1. 副本唯一性：两份 = 系统会枚举两遍，菜单出现两条
+    let copies = installedAppCopies()
+    line(copies.count == 1, "安装副本", copies.isEmpty ? "未找到" :
+        (copies.count == 1 ? copies[0] : "\(copies.count) 份（\(copies.joined(separator: " + "))）"),
+        hint: "同一个输入法装两份会让系统出现两条同名条目：删掉多余那份（/Library 下的需要管理员权限）")
+    if copies.count != 1 { hardOK = false }
+
+    // 2. 注册表：HIToolbox 与第三方表只能留一处
+    let hb = oursInRegistry("com.apple.HIToolbox", "AppleEnabledInputSources")
+    let tp = oursInRegistry("com.apple.inputsources", "AppleEnabledThirdPartyInputSources")
+    let regTotal = hb.count + tp.count
+    line(hb.count == 0 && tp.count == 1, "注册条目", "HIToolbox \(hb.count) 条 + 第三方表 \(tp.count) 条",
+         hint: "跑一次 `--enable-input-source`（会重新写入第三方表），再 `--dedupe-input-source` 去掉重复")
+    if hb.count != 0 || tp.count != 1 { hardOK = false }
+
+    // 3. 菜单实际条数（TIS 合并两张表后的结果，也就是用户在右上角看到的）
+    let visible = menuVisibleCount()
+    line(visible == 1, "输入法菜单", "\(visible) 条「松萝」", hint: "多于一条说明有重复副本或双写，先删副本再 --dedupe-input-source")
+    if visible != 1 { hardOK = false }
+
+    // 4. 启用 / 可选中 / 当前是否已选中
+    if let source = findInputSource() {
+        let enabled = boolProperty(source, kTISPropertyInputSourceIsEnabled) ?? false
+        let selectable = boolProperty(source, kTISPropertyInputSourceIsSelectCapable) ?? false
+        let selected = boolProperty(source, kTISPropertyInputSourceIsSelected) ?? false
+        line(enabled && selectable, "注册状态", "enabled=\(enabled) selectable=\(selectable)",
+             hint: "跑一次 `--enable-input-source`")
+        if !(enabled && selectable) { hardOK = false }
+        if !selected {
+            print("ℹ 当前未选中松萝：点右上角输入法图标选「松萝」，或按 Control + 空格 切换")
+        }
+    } else {
+        line(false, "注册状态", "系统未收录", hint: "跑 `--register-input-source`，仍不行则注销重登")
+        hardOK = false
+    }
+
+    // 5. 数据目录（不影响启用，只是确认用户词/桌宠没丢）
+    let dataDir = NSHomeDirectory() + "/Library/Application Support/Liana"
+    let hasData = FileManager.default.fileExists(atPath: dataDir + "/userdata.enc")
+    print("\(hasData ? "✓" : "·") 本地数据：\(hasData ? "userdata.enc 就位（\(dataDir)）" : "尚未创建（首次输入后生成）")")
+
+    print("────────────────────────────────────────")
+    if hardOK {
+        print("结果：安装正确。下一步——右上角输入法菜单选「松萝」（或 Control + 空格），直接打拼音即可。")
+    } else {
+        print("结果：需要修复，按上面带 → 的提示逐条处理。")
+    }
+    return hardOK
+}
+
+// 卸载用：把本输入法从 TIS 与两张注册表里一起清掉，避免卸载后菜单里还挂着一条死条目
+// （用户下次看到「松萝」却切不过去，比看不到更困惑）。
+private func removeInputSourcePersistence() -> Bool {
+    let bid = inputSourceID()
+    var disabled = 0
+    for source in findInputSources() where TISDisableInputSource(source) == noErr {
+        disabled += 1
+    }
+    func strip(_ domain: String, _ key: String) -> Int {
+        let all = (CFPreferencesCopyAppValue(key as CFString, domain as CFString) as? [[String: Any]]) ?? []
+        let kept = all.filter { ($0["Bundle ID"] as? String) != bid }
+        if all.count != kept.count {
+            CFPreferencesSetAppValue(key as CFString, kept as CFArray, domain as CFString)
+            CFPreferencesAppSynchronize(domain as CFString)
+        }
+        return all.count - kept.count
+    }
+    let hb = strip("com.apple.HIToolbox", "AppleEnabledInputSources")
+    let tp = strip("com.apple.inputsources", "AppleEnabledThirdPartyInputSources")
+    print("已移除注册：TIS 停用 \(disabled) 个输入源 · HIToolbox \(hb) 条 · 第三方表 \(tp) 条")
+    return true
+}
+
+// 全新安装（还没有用户数据）时把自己切到前台：新用户装完第一次运行就能直接打拼音，
+// 不用先去右上角菜单里找「松萝」。已有数据的老用户不动——升级时抢走当前输入法很讨厌。
+private func selectSelfIfFreshInstall(isFresh: Bool) {
+    guard isFresh, let source = findInputSource(),
+          boolProperty(source, kTISPropertyInputSourceIsEnabled) == true else { return }
+    guard boolProperty(source, kTISPropertyInputSourceIsSelected) != true else { return }
+    // 等 IMKServer 起来再切，否则系统可能还没把它当成可用输入法
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+        let status = TISSelectInputSource(source)
+        NSLog("松萝: 首次安装，已自动切换到松萝 (status=\(status))")
+    }
+}
+
 let installArgs = CommandLine.arguments
 if installArgs.count > 1 {
     switch installArgs[1] {
@@ -179,6 +314,11 @@ if installArgs.count > 1 {
         exit(1)
 
     case "--enable-input-source":
+        // TISEnableInputSource 在部分 macOS 版本上只改内存态、不落盘（实测 26/27 上
+        // 第三方表仍是空的，重启输入法后又「消失」）。这里显式把容器条目写进
+        // com.apple.inputsources 的 AppleEnabledThirdPartyInputSources，让它真正持久化。
+        let seeded = ensureThirdPartyRegistration()
+        if seeded { print("已写入第三方输入源注册表: \(inputSourceID())") }
         let sources = findInputSources()
         guard !sources.isEmpty else {
             print("未找到输入源，请先 --register-input-source")
@@ -209,6 +349,13 @@ if installArgs.count > 1 {
         let r = dedupeInputSourcePersistence()
         print("去重完成: HIToolbox 移除 \(r.hitoolboxRemoved) 条，第三方表 \(r.thirdPartyCount) 条（内部重复 \(r.thirdPartyDupes)）")
         exit(0)
+
+    case "--verify-install":
+        // 首次使用的四个断点一次跑完：副本是否唯一、注册是否双写、菜单是否两条、是否已启用
+        exit(runInstallCheck() ? 0 : 1)
+
+    case "--remove-input-source":
+        exit(removeInputSourcePersistence() ? 0 : 1)
 
     case "--select-input-source":
         guard let source = findInputSource(), boolProperty(source, kTISPropertyInputSourceIsEnabled) == true else {
@@ -1001,6 +1148,10 @@ DistributedNotificationCenter.default().addObserver(forName: .lianaPetImported, 
 }
 migrateLegacyBrandData()
 PluginStore.seedBundledPacks()
+// 「全新安装」必须在 EncryptedStore.load() 之前判定：load 会创建 userdata.enc
+let isFreshInstall = !FileManager.default.fileExists(
+    atPath: NSHomeDirectory() + "/Library/Application Support/Liana/userdata.enc")
+selectSelfIfFreshInstall(isFresh: isFreshInstall)
 _ = EncryptedStore.shared.load()
 ClipboardMonitor.shared.startIfEnabled()
 ClipboardActionWatcher.shared.refresh()

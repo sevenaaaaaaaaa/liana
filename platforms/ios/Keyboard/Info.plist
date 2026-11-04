@@ -26,6 +26,19 @@
 		<string>com.apple.keyboard-service</string>
 		<key>NSExtensionPrincipalClass</key>
 		<string>$(PRODUCT_MODULE_NAME).KeyboardViewController</string>
+		<key>NSExtensionAttributes</key>
+		<dict>
+			<!-- 让系统在「键盘 → 添加新键盘」里把松萝归到中文并默认按 ASCII 可用
+			     （缺这两项时键盘会被列在「其他」下，用户找不到） -->
+			<key>IsASCIICapable</key>
+			<true/>
+			<key>PrefersRightToLeft</key>
+			<false/>
+			<key>PrimaryLanguage</key>
+			<string>zh-Hans</string>
+			<key>RequestsOpenAccess</key>
+			<false/>
+		</dict>
 	</dict>
 </dict>
 </plist>

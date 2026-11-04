@@ -185,6 +185,16 @@ final class InstallerModel: ObservableObject {
         let fm = FileManager.default
         let dest = userAppPath
         onMain { self.set(1, .running) }
+        // 同一输入法两份（~/Library 与 /Library）会让系统枚举两遍，菜单出现两条同名条目。
+        // 用户级安装前先把系统级那份请走；它属于 root，只能借管理员授权删除。
+        if fm.fileExists(atPath: systemAppPath) {
+            onMain { self.append("检测到 /Library 下已有一份松萝，先移除它（需要管理员授权）…") }
+            guard Self.removeSystemCopyWithAdmin() else {
+                onMain { self.fail(1, "已取消管理员授权，安装中止。若不删除系统级副本，输入法菜单会出现两条「松萝」。") }
+                return
+            }
+            onMain { self.append("已移除系统级副本: \(self.systemAppPath)") }
+        }
         do {
             try fm.createDirectory(atPath: userDataDir, withIntermediateDirectories: true)
             try fm.createDirectory(atPath: NSHomeDirectory() + "/Library/Input Methods", withIntermediateDirectories: true)
@@ -220,8 +230,11 @@ final class InstallerModel: ObservableObject {
         append(Self.runShell("\(bin) --enable-input-source"))
         append(Self.runShell("\(bin) --dedupe-input-source"))
         Self.runShell("/usr/bin/killall TextInputMenuAgent imklaunchagent")
+        // 自检兜底：副本唯一 / 注册不双写 / 菜单只有一条 / 已启用；失败也继续，只是把诊断打到日志
+        let check = Self.runShell("\(bin) --verify-install")
         onMain {
             self.set(3, .done)
+            self.append(check)
             self.append("✅ 已安装到 \(dest)")
             self.startPolling()
         }
@@ -239,6 +252,8 @@ final class InstallerModel: ObservableObject {
         LM_SRC="\(sourceLM)"
         DICT_DST="/Users/\(user)/Library/Application Support/Liana"
         mkdir -p "/Library/Input Methods"
+        # 同一输入法两份会让菜单出现两条「松萝」：装系统级之前先清掉用户级那份
+        rm -rf "/Users/\(user)/Library/Input Methods/Liana.app"
         rm -rf "$DST"
         cp -R "$SRC" "$DST"
         chown -R root:wheel "$DST"
@@ -250,6 +265,7 @@ final class InstallerModel: ObservableObject {
         "$DST/Contents/MacOS/Liana" --register-input-source || true
         "$DST/Contents/MacOS/Liana" --enable-input-source || true
         "$DST/Contents/MacOS/Liana" --dedupe-input-source || true
+        "$DST/Contents/MacOS/Liana" --verify-install || true
         """
         let path = NSTemporaryDirectory() + "liana-install.sh"
         do {
@@ -398,6 +414,16 @@ final class InstallerModel: ObservableObject {
         } else {
             DispatchQueue.main.async { self.log.append(trimmed) }
         }
+    }
+
+    /// 删除 /Library 下的系统级副本（需要管理员授权）。
+    /// 返回 false 表示用户取消了授权 —— 此时调用方应中止安装，而不是让两份副本并存。
+    static func removeSystemCopyWithAdmin() -> Bool {
+        let script = "do shell script \"/bin/rm -rf '/Library/Input Methods/Liana.app'\" with administrator privileges"
+        var error: NSDictionary?
+        NSAppleScript(source: script)?.executeAndReturnError(&error)
+        if error != nil { return false }
+        return !FileManager.default.fileExists(atPath: "/Library/Input Methods/Liana.app")
     }
 
     @discardableResult
@@ -741,13 +767,22 @@ struct FinishView: View {
             }
             Text(model.registered ? "装好了" : "还差最后一步")
                 .font(.system(size: 30, weight: .bold))
-            Text(model.registered
-                 ? "在「键盘设置」里添加松萝后，按 ⌃空格 或 🌐 切换过来就能用。"
-                 : (model.steps.last?.detail.isEmpty == false ? model.steps.last!.detail : "系统还没收录松萝，注销重登一次通常就好。"))
+            if model.registered {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("点右上角输入法图标（「拼」或「A」），选「松萝」；图标不在就按 ⌃空格", systemImage: "1.circle.fill")
+                    Label("想设为默认：把「松萝」拖到输入法列表第一行，并取消「自动切换到文稿的输入法」", systemImage: "2.circle.fill")
+                    Label("列表里应该只有一条「松萝」——出现两条说明装了两份", systemImage: "3.circle.fill")
+                }
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 460)
+                .frame(maxWidth: 520, alignment: .leading)
+            } else {
+                Text(model.steps.last?.detail.isEmpty == false ? model.steps.last!.detail : "系统还没收录松萝，注销重登一次通常就好。")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 460)
+            }
 
             HStack(spacing: 12) {
                 TipCard(keys: "⌃ `", title: "功能面板", detail: "截图学习、语音、同传、桌宠")

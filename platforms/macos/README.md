@@ -37,9 +37,10 @@ macOS 26/27 的输入源扫描器会**拒绝 ad-hoc 签名**的第三方输入�
 | 同一 bundle 重签为 ad-hoc | 完全不收录 |
 | 本项目 ad-hoc 构建（用户目录 / 系统目录、重启后） | 完全不收录 |
 
-结论：要在 macOS 26+ 上使用，必须用 **Developer ID 签名**（并公证）。`build.sh` 目前是
-ad-hoc 签名，安装器会明确提示这一点。拿到签名身份后，把 `codesign --sign -` 换成
-`codesign --sign "Developer ID Application: …" --options runtime` 并对 app 做 notarize 即可。
+市面上分发的 DMG 目前用 **Apple Development** 签名（可本机使用、不可公证）；未公证的包
+会被 Gatekeeper 拦一次，DMG 里的「打不开？双击我.command」负责放行。想让用户双击即开、
+不再需要放行，必须换成 **Developer ID** 签名并公证：把 `codesign --sign` 的身份换成
+`"Developer ID Application: …"`（`dist.sh` 已按 `Developer ID → Apple Development → ad-hoc` 三级降级）。
 
 `install.sh` 会调用输入法自带的注册命令（`--register-input-source`、`--enable-input-source`），
 等价于 Squirrel 的安装流程；这些命令也可以单独手动执行：
@@ -52,13 +53,24 @@ BIN="$HOME/Library/Input Methods/Liana.app/Contents/MacOS/Liana"
 "$BIN" --input-source-status     # 查看启用/选中状态
 ```
 
-首次启用（macOS 对输入法注册有缓存，需要重新登录一次）：
+首次启用（不需要注销/重启）：
 
-1. 注销并重新登录；
-2. 系统设置 → 键盘 → 文字输入 → 输入法 → 编辑… → `+` → 中文（简体）→ **松萝**；
-3. 用 `Ctrl+Space` 切到 松萝。
+1. 点右上角输入法图标（显示「拼」或「A」），选「松萝」；图标不在就按 `Control + 空格`；
+2. 两者都没有时：系统设置 → 键盘 → 文字输入 → 输入法 → 编辑… → `+` → 中文（简体）→ **松萝**；
+3. 想设为默认：把「松萝」拖到输入法列表第一行，并取消「自动切换到文稿的输入法」；
+4. 列表里应该只有一条「松萝」。
 
-卸载：`./uninstall.sh`（加 `--purge` 一并删除用户数据）。
+装完跑一次自检，它会逐项检查副本是否唯一、注册是否双写、菜单是否只有一条、是否已启用：
+
+```bash
+"$BIN" --verify-install
+```
+
+只有自检里 TIS 一直收录不到时，才需要注销重登（系统对输入法注册有缓存）。
+
+卸载：`./uninstall.sh`（默认保留本地数据、桌宠偏好与钥匙串密钥；`--purge` 全部删除）。
+
+安装/启用的完整说明（含六端）见 [docs/INSTALL.md](../../docs/INSTALL.md)。
 
 ## 用法
 

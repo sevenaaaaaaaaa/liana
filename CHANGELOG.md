@@ -2,6 +2,21 @@
 
 松萝 Liana 面向用户的版本记录，新版本在上。每日构建见 GitHub Releases 中的 **Nightly** 预发布。
 
+## Unreleased
+
+### 安装与首次启用（全平台）
+
+- **macOS**：新增 `Liana --verify-install` 自检——一次判五件事：安装副本是否唯一、注册是否被写进两张表、输入法菜单里是否只有一条、是否已启用且可选、本地数据是否就位；不通过时直接给出可复制命令。`install.sh`、GUI 安装器、卸载脚本都以它收尾。
+- **macOS**：修掉「同一输入法装两份」的老问题。安装器改为跨位置互斥（装用户级会先用管理员权限删掉 `/Library` 那份，反之亦然），`install.sh` 装前检测另一份并告知清理命令。
+- **macOS**：修掉「装完输入法又消失」。`TISEnableInputSource` 在 macOS 26/27 上只改内存态不落盘，现在启用时显式把条目写进 `com.apple.inputsources` 的第三方表，重启输入法/重新登录后仍在。
+- **macOS**：卸载默认不再删数据。`uninstall.sh` 先注销输入源，再只删 app；本地词库、桌宠偏好、钥匙串密钥全部保留，想清干净用 `--purge`。
+- **macOS**：全新安装后自动切到松萝（老用户不动），装完直接能打字；文档/安装说明/README 统一为「不需要注销或重启」。
+- **Android**：新增引导页活动（桌面图标可点），实时显示「是否已启用」，两个按钮分别直达键盘设置与输入法选择器；修正键盘设置里「设置」指向 Service 导致点了没反应的问题。
+- **iOS**：键盘扩展补 `NSExtensionAttributes`（`IsASCIICapable` / `PrimaryLanguage` 等，缺失会被系统归到「其他」），宿主页改成四步引导并加「打开系统设置」按钮。
+- **Linux**：新增 `platforms/linux/install.sh`（构建脚本与发布包共用一份），装完自动 `ibus restart` 并自检引擎是否被列出、组件 xml 的 `exec` 是否指向真实文件；缺 `python3-gi` / IBus typelib 时提前报错并给出包名。
+- **Windows**：`build.cmd` 修掉首次构建必失败的两个硬伤（`rustc -p` → `cargo rustc`、`mkdir` 排到 `copy` 之前），产物说明改为如实状态：DLL 还不能注册成输入法（`DllRegisterServer` 未实现、无导出表）。
+- 新增 `docs/INSTALL.md`：六端安装与首次启用现状（可用性分级）、macOS 自检与排错表、「一个输入法只装一份」的通用认知。
+
 ## 0.8.0 — 2026-11-03 · 神经重排、热词管道与候选管理
 
 **亮点**
