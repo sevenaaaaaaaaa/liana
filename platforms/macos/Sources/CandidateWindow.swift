@@ -278,7 +278,7 @@ enum ReadingDisplay: String, CaseIterable {
 
     static var current: ReadingDisplay {
         get {
-            UserDefaults.standard.string(forKey: defaultsKey).flatMap(ReadingDisplay.init(rawValue:)) ?? .correctedOnly
+            UserDefaults.standard.string(forKey: defaultsKey).flatMap(ReadingDisplay.init(rawValue:)) ?? .never
         }
         set { UserDefaults.standard.set(newValue.rawValue, forKey: defaultsKey) }
     }

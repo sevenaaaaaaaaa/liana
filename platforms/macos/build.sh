@@ -28,8 +28,27 @@ fi
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null \
     | sed -n 's/.*"\(Apple Development: [^"]*\)".*/\1/p' | head -1)}"
 # bundle id：默认产品 id；本机开发可覆盖（例如系统对旧 id 留下负面缓存时）
-# 优先级：环境变量 BUNDLE_ID > platforms/macos/.bundle-id（已 gitignore）> 产品默认
-if [[ -f "$HERE/.bundle-id" ]]; then
+# 升级优先保留已安装副本身份，避免旧的本机开发覆盖值把升级变成另一套输入法。
+# 显式环境变量仍可覆盖；没有安装时再读取本地开发配置。
+INSTALLED_ID=""
+for INSTALLED_APP in "/Library/Input Methods/Liana.app" "$HOME/Library/Input Methods/Liana.app"; do
+    if [[ -f "$INSTALLED_APP/Contents/Info.plist" ]]; then
+        FOUND_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INSTALLED_APP/Contents/Info.plist")"
+        case "$FOUND_ID" in
+            dev.liana.inputmethod.ime|dev.inputflow.inputmethod|dev.inputflow.inputmethod.dev)
+                if [[ -n "$INSTALLED_ID" ]]; then
+                    echo '检测到两处松萝安装；先使用安装器清理重复副本，再构建升级包。' >&2
+                    exit 1
+                fi
+                INSTALLED_ID="$FOUND_ID"
+                ;;
+        esac
+    fi
+done
+if [[ -z "${BUNDLE_ID:-}" && -n "$INSTALLED_ID" ]]; then
+    BUNDLE_ID="$INSTALLED_ID"
+    echo "沿用已安装输入法身份：$BUNDLE_ID"
+elif [[ -f "$HERE/.bundle-id" ]]; then
     BUNDLE_ID="${BUNDLE_ID:-$(tr -d '[:space:]' < "$HERE/.bundle-id")}"
 else
     BUNDLE_ID="${BUNDLE_ID:-dev.liana.inputmethod.ime}"
@@ -60,6 +79,9 @@ RUST_LIB="$ROOT/target/release/libliana_ffi.a"
 
 # swiftc 驱动不支持 -arch：逐架构编译出可执行文件，最后 lipo 合成 Universal
 SWIFT_SOURCES=("$HERE/Sources/main.swift" "$HERE/Sources/Engine.swift" \
+    "$HERE/../apple/PetLinkTransport.swift" "$HERE/../apple/PetLinkReceiver.swift" \
+    "$HERE/Sources/PetLinkWindow.swift" \
+    "$HERE/Sources/InputSourceRegistration.swift" \
     "$HERE/Sources/CandidateWindow.swift" "$HERE/Sources/AppProfile.swift" \
     "$HERE/Sources/PetWindow.swift" "$HERE/Sources/EncryptedStore.swift" \
     "$HERE/Sources/ClipboardMonitor.swift" "$HERE/Sources/ClipboardWindow.swift" \
@@ -80,6 +102,8 @@ SWIFT_SOURCES=("$HERE/Sources/main.swift" "$HERE/Sources/Engine.swift" \
     "$HERE/Sources/PetImporter.swift" \
     "$HERE/Sources/PetPuppet.swift" \
     "$HERE/Sources/PetWorkshopWindow.swift" \
+    "$HERE/Sources/PetStudioCore.swift" \
+    "$HERE/Sources/PetStudioView.swift" \
     "$HERE/Sources/PetCommunity.swift" \
     "$HERE/Sources/PetEmotion.swift" \
     "$HERE/Sources/PetInteraction.swift" \
@@ -136,6 +160,7 @@ cp "$HERE/assets/PetCatalog.json" "$CONTENTS/Resources/PetCatalog.json"
 # VRM 桌宠运行时（three.js + three-vrm，本地离线）
 rm -rf "$CONTENTS/Resources/PetRuntime"
 cp -R "$HERE/assets/PetRuntime" "$CONTENTS/Resources/PetRuntime"
+cp -R "$HERE/assets/PetTools" "$CONTENTS/Resources/PetTools"
 
 # 随包分发示例插件（皮肤/桌宠形象包），首次启动 seeding 到用户插件目录
 mkdir -p "$CONTENTS/Resources/Plugins"
@@ -223,7 +248,7 @@ swiftc -O -wmo -parse-as-library \
     -target "$(uname -m)-apple-macos${DEPLOY_TARGET}" \
     -framework AppKit -framework Carbon -framework SwiftUI \
     -o "$INSTALLER_BIN/LianaInstaller" \
-    "$HERE/installer/Installer.swift"
+    "$HERE/installer/Installer.swift" "$HERE/Sources/InputSourceRegistration.swift"
 cp "$HERE/installer/Info.plist" "$INSTALLER_CONTENTS/Info.plist"
 if [[ -n "${LIANA_VERSION:-}" ]]; then
     /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${LIANA_VERSION#v}" "$INSTALLER_CONTENTS/Info.plist"

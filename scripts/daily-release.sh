@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 松萝每日构建（Nightly）：同步 → 测试 → 有新提交才构建 → 打 macOS DMG（含放行助手）
-#                        → 移动 `nightly` tag → 更新唯一的 GitHub 预发布「Nightly」→ 更新本机输入法
+#                        → 构建 iOS IPA → 更新唯一的 GitHub 预发布「Nightly」→ 更新本机输入法
 #
 # 版本号规则：版本唯一来源是 Cargo.toml 的 [workspace.package] version（正式版，如 0.4.2）。
 # Nightly 版本 = 下一个 minor + 预发布后缀，例如 0.5.0-nightly.20261014（semver：高于所有 0.4.x，
@@ -135,7 +135,8 @@ nightly_published() {
     body="$(gh release view "$NIGHTLY_TAG" --json body -q .body 2>/dev/null)" || return 1
     grep -qF "构建提交：\`$SHORT_SHA\`" <<<"$body" || return 1
     assets="$(gh release view "$NIGHTLY_TAG" --json assets -q '.assets[].name' 2>/dev/null)" || return 1
-    grep -qE "^Liana-.*-nightly\..*\.dmg$" <<<"$assets"
+    grep -qE "^Liana-.*-nightly\..*\.dmg$" <<<"$assets" || return 1
+    grep -qE '^Liana-iOS-.*-build[0-9]+-unsigned\.ipa$' <<<"$assets"
 }
 
 if [[ $FORCE == 0 ]]; then
@@ -187,11 +188,24 @@ ls -la "$MOUNT" | tail -n +2 | sed 's/^/    /'
 hdiutil detach "$MOUNT" -quiet && MOUNT=""
 echo "    ✓ 4 项必需内容齐全，助手可执行，版本 $DMG_VER"
 
+# iOS bundle versions must be numeric. Keep the workspace marketing version/build number;
+# the rolling Nightly release and commit identify the preview build on GitHub.
+log "构建 iPhone IPA（未签名，需自行重签主 App 与键盘扩展）"
+platforms/ios/build.sh device || die "iOS build failed"
+IOS_BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' platforms/ios/build/Build/Products/Release-iphoneos/LianaApp.app/Info.plist)"
+IPA="dist/Liana-iOS-${BASE_VERSION}-build${IOS_BUILD}-unsigned.ipa"
+IPA_SUM="$IPA.sha256"
+[[ -f "$IPA" && -f "$IPA_SUM" ]] || die "iOS IPA or checksum missing"
+python3 platforms/ios/validate_ipa.py "$IPA" || die "iOS IPA validation failed"
+[[ -z "$(git status --porcelain)" || $DRY_RUN == 1 ]] || die "iOS build modified tracked files — refusing to publish"
+ASSETS=("$DMG" "$DMG_SUM" "$IPA" "$IPA_SUM")
+
 if [[ $DRY_RUN == 1 ]]; then
     echo
     log "DRY-RUN 完成（$(( $(date +%s) - START ))s，其中构建 ${BUILD_SECS}s）"
     echo "  Nightly 版本: $VERSION"
     echo "  DMG:          ${DMG}（$(du -h "$DMG" | cut -f1)）"
+    echo "  iOS IPA:      $IPA（未签名）"
     echo "  日志:         $LOG"
     result "skipped dry-run (built $VERSION $SHORT_SHA, not published)"
     exit 0
@@ -210,15 +224,27 @@ NOTES="$(mktemp)"
     echo
     echo "版本：\`$VERSION\` · 构建提交：\`$SHORT_SHA\` · 构建日期：$DATE_TITLE"
     echo
+    echo "## 本次更新"
+    awk '/^## Unreleased/{on=1; next} on && /^## /{exit} on{print}' CHANGELOG.md
+    echo
     echo "## 自 ${LAST_FORMAL:-首个提交} 以来的改动"
     git log --no-merges --format='- %s' "${LAST_FORMAL:+$LAST_FORMAL..}HEAD" 2>/dev/null \
         | grep -v -E '^- chore\(release\)' || echo "- （无）"
     echo
-    # Nightly ships the macOS DMG only: keep the macOS part of the install footer.
+    # Keep the macOS part of the install footer; the unsigned iPhone IPA has its own steps.
     awk '/^### Android/{exit} {print}' .github/release-notes-template.md
+    echo "### iOS 预览版"
+    echo
+    echo "- 包内版本：\`$BASE_VERSION ($IOS_BUILD)\`；iOS 15+、iPhone arm64，未签名。使用自己的工具同时重签主 App 与内嵌键盘扩展。"
+    echo '- 安装后：设置 → 通用 → 键盘 → 键盘 → 添加新键盘 → 松萝键盘；长按地球键切换。'
+    echo '- 普通输入与布局调节无需完全访问；实验 BLE 功能单独要求完全访问和蓝牙授权。'
+    echo '- Mac 桌宠收件箱需要两端升级，主 App 扫码配对后在同一局域网发送文件。'
+    echo '- 实体 iPhone 的蓝牙连接、扫码与跨设备传输仍待实机验收。'
+    echo
     echo "## 校验和（SHA-256）"
     echo '```'
     cat "$DMG_SUM"
+    cat "$IPA_SUM"
     echo '```'
 } > "$NOTES"
 
@@ -228,17 +254,17 @@ if gh release view "$NIGHTLY_TAG" >/dev/null 2>&1; then
     gh release edit "$NIGHTLY_TAG" --title "$TITLE" --notes-file "$NOTES" --prerelease --latest=false \
         || die "gh release edit nightly failed"
     # Drop older nightly assets (names carry the date), then upload this build.
-    keep="$(basename "$DMG")|$(basename "$DMG_SUM")"
+    keep="$(basename "$DMG")|$(basename "$DMG_SUM")|$(basename "$IPA")|$(basename "$IPA_SUM")"
     while IFS= read -r a; do
         [[ -z "$a" ]] && continue
         [[ "|$keep|" == *"|$a|"* ]] && continue
         gh release delete-asset "$NIGHTLY_TAG" "$a" --yes >/dev/null 2>&1 || warn "删除旧资产 $a 失败"
     done < <(gh release view "$NIGHTLY_TAG" --json assets -q '.assets[].name')
-    gh release upload "$NIGHTLY_TAG" "$DMG" "$DMG_SUM" --clobber || die "upload nightly assets failed"
+    gh release upload "$NIGHTLY_TAG" "${ASSETS[@]}" --clobber || die "upload nightly assets failed"
 else
     log "创建 Release $NIGHTLY_TAG"
     gh release create "$NIGHTLY_TAG" --verify-tag --title "$TITLE" --notes-file "$NOTES" \
-        --prerelease --latest=false "$DMG" "$DMG_SUM" || die "gh release create nightly failed"
+        --prerelease --latest=false "${ASSETS[@]}" || die "gh release create nightly failed"
 fi
 rm -f "$NOTES"
 RELEASE_URL="$(gh release view "$NIGHTLY_TAG" --json url -q .url 2>/dev/null || echo "?")"
@@ -280,6 +306,7 @@ log "Nightly 完成（$(( $(date +%s) - START ))s）"
 echo "  版本:     $VERSION"
 echo "  Release:  $RELEASE_URL"
 echo "  DMG:      $DMG"
+echo "  iOS IPA:  $IPA（未签名）"
 echo "  本机安装: $INSTALLED_NOTE"
 echo "  日志:     $LOG"
 result "built nightly $VERSION $SHORT_SHA"

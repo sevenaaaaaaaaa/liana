@@ -152,6 +152,15 @@ impl CommentRole {
     }
 }
 
+/// 拼音匹配质量与 UI 注释分离；学习和 AI 都不能跨匹配层置顶。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub enum MatchQuality {
+    #[default]
+    Exact,
+    Predictive,
+    Corrected,
+}
+
 /// 候选词。`consumed` 表示选中后应从前端预编辑串中消费的**字符数**（非字节）。
 #[derive(Clone, Debug)]
 pub struct Candidate {
@@ -162,6 +171,7 @@ pub struct Candidate {
     /// `comment` 是标签还是读音（读音再分是否与输入一致）。
     pub comment_role: CommentRole,
     pub score: f64,
+    pub match_quality: MatchQuality,
 }
 
 impl Candidate {
@@ -173,6 +183,7 @@ impl Candidate {
             comment: None,
             comment_role: CommentRole::Label,
             score,
+            match_quality: MatchQuality::Exact,
         }
     }
 
@@ -187,6 +198,7 @@ impl Candidate {
     pub fn with_reading(mut self, reading: impl Into<String>) -> Self {
         self.comment = Some(reading.into());
         self.comment_role = CommentRole::CorrectedReading;
+        self.match_quality = MatchQuality::Corrected;
         self
     }
 
@@ -199,6 +211,7 @@ impl Candidate {
         literal
             .cmp(&other_literal)
             .then_with(|| other.consumed.cmp(&self.consumed))
+            .then_with(|| self.match_quality.cmp(&other.match_quality))
             .then_with(|| other.score.total_cmp(&self.score))
     }
 }

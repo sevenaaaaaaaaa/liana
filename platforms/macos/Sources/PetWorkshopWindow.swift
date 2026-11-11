@@ -37,8 +37,9 @@ final class PetWorkshopWindowController: NSWindowController, NSWindowDelegate {
     }
 
     /// 开发用：直接载入图片（`--pet-workshop <图片…>`）。
-    func debugAdd(_ urls: [URL], actionsTab: Bool = false) {
+    func debugAdd(_ urls: [URL], actionsTab: Bool = false, studioTab: Bool = false) {
         model.add(urls)
+        if studioTab { model.tab = 2 }
         if actionsTab {
             model.tab = 1
             model.copyPreset("happy_bounce")
@@ -608,15 +609,21 @@ struct WorkshopView: View {
             Picker("", selection: $model.tab) {
                 Text("形象").tag(0)
                 Text("动作与互动").tag(1)
+                Text("定制工作台").tag(2)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 260)
+            .frame(width: 360)
             .padding(.top, 34)
             .padding(.bottom, 4)
+            ZStack {
+                PetStudioView(model: model)
+                    .opacity(model.tab == 2 ? 1 : 0)
+                    .allowsHitTesting(model.tab == 2)
+                    .accessibilityHidden(model.tab != 2)
             if model.tab == 1 {
                 ActionsTab(model: model)
-            } else {
+            } else if model.tab == 0 {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {
@@ -641,6 +648,7 @@ struct WorkshopView: View {
                 .padding(20)
             }
             }
+            }
             Divider()
             HStack(spacing: 8) {
                 if model.busy { ProgressView().controlSize(.small) }
@@ -649,13 +657,16 @@ struct WorkshopView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
                 Spacer()
-                Button("导入 .lianapet…") { model.importPack() }
-                Button("导出…") { model.exportPack() }
-                    .disabled(model.draft.images.isEmpty)
-                Button("发布到松萝社区…") { model.publishToCommunity() }
-                    .disabled(model.draft.images.isEmpty || !model.draft.shareable)
-                    .help("需勾选「这些图片是我原创或已获授权」；在 nownexts.com 上传并审核")
+                Menu("形象包") {
+                    Button("导入 .lianapet…") { model.importPack() }
+                    Button("导出…") { model.exportPack() }
+                        .disabled(model.draft.images.isEmpty)
+                    Button("发布到松萝社区…") { model.publishToCommunity() }
+                        .disabled(model.draft.images.isEmpty || !model.draft.shareable)
+                }
+                .fixedSize()
                 Button("保存并使用") { model.save() }
+                    .fixedSize()
                     .keyboardShortcut(.defaultAction)
                     .disabled(!model.draft.images.contains { $0.role == .idle } || model.busy)
             }

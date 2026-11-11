@@ -18,13 +18,15 @@ private func findInputSources() -> [TISInputSource] {
     return list.filter { source in
         let idRef = TISGetInputSourceProperty(source, kTISPropertyInputSourceID)
         guard let id = unsafeBitCast(idRef, to: CFString?.self) as String? else { return false }
-        return id.hasPrefix(prefix)
+        return id == prefix || id.hasPrefix(prefix + ".")
     }
 }
 
 private func findInputSource() -> TISInputSource? {
     let sources = findInputSources()
-    return sources.first { boolProperty($0, kTISPropertyInputSourceIsSelectCapable) == true }
+    return sources.first { boolProperty($0, kTISPropertyInputSourceIsSelectCapable) == true
+        && boolProperty($0, kTISPropertyInputSourceIsEnabled) == true }
+        ?? sources.first { boolProperty($0, kTISPropertyInputSourceIsSelectCapable) == true }
         ?? sources.first
 }
 
@@ -45,66 +47,72 @@ private func describe(_ source: TISInputSource) -> String {
     return "\(sourceIdentifier(source)) enabled=\(enabled) selectable=\(selectable) selected=\(selected)"
 }
 
-// 修复跨注册表双写：第三方输入法的启用态可能同时落在
-//   ~/Library/Preferences/com.apple.HIToolbox.plist（AppleEnabledInputSources）与
-//   ~/Library/Preferences/com.apple.inputsources.plist（AppleEnabledThirdPartyInputSources）
-// 两处，TIS 合并枚举时会各读一次 → 输入法菜单出现两个同名条目。
-// 规则：同一输入源只保留第三方表，HIToolbox 中的同名条目删除（仅当第三方表确含本输入法）。
-private func dedupeInputSourcePersistence() -> (hitoolboxRemoved: Int, thirdPartyCount: Int, thirdPartyDupes: Int) {
-    let bid = inputSourceID()
-    let tpDomain = "com.apple.inputsources" as CFString
-    let tpKey = "AppleEnabledThirdPartyInputSources" as CFString
-    let hbDomain = "com.apple.HIToolbox" as CFString
-    let hbKey = "AppleEnabledInputSources" as CFString
-
-    func readArray(_ domain: CFString, _ key: CFString) -> [[String: Any]] {
-        (CFPreferencesCopyAppValue(key, domain) as? [[String: Any]]) ?? []
-    }
-    func entryKey(_ e: [String: Any]) -> String {
-        "\(e["Bundle ID"] ?? "")|\(e["Input Mode"] ?? "")|\(e["InputSourceKind"] ?? "")"
-    }
-    func isOurs(_ e: [String: Any]) -> Bool { (e["Bundle ID"] as? String) == bid }
-
-    // 第三方表：去掉内部完全重复的条目
-    let tp = readArray(tpDomain, tpKey)
-    var seen = Set<String>()
-    var tpClean: [[String: Any]] = []
-    for e in tp where !seen.contains(entryKey(e)) {
-        seen.insert(entryKey(e))
-        tpClean.append(e)
-    }
-    let tpDupes = tp.count - tpClean.count
-    if tpDupes > 0 {
-        CFPreferencesSetAppValue(tpKey, tpClean as CFArray, tpDomain)
-        CFPreferencesAppSynchronize(tpDomain)
-    }
-
-    // 仅当第三方表仍包含本输入法时，才移除 HIToolbox 里的同名条目，避免把关掉唯一注册
-    var removed = 0
-    if tpClean.contains(where: isOurs) {
-        let hb = readArray(hbDomain, hbKey)
-        let hbClean = hb.filter { !isOurs($0) }
-        removed = hb.count - hbClean.count
-        if removed > 0 {
-            CFPreferencesSetAppValue(hbKey, hbClean as CFArray, hbDomain)
-            CFPreferencesAppSynchronize(hbDomain)
-        }
-    }
-    return (removed, tpClean.count, tpDupes)
+private var registrationPolicy: InputSourceRegistration {
+    InputSourceRegistration(bundleID: inputSourceID(), modeIDs: InputSourceRegistration.declaredModes(
+        in: Bundle.main.infoDictionary ?? [:], bundleID: inputSourceID()))
 }
 
-// 把本输入法写进第三方表（幂等）。返回 true 表示这次真的写入了。
-// 为什么需要：TISEnableInputSource 在 macOS 26/27 上只改内存态不落盘，
-// 进程退出后第三方表又空了——用户下次登录输入法就「消失」。安装/启用必须显式写盘。
-private func ensureThirdPartyRegistration() -> Bool {
-    let bid = inputSourceID()
-    let domain = "com.apple.inputsources" as CFString
-    let key = "AppleEnabledThirdPartyInputSources" as CFString
-    var table = (CFPreferencesCopyAppValue(key, domain) as? [[String: Any]]) ?? []
-    guard !table.contains(where: { ($0["Bundle ID"] as? String) == bid }) else { return false }
-    table.append(["Bundle ID": bid, "InputSourceKind": "Keyboard Input Method"])
-    CFPreferencesSetAppValue(key, table as CFArray, domain)
-    CFPreferencesAppSynchronize(domain)
+private let hbDomain = "com.apple.HIToolbox"
+private let hbKey = "AppleEnabledInputSources"
+private let tpDomain = "com.apple.inputsources"
+private let tpKey = "AppleEnabledThirdPartyInputSources"
+
+private func registrationRows(_ domain: String, _ key: String) throws -> [[String: Any]] {
+    guard let value = CFPreferencesCopyAppValue(key as CFString, domain as CFString) else { return [] }
+    guard let rows = value as? [[String: Any]] else {
+        throw NSError(domain: "Liana.Install", code: 1,
+            userInfo: [NSLocalizedDescriptionKey: "系统输入源表格式异常，未修改：" + domain])
+    }
+    return rows
+}
+
+private func isInstalledInputMethod() -> Bool {
+    let path = Bundle.main.bundleURL.resolvingSymlinksInPath().standardizedFileURL.path
+    return installedAppCopies().contains(path)
+}
+
+private func requireInstalledInputMethod() throws {
+    guard isInstalledInputMethod(), installedAppCopies().count == 1 else {
+        throw NSError(domain: "Liana.Install", code: 2,
+            userInfo: [NSLocalizedDescriptionKey: "注册仅允许从唯一已安装副本执行；请使用安装器，不能注册构建目录或 DMG 中的副本。"])
+    }
+}
+
+/// 唯一写入入口。系统 API 的 noErr 不代表持久化成功，必须核对两张表。
+@discardableResult
+private func normalizeInputSourcePersistence(enable: Bool?) throws -> Bool {
+    let policy = registrationPolicy
+    let hb = try registrationRows(hbDomain, hbKey)
+    let tp = try registrationRows(tpDomain, tpKey)
+    let enabled = enable ?? policy.hasModeRegistration(hitoolbox: hb, thirdParty: tp)
+    let result = policy.normalize(hitoolbox: hb, thirdParty: tp, enabled: enabled)
+    guard result.changed else { return false }
+    let fm = FileManager.default
+    let backup = fm.homeDirectoryForCurrentUser.appendingPathComponent(
+        "Library/Application Support/Liana/InstallBackups/registration-" + UUID().uuidString)
+    try fm.createDirectory(at: backup, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    for (name, rows) in [(hbDomain, hb), (tpDomain, tp)] {
+        let file = backup.appendingPathComponent(name + ".plist")
+        try PropertyListSerialization.data(fromPropertyList: rows, format: .xml, options: 0).write(to: file, options: .atomic)
+        try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+    }
+    func write(_ rows: [[String: Any]], _ domain: String, _ key: String) -> Bool {
+        CFPreferencesSetAppValue(key as CFString, rows as CFArray, domain as CFString)
+        return CFPreferencesAppSynchronize(domain as CFString)
+    }
+    guard write(result.thirdParty, tpDomain, tpKey), write(result.hitoolbox, hbDomain, hbKey),
+          InputSourceRegistration.equal(try registrationRows(hbDomain, hbKey), result.hitoolbox),
+          InputSourceRegistration.equal(try registrationRows(tpDomain, tpKey), result.thirdParty) else {
+        _ = write(tp, tpDomain, tpKey)
+        _ = write(hb, hbDomain, hbKey)
+        throw NSError(domain: "Liana.Install", code: 3,
+            userInfo: [NSLocalizedDescriptionKey: "输入源持久化校验失败，已尝试恢复；备份：" + backup.path])
+    }
+    print("已统一输入源注册：第三方表保留唯一容器与声明模式，移除跨表及旧 ID 注册。")
+    print("注册备份：" + backup.path)
+    DistributedNotificationCenter.default().postNotificationName(
+        Notification.Name(kTISNotifyEnabledKeyboardInputSourcesChanged as String), object: nil,
+        userInfo: nil, deliverImmediately: true)
     return true
 }
 
@@ -114,19 +122,24 @@ private func ensureThirdPartyRegistration() -> Bool {
 // 这个自检把这四件事各自判一次并给出下一步，安装脚本/安装器都以它收尾。
 
 private func installedAppCopies() -> [String] {
-    [NSHomeDirectory() + "/Library/Input Methods/Liana.app", "/Library/Input Methods/Liana.app"]
-        .filter { FileManager.default.fileExists(atPath: $0) }
-}
-
-private func oursInRegistry(_ domain: String, _ key: String) -> [[String: Any]] {
-    ((CFPreferencesCopyAppValue(key as CFString, domain as CFString) as? [[String: Any]]) ?? [])
-        .filter { ($0["Bundle ID"] as? String) == inputSourceID() }
+    let roots = [NSHomeDirectory() + "/Library/Input Methods", "/Library/Input Methods"]
+    return roots.flatMap { root -> [String] in
+        let apps = (try? FileManager.default.contentsOfDirectory(atPath: root)) ?? []
+        return apps.filter { $0.hasSuffix(".app") }.compactMap { name in
+            let url = URL(fileURLWithPath: root).appendingPathComponent(name)
+            guard let id = Bundle(url: url)?.bundleIdentifier,
+                  registrationPolicy.managedBundleIDs.contains(id) else { return nil }
+            return url.resolvingSymlinksInPath().standardizedFileURL.path
+        }
+    }.sorted()
 }
 
 private func menuVisibleCount() -> Int {
     guard let list = TISCreateInputSourceList(nil, false)?.takeRetainedValue() as? [TISInputSource] else { return 0 }
     return list.filter { source in
         (unsafeBitCast(TISGetInputSourceProperty(source, kTISPropertyBundleID), to: CFString?.self) as String?) == inputSourceID()
+        && boolProperty(source, kTISPropertyInputSourceIsSelectCapable) == true
+        && boolProperty(source, kTISPropertyInputSourceIsEnabled) == true
     }.count
 }
 
@@ -149,18 +162,38 @@ private func runInstallCheck() -> Bool {
         hint: "同一个输入法装两份会让系统出现两条同名条目：删掉多余那份（/Library 下的需要管理员权限）")
     if copies.count != 1 { hardOK = false }
 
-    // 2. 注册表：HIToolbox 与第三方表只能留一处
-    let hb = oursInRegistry("com.apple.HIToolbox", "AppleEnabledInputSources")
-    let tp = oursInRegistry("com.apple.inputsources", "AppleEnabledThirdPartyInputSources")
-    let regTotal = hb.count + tp.count
-    line(hb.count == 0 && tp.count == 1, "注册条目", "HIToolbox \(hb.count) 条 + 第三方表 \(tp.count) 条",
-         hint: "跑一次 `--enable-input-source`（会重新写入第三方表），再 `--dedupe-input-source` 去掉重复")
-    if hb.count != 0 || tp.count != 1 { hardOK = false }
+    // 容器/模式是正常的两条记录，但整个声明只能持久化在一个来源。
+    do {
+        let hb = try registrationRows(hbDomain, hbKey)
+        let tp = try registrationRows(tpDomain, tpKey)
+        let canonical = registrationPolicy.isCanonical(hitoolbox: hb, thirdParty: tp)
+        line(canonical, "持久化唯一性", "HIToolbox \(hb.filter(registrationPolicy.owns).count) 条 + 第三方表 \(tp.filter(registrationPolicy.owns).count) 条",
+             hint: "执行已安装程序的 --repair-input-source；容器跨表重复同样是错误，不能忽略")
+        if !canonical { hardOK = false }
+    } catch {
+        line(false, "持久化唯一性", error.localizedDescription)
+        hardOK = false
+    }
 
-    // 3. 菜单实际条数（TIS 合并两张表后的结果，也就是用户在右上角看到的）
+    // 3. 系统可选模式；界面还可能持有旧缓存，不能仅凭此项断言菜单没有重复。
     let visible = menuVisibleCount()
-    line(visible == 1, "输入法菜单", "\(visible) 条「松萝」", hint: "多于一条说明有重复副本或双写，先删副本再 --dedupe-input-source")
+    line(visible == 1, "系统可选输入模式", "\(visible) 条「松萝」", hint: "执行已安装程序的 --repair-input-source，并刷新输入法菜单后复核")
     if visible != 1 { hardOK = false }
+
+    let enabledSources = (TISCreateInputSourceList(nil, false)?.takeRetainedValue() as? [TISInputSource]) ?? []
+    let historical = enabledSources.filter { source in
+        guard let ref = TISGetInputSourceProperty(source, kTISPropertyBundleID) else { return false }
+        let id = unsafeBitCast(ref, to: CFString.self) as String
+        return id != bid && registrationPolicy.managedBundleIDs.contains(id)
+    }
+    line(historical.isEmpty, "旧版输入源", "\(historical.count) 条")
+    if !historical.isEmpty { hardOK = false }
+    if !registrationPolicy.modeIDs.isEmpty {
+        let parent = findInputSources().first { sourceIdentifier($0) == bid }
+        let enabled = parent.map { boolProperty($0, kTISPropertyInputSourceIsEnabled) == true } ?? false
+        line(enabled, "容器启用状态", "enabled=\(enabled)")
+        if !enabled { hardOK = false }
+    }
 
     // 4. 启用 / 可选中 / 当前是否已选中
     if let source = findInputSource() {
@@ -185,7 +218,7 @@ private func runInstallCheck() -> Bool {
 
     print("────────────────────────────────────────")
     if hardOK {
-        print("结果：安装正确。下一步——右上角输入法菜单选「松萝」（或 Control + 空格），直接打拼音即可。")
+        print("结果：安装注册自检通过。请在刷新后的菜单确认仅一条「松萝」，再切换输入。")
     } else {
         print("结果：需要修复，按上面带 → 的提示逐条处理。")
     }
@@ -195,24 +228,12 @@ private func runInstallCheck() -> Bool {
 // 卸载用：把本输入法从 TIS 与两张注册表里一起清掉，避免卸载后菜单里还挂着一条死条目
 // （用户下次看到「松萝」却切不过去，比看不到更困惑）。
 private func removeInputSourcePersistence() -> Bool {
-    let bid = inputSourceID()
-    var disabled = 0
-    for source in findInputSources() where TISDisableInputSource(source) == noErr {
-        disabled += 1
-    }
-    func strip(_ domain: String, _ key: String) -> Int {
-        let all = (CFPreferencesCopyAppValue(key as CFString, domain as CFString) as? [[String: Any]]) ?? []
-        let kept = all.filter { ($0["Bundle ID"] as? String) != bid }
-        if all.count != kept.count {
-            CFPreferencesSetAppValue(key as CFString, kept as CFArray, domain as CFString)
-            CFPreferencesAppSynchronize(domain as CFString)
-        }
-        return all.count - kept.count
-    }
-    let hb = strip("com.apple.HIToolbox", "AppleEnabledInputSources")
-    let tp = strip("com.apple.inputsources", "AppleEnabledThirdPartyInputSources")
-    print("已移除注册：TIS 停用 \(disabled) 个输入源 · HIToolbox \(hb) 条 · 第三方表 \(tp) 条")
-    return true
+    do {
+        try requireInstalledInputMethod()
+        for source in findInputSources() { _ = TISDisableInputSource(source) }
+        _ = try normalizeInputSourcePersistence(enable: false)
+        return true
+    } catch { print(error.localizedDescription); return false }
 }
 
 // 全新安装（还没有用户数据）时把自己切到前台：新用户装完第一次运行就能直接打拼音，
@@ -300,54 +321,57 @@ if installArgs.count > 1 {
         print("共 \(names.count) 个")
         exit(0)
 
-    case "--register-input-source":
-        if let source = findInputSource() {
-            print("已注册: \(inputSourceID()) (\(describe(source)))")
-            exit(0)
-        }
-        let status = TISRegisterInputSource(Bundle.main.bundleURL as CFURL)
-        if status == noErr, let source = findInputSource() {
-            print("注册成功: \(inputSourceID()) (\(describe(source)))")
-            exit(0)
-        }
-        print("注册失败 (status=\(status))")
-        exit(1)
-
-    case "--enable-input-source":
-        // TISEnableInputSource 在部分 macOS 版本上只改内存态、不落盘（实测 26/27 上
-        // 第三方表仍是空的，重启输入法后又「消失」）。这里显式把容器条目写进
-        // com.apple.inputsources 的 AppleEnabledThirdPartyInputSources，让它真正持久化。
-        let seeded = ensureThirdPartyRegistration()
-        if seeded { print("已写入第三方输入源注册表: \(inputSourceID())") }
-        let sources = findInputSources()
-        guard !sources.isEmpty else {
-            print("未找到输入源，请先 --register-input-source")
-            exit(1)
-        }
-        // 输入法容器与其模式需要一起启用，否则菜单栏不会出现
-        var allOK = true
-        for source in sources {
-            if boolProperty(source, kTISPropertyInputSourceIsEnabled) == true {
-                print("已启用: \(describe(source))")
-                continue
+    case "--register-input-source", "--repair-input-source", "--enable-input-source", "--dedupe-input-source":
+        do {
+            try requireInstalledInputMethod()
+            let command = installArgs[1]
+            if command == "--register-input-source" || command == "--repair-input-source" {
+                let status = TISRegisterInputSource(Bundle.main.bundleURL as CFURL)
+                guard status == noErr else { print("注册失败 (status=\(status))"); exit(1) }
             }
-            let status = TISEnableInputSource(source)
-            if status == noErr {
-                print("启用成功: \(describe(source))")
-            } else {
-                print("启用失败 (status=\(status)): \(sourceIdentifier(source))")
-                allOK = false
+            func hasNativeModeRegistration() throws -> Bool {
+                try registrationPolicy.hasModeRegistration(hitoolbox: registrationRows(hbDomain, hbKey),
+                    thirdParty: registrationRows(tpDomain, tpKey))
             }
-        }
-        let dedupe = dedupeInputSourcePersistence()
-        if dedupe.hitoolboxRemoved > 0 || dedupe.thirdPartyDupes > 0 {
-            print("去重: HIToolbox 移除 \(dedupe.hitoolboxRemoved) 条，第三方表内部重复 \(dedupe.thirdPartyDupes) 条")
-        }
-        exit(allOK ? 0 : 1)
+            if command == "--repair-input-source" || command == "--enable-input-source", try !hasNativeModeRegistration() {
+                // 给原生 API 留出主线程事件处理时间；noErr 不能替代实际持久化证据。
+                _ = NSApplication.shared
+                for selectable in [false, true] {
+                    for source in findInputSources() where (boolProperty(source, kTISPropertyInputSourceIsSelectCapable) == true) == selectable {
+                        _ = TISEnableInputSource(source)
+                    }
+                    RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+                }
+                guard try hasNativeModeRegistration() else {
+                    print("程序已安装，但系统尚未原生启用。请在键盘设置 → 输入法 → 编辑 → + → 简体中文 → 松萝中添加。")
+                    print("未补写启用记录，避免产生幽灵输入源；原生添加后重新运行 --verify-install-stable。")
+                    exit(2)
+                }
+            }
+            // 只整理已有启用证据，不会把全新安装或已移除的输入法强行写成启用。
+            let changed = try normalizeInputSourcePersistence(enable: nil)
+            print(changed ? "输入源已修复" : "注册未新增，本次无需归一处理")
+            exit(0)
+        } catch { print(error.localizedDescription); exit(1) }
 
-    case "--dedupe-input-source":
-        let r = dedupeInputSourcePersistence()
-        print("去重完成: HIToolbox 移除 \(r.hitoolboxRemoved) 条，第三方表 \(r.thirdPartyCount) 条（内部重复 \(r.thirdPartyDupes)）")
+    case "--verify-install-stable":
+        for attempt in 1...3 {
+            let process = Process()
+            process.executableURL = Bundle.main.executableURL
+            process.arguments = ["--verify-install"]
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            process.standardError = pipe
+            do { try process.run() } catch { print(error.localizedDescription); exit(1) }
+            let output = pipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            print("独立进程检查 \(attempt)/3")
+            if attempt == 3 || process.terminationStatus != 0 {
+                print(String(data: output, encoding: .utf8) ?? "")
+            }
+            guard process.terminationStatus == 0 else { exit(1) }
+            if attempt < 3 { Thread.sleep(forTimeInterval: 0.5) }
+        }
         exit(0)
 
     case "--verify-install":
@@ -762,9 +786,9 @@ if installArgs.count > 1 {
         // 开发用：打开形象工坊，可附带图片路径直接载入（不改桌宠设置，除非点「保存并使用」）
         PetWorkshopWindowController.shared.show()
         let paths = installArgs.dropFirst(2)
-        let images = paths.filter { !$0.hasSuffix(".snapshot.png") && $0 != "actions" }.map { URL(fileURLWithPath: $0) }
-        if !images.isEmpty {
-            PetWorkshopWindowController.shared.debugAdd(Array(images), actionsTab: paths.contains("actions"))
+        let images = paths.filter { !$0.hasSuffix(".snapshot.png") && $0 != "actions" && $0 != "studio" }.map { URL(fileURLWithPath: $0) }
+        if !images.isEmpty || paths.contains("studio") {
+            PetWorkshopWindowController.shared.debugAdd(Array(images), actionsTab: paths.contains("actions"), studioTab: paths.contains("studio"))
         }
         // 以 .snapshot.png 结尾的参数：6 秒后把窗口内容存成 PNG 并退出（WebGL 预览区会是空白）
         if let out = paths.first(where: { $0.hasSuffix(".snapshot.png") }) {
@@ -1157,6 +1181,7 @@ ClipboardMonitor.shared.startIfEnabled()
 ClipboardActionWatcher.shared.refresh()
 AppNameLexicon.startPeriodicRefresh()
 PetWindowController.restoreIfEnabled()
+PetLinkWindow.shared.restoreIfEnabled()
 NotificationCenter.default.addObserver(
     forName: NSApplication.willTerminateNotification,
     object: nil,

@@ -1042,7 +1042,7 @@ impl Session {
             return;
         };
         let mut end = start + 1;
-        while end < cands.len() && cands[end].consumed == raw_len {
+        while end < cands.len() && same_tier(&cands[start], &cands[end]) {
             end += 1;
         }
         if end - start < 2 {
@@ -1141,9 +1141,12 @@ impl Session {
                 existing.score = existing.score.max(score);
                 continue;
             }
-            cands.push(
-                Candidate::new(text, consumed, CandidateKind::Phrase, score).with_comment("短语"),
-            );
+            let mut candidate =
+                Candidate::new(text, consumed, CandidateKind::Phrase, score).with_comment("短语");
+            if !exact {
+                candidate.match_quality = liana_core::MatchQuality::Predictive;
+            }
+            cands.push(candidate);
         }
     }
 
@@ -1177,9 +1180,12 @@ impl Session {
                 existing.score = existing.score.max(score);
                 continue;
             }
-            cands.push(
-                Candidate::new(term, consumed, CandidateKind::Phrase, score).with_comment("营养词"),
-            );
+            let mut candidate =
+                Candidate::new(term, consumed, CandidateKind::Phrase, score).with_comment("营养词");
+            if !exact {
+                candidate.match_quality = liana_core::MatchQuality::Predictive;
+            }
+            cands.push(candidate);
         }
     }
 
@@ -1276,6 +1282,7 @@ pub fn is_cjk_char(c: char) -> bool {
 fn same_tier(a: &Candidate, b: &Candidate) -> bool {
     (a.kind == CandidateKind::Literal) == (b.kind == CandidateKind::Literal)
         && a.consumed == b.consumed
+        && a.match_quality == b.match_quality
 }
 
 /// 给营养词派生按键串：逐字查词典里的最高频读音并拼接。
@@ -1316,6 +1323,18 @@ mod tests {
         assert_eq!(s.select(0).as_deref(), Some("你好"));
         assert!(s.buffer().is_empty());
         assert!(s.composition().is_empty());
+    }
+
+    #[test]
+    fn ai_promotion_cannot_cross_spelling_quality() {
+        let mut s = session(Mode::Pinyin);
+        let exact = Candidate::new("你好", 5, CandidateKind::Word, 1.0);
+        let corrected =
+            Candidate::new("利好", 5, CandidateKind::Word, 100.0).with_reading("li hao");
+        s.comp.candidates = vec![exact, corrected];
+        assert!(!s.promote(1));
+        assert_eq!(s.comp.candidates[0].text, "你好");
+        assert!(!same_tier(&s.comp.candidates[0], &s.comp.candidates[1]));
     }
 
     #[test]

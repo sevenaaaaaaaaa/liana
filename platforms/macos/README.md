@@ -1,8 +1,8 @@
 # Liana for macOS（M1）
 
 InputMethodKit 外壳 + Rust 内核静态库；候选窗在 macOS 26+ 使用系统原生 Liquid Glass，
-旧系统回退 `NSVisualEffectView`。**无网络代码**：既没有网络权限声明，也不链接任何网络库
-（AI 模型下载是唯一例外，只在用户点击下载时建立 HTTPS 连接）。
+旧系统回退 `NSVisualEffectView`。输入引擎在本机运行。模型下载和形象工坊可选的素材/动作生成会在用户点击时联网；
+服务地址与 Key 由用户配置，详见 [桌宠定制工作台](../../docs/pet-studio.md)。
 
 ## 构建与安装
 
@@ -178,3 +178,7 @@ cp /tmp/base.ifd ~/Library/Application\ Support/Liana/base.ifd
 - 数字保持半角；emoji 未接入；
 - 跨设备同步（用户词/剪切板）在 M3；
 - 双拼键位表以 Rime 官方 schema 为准，仍建议对照输入验证（见 `crates/pinyin/src/scheme.rs` 注释）。
+
+## 本机升级构建身份
+
+构建升级包时默认沿用 `/Library/Input Methods/Liana.app` 或用户目录中唯一已安装副本的 Bundle ID；没有安装时才读取 `.bundle-id` 开发配置。显式 `BUNDLE_ID` 环境变量仍可覆盖。检测到两处副本会停下，交由安装器先处理重复，避免过期开发配置把升级变成另一套输入法。

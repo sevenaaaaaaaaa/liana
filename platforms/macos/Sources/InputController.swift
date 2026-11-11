@@ -207,6 +207,9 @@ final class LianaInputController: IMKInputController {
         let settings = NSMenuItem(title: "松萝设置…", action: #selector(openSettingsCenter(_:)), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
+        let receiveFiles = NSMenuItem(title: "连接 iPhone／接收文件…", action: #selector(openPetLink(_:)), keyEquivalent: "")
+        receiveFiles.target = self
+        menu.addItem(receiveFiles)
         let update = NSMenuItem(title: "检查更新…", action: #selector(openUpdates(_:)), keyEquivalent: "")
         update.target = self
         menu.addItem(update)
@@ -294,6 +297,8 @@ final class LianaInputController: IMKInputController {
     @objc private func startScreenshotLearn(_ sender: Any) {
         LianaActions.perform(.screenshotLearn)
     }
+
+    @objc private func openPetLink(_ sender: Any) { PetLinkWindow.shared.show() }
 
     @objc private func openSettingsCenter(_ sender: Any) {
         SettingsCenter.shared.show()

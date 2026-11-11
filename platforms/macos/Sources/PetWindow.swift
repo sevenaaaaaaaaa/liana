@@ -88,6 +88,12 @@ final class PetWindowController {
         set { UserDefaults.standard.set(newValue, forKey: scenesKey); shared.updateScene(animated: true, force: true) }
     }
 
+    /// 装饰道具与场景行为独立；默认只让角色自己表演。
+    static var scenePropsEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: "LianaPetSceneProps") }
+        set { UserDefaults.standard.set(newValue, forKey: "LianaPetSceneProps"); shared.updateScene(animated: true, force: true) }
+    }
+
     /// 入场 / 离场动画，默认开
     static var entranceEnabled: Bool {
         get { UserDefaults.standard.object(forKey: entranceKey) as? Bool ?? true }
@@ -685,13 +691,13 @@ final class PetWindowController {
         guard force || scene != currentScene || night != sceneBack?.night else { return }
         let changed = scene != currentScene
         currentScene = scene
-        sceneBack?.show(scene, night: night, animated: animated)
+        sceneBack?.show(Self.scenePropsEnabled ? scene : .none, night: Self.scenePropsEnabled && night, animated: animated)
         // 形象有这个场景的姿势图（自己拿着手柄 / 咖啡 / 书）时，不再摆代码画的前景道具
         let applyFront = { [weak self] (posed: Bool) in
             guard let self, self.currentScene == scene else { return }
-            self.sceneFront?.show(posed ? .none : scene, night: night, animated: animated)
+            self.sceneFront?.show(posed || !Self.scenePropsEnabled ? .none : scene, night: Self.scenePropsEnabled && night, animated: animated)
             // 有桌子的场景不要地面投影（桌子挡着）
-            self.groundShadow?.isHidden = !posed && [.office, .coding].contains(scene)
+            self.groundShadow?.isHidden = Self.scenePropsEnabled && !posed && [.office, .coding].contains(scene)
         }
         if let petView { petView.setScene(scene.pose, completion: applyFront) } else { applyFront(false) }
         if scene.keepsAwake, sleepy { setSleepy(false) }
@@ -1920,6 +1926,9 @@ final class PetWindowController {
         )
         shelf.target = self
         menu.addItem(shelf)
+        let receive = NSMenuItem(title: "连接 iPhone／接收文件…", action: #selector(petMenuReceiveFiles(_:)), keyEquivalent: "")
+        receive.target = self
+        menu.addItem(receive)
         let voiceCode = NSMenuItem(
             title: "代码模式语音（符号词/命名口令）",
             action: #selector(petMenuToggleVoiceCode(_:)),
@@ -2018,6 +2027,8 @@ final class PetWindowController {
         let active = Self.activePackId
         PetWorkshopWindowController.shared.show(editing: PuppetPackStore.isPuppet(packId: active) ? active : nil)
     }
+
+    @objc private func petMenuReceiveFiles(_ sender: Any) { PetLinkWindow.shared.show() }
 
     @objc private func petMenuCommunity(_ sender: Any) {
         PetCommunityWindowController.shared.show()

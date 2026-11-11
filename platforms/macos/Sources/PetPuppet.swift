@@ -575,6 +575,7 @@ struct PuppetActionDraft: Identifiable {
 struct PuppetDraft {
     var packId: String?
     var name = "我的桌宠"
+    var motion = PetMotionSettings()
     var faces = "front"           // front | left | right
     var shareable = false         // 作者声明「原创或已获授权」：发布到松萝社区的前提（本地使用与导出不受限）
     var images: [PuppetImage] = []
@@ -731,6 +732,40 @@ enum PuppetBuilder {
         ) else { return nil }
         context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
         return (data, width, height)
+    }
+
+    /// 收缩一像素范围内的低 alpha 轮廓并去除白底污染；预乘 RGBA 同步缩放，避免黑边。
+    /// 保持尺寸不变，骨架点和表情对齐不会因收边漂移。
+    static func cleanEdges(_ png: Data, strength: Double, whiteMatte: Bool) -> Data? {
+        guard let rep = NSBitmapImageRep(data: png), let image = rep.cgImage, let px = rgba(image) else { return nil }
+        let amount = min(1, max(0, strength))
+        var output = px.data
+        for y in 0..<px.height {
+            for x in 0..<px.width {
+                let k = (y * px.width + x) * 4
+                let alpha = Double(px.data[k + 3]) / 255
+                guard alpha > 0 else { continue }
+                var inner = alpha
+                for dy in -1...1 { for dx in -1...1 {
+                    let nx = min(px.width - 1, max(0, x + dx))
+                    let ny = min(px.height - 1, max(0, y + dy))
+                    inner = min(inner, Double(px.data[(ny * px.width + nx) * 4 + 3]) / 255)
+                } }
+                let newAlpha = max(0, alpha + (inner - alpha) * amount)
+                for channel in 0..<3 {
+                    var color = Double(px.data[k + channel]) / 255 / alpha
+                    if whiteMatte && alpha < 0.98 { color = (color - (1 - alpha)) / max(0.15, alpha) }
+                    output[k + channel] = UInt8((min(1, max(0, color)) * newAlpha * 255).rounded())
+                }
+                output[k + 3] = UInt8((newAlpha * 255).rounded())
+            }
+        }
+        guard let provider = CGDataProvider(data: Data(output) as CFData),
+              let cleaned = CGImage(width: px.width, height: px.height, bitsPerComponent: 8, bitsPerPixel: 32,
+                bytesPerRow: px.width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent) else { return nil }
+        return NSBitmapImageRep(cgImage: cleaned).representation(using: .png, properties: [:])
     }
 
     private static func transparentRatio(_ image: CGImage) -> Double {
@@ -1011,6 +1046,7 @@ enum PuppetPackStore {
         }
         puppet["format"] = 1
         puppet["faces"] = draft.faces
+        puppet["motion"] = draft.motion.json
         puppet["rights"] = draft.shareable ? "shareable" : "personal"
         puppet["images"] = imageSpecs
         var actions = draft.extraActions
@@ -1089,6 +1125,7 @@ enum PuppetPackStore {
         draft.triggers = stringLists(puppet["triggers"])
         draft.lines = stringLists(puppet["lines"])
         draft.faces = puppet["faces"] as? String ?? "front"
+        draft.motion = PetMotionSettings(json: puppet["motion"] as? [String: Any] ?? [:])
         draft.shareable = puppet["rights"] as? String == "shareable"
         if let pluginData = try? Data(contentsOf: dir.appendingPathComponent("plugin.json")),
            let plugin = try? JSONSerialization.jsonObject(with: pluginData) as? [String: Any],

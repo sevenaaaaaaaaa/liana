@@ -23,16 +23,25 @@ if [[ -d "$SYSTEM_APP" ]]; then
     echo "  同一输入法装两份（~/Library 与 /Library）会让输入法菜单出现两条「松萝」，"
     echo "  系统设置里还会报 duplicated input source。先删掉那份，再重跑本脚本："
     echo "      sudo rm -rf \"$SYSTEM_APP\""
-    echo "  确实想两份并存（不建议）：LIANA_ALLOW_DUPLICATE=1 ./install.sh"
-    if [[ "${LIANA_ALLOW_DUPLICATE:-0}" != "1" ]]; then
-        exit 1
-    fi
-    echo
+    echo "  或使用图形安装器，在原安装位置升级。"
+    exit 1
 fi
 
+# 在替换前检查签名与新副本，拷贝失败时仍保留当前安装。
+/usr/bin/codesign --verify --deep --strict "$SRC"
 mkdir -p "$DEST_DIR" "$DATA_DIR"
-rm -rf "$DEST_DIR/$APP.app"
-cp -R "$SRC" "$DEST_DIR/"
+STAGING="$(mktemp -d "$HOME/Library/.liana-install.XXXXXX")"
+trap 'rm -rf "$STAGING"' EXIT
+cp -R "$SRC" "$STAGING/$APP.app"
+/usr/bin/codesign --verify --deep --strict "$STAGING/$APP.app"
+killall "$APP" 2>/dev/null || true
+if [[ -d "$DEST_DIR/$APP.app" ]]; then
+    mv "$DEST_DIR/$APP.app" "$STAGING/previous.app"
+fi
+if ! mv "$STAGING/$APP.app" "$DEST_DIR/$APP.app"; then
+    [[ ! -d "$STAGING/previous.app" ]] || mv "$STAGING/previous.app" "$DEST_DIR/$APP.app"
+    exit 1
+fi
 
 if [[ -f "$HERE/build/base.ifd" ]]; then
     cp "$HERE/build/base.ifd" "$DATA_DIR/base.ifd"
@@ -51,15 +60,12 @@ if [[ -x "$BIN" ]]; then
     # 登记 .lianapet 文件类型：Finder 里双击形象包即由松萝导入
     /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
         -f "$DEST_DIR/$APP.app" 2>/dev/null || true
-    "$BIN" --register-input-source || echo "（注册失败，注销重新登录后系统也会自动发现）"
-    "$BIN" --enable-input-source || true
-    # 防止升级后旧注册残留导致 HIToolbox 与第三方表双写 → 菜单出现两个同名输入法
-    "$BIN" --dedupe-input-source || true
-    killall TextInputMenuAgent imklaunchagent 2>/dev/null || true
+    "$BIN" --repair-input-source
+    killall -u "$(id -un)" TextInputMenuAgent TextInputSwitcher 2>/dev/null || true
 
     # 2) 装完立刻自检：副本唯一、注册不双写、菜单只有一条、是否已启用
     echo
-    if ! "$BIN" --verify-install; then
+    if ! "$BIN" --verify-install-stable; then
         echo
         echo "⚠ 自检未通过：先按上面的提示修，再重跑本脚本。" >&2
         exit 1

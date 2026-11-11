@@ -17,19 +17,15 @@
 	<key>CFBundlePackageType</key>
 	<string>XPC!</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
+	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>仅在你点击扫描或连接时访问蓝牙，接收所选 BLE 设备的文字。</string>
 	<key>NSExtension</key>
 	<dict>
-		<key>NSExtensionPointIdentifier</key>
-		<string>com.apple.keyboard-service</string>
-		<key>NSExtensionPrincipalClass</key>
-		<string>$(PRODUCT_MODULE_NAME).KeyboardViewController</string>
 		<key>NSExtensionAttributes</key>
 		<dict>
-			<!-- 让系统在「键盘 → 添加新键盘」里把松萝归到中文并默认按 ASCII 可用
-			     （缺这两项时键盘会被列在「其他」下，用户找不到） -->
 			<key>IsASCIICapable</key>
 			<true/>
 			<key>PrefersRightToLeft</key>
@@ -37,8 +33,12 @@
 			<key>PrimaryLanguage</key>
 			<string>zh-Hans</string>
 			<key>RequestsOpenAccess</key>
-			<false/>
+			<true/>
 		</dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.keyboard-service</string>
+		<key>NSExtensionPrincipalClass</key>
+		<string>$(PRODUCT_MODULE_NAME).KeyboardViewController</string>
 	</dict>
 </dict>
 </plist>

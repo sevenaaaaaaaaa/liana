@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use liana_core::syllables::{is_syllable, is_syllable_prefix};
-use liana_core::{Candidate, CandidateKind, CommentRole, Scheme};
+use liana_core::{Candidate, CandidateKind, CommentRole, MatchQuality, Scheme};
 use liana_dict::{Dictionary, Entry};
 
 use crate::scheme::{Codes, MAX_SYLLABLE_LEN};
@@ -145,6 +145,12 @@ fn abbreviation_spelling(typed: &str, key: &str) -> bool {
                 if typed.get(i) == Some(&first) {
                     next[i + 1] = true;
                 }
+            }
+            if syl.len() >= 2
+                && matches!(&syl[..2], ['z', 'h'] | ['c', 'h'] | ['s', 'h'])
+                && typed.get(i..i + 2) == Some(&syl[..2])
+            {
+                next[i + 2] = true;
             }
             if typed.len() >= i + syl.len() && typed[i..i + syl.len()] == syl[..] {
                 next[i + syl.len()] = true;
@@ -506,9 +512,9 @@ impl PinyinDecoder {
             &mut out,
         );
         self.push_abbreviation_candidates(chars, orig, full_cover, &mut out);
+        self.mark_exact_readings(input, &mut out);
         dedupe_and_sort(&mut out);
         out.truncate(30);
-        self.mark_exact_readings(input, &mut out);
         out
     }
 
@@ -529,7 +535,22 @@ impl PinyinDecoder {
                 .filter(char::is_ascii_alphabetic)
                 .map(|ch| ch.to_ascii_lowercase())
                 .collect();
-            if self.reading_matches(&typed, reading) {
+            let joined: String = reading.split([' ', '\'']).collect();
+            let matches = self.reading_matches(&typed, reading);
+            c.match_quality = if matches
+                && (self.layout.is_shuangpin()
+                    || canon_query(&typed) == canon_query(&joined.replace('ü', "v")))
+            {
+                MatchQuality::Exact
+            } else if matches
+                || abbreviation_spelling(&typed, &reading.replace(' ', "'"))
+                || canon_query(&joined).starts_with(&canon_query(&typed))
+            {
+                MatchQuality::Predictive
+            } else {
+                MatchQuality::Corrected
+            };
+            if matches {
                 c.comment_role = CommentRole::ExactReading;
             }
         }
@@ -1757,6 +1778,20 @@ mod tests {
             .find(|c| c.text == text)
             .unwrap_or_else(|| panic!("应包含「{text}」: {cands:?}"))
             .comment_role
+    }
+
+    #[test]
+    fn exact_spelling_beats_high_frequency_corrections_and_extensions() {
+        let mut dict = Dictionary::new();
+        dict.insert("ni'hao", "你好", 10);
+        dict.insert("li'hao", "利好", 4_000_000);
+        dict.insert("ni'hao'ma", "你好吗", 4_000_000);
+        let d = PinyinDecoder::new(Arc::new(dict), Layout::Full);
+        let candidates = d.candidates("nihao");
+        assert_eq!(candidates[0].text, "你好", "{candidates:?}");
+        assert_eq!(candidates[0].match_quality, MatchQuality::Exact);
+        let extension = candidates.iter().find(|c| c.text == "你好吗").unwrap();
+        assert_eq!(extension.match_quality, MatchQuality::Predictive);
     }
 
     #[test]

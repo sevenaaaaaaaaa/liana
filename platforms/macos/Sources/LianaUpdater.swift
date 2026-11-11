@@ -226,8 +226,11 @@ enum LianaUpdater {
             return manual("输入法装在需要管理员权限的位置，已打开安装包，请用里面的安装器更新")
         }
         // 先拷到旁边再整体替换，失败也不会留下半个输入法
-        let staged = current.deletingLastPathComponent().appendingPathComponent(".Liana-\(version).app")
-        try? fm.removeItem(at: staged)
+        // 不把暂存 .app 放在 Input Methods 中，避免扫描器把更新副本当成第二个输入法。
+        let replacementDir = try fm.url(for: .itemReplacementDirectory, in: .userDomainMask,
+            appropriateFor: current, create: true)
+        defer { try? fm.removeItem(at: replacementDir) }
+        let staged = replacementDir.appendingPathComponent("Liana.app")
         let copy = run("/usr/bin/ditto", [newApp.path, staged.path])
         guard copy.status == 0 else { throw UpdateError.install(copy.output) }
         _ = run("/usr/bin/xattr", ["-dr", "com.apple.quarantine", staged.path])
@@ -245,6 +248,12 @@ enum LianaUpdater {
                 _ = try? fm.replaceItemAt(data.appendingPathComponent(name), withItemAt: tmp)
             }
         }
+        let executable = current.appendingPathComponent("Contents/MacOS/Liana").path
+        for command in ["--repair-input-source", "--verify-install-stable"] {
+            let check = run(executable, [command])
+            guard check.status == 0 else { throw UpdateError.install(check.output) }
+        }
+        _ = run("/usr/bin/killall", ["-u", NSUserName(), "TextInputMenuAgent", "TextInputSwitcher"])
         try? fm.removeItem(at: dmg)
         return .installed(version)
     }

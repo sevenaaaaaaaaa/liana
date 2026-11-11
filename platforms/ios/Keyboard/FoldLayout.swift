@@ -1,4 +1,4 @@
-import UIKit
+import Foundation
 
 /// 折叠屏布局策略（唯一事实源：docs/design/FOLDABLE-ADAPTATION.md §4）。
 ///
@@ -35,19 +35,25 @@ struct FoldLayout {
 
     static func soloPitch(for width: CGFloat) -> CGFloat {
         let raw = (width - 2 * marginConst - 9 * gapConst) / 10
-        return min(max(raw, minPitch), maxSoloPitch)
+        return max(1, min(raw, maxSoloPitch))
+    }
+
+    func thirdRowGeometry(keyCount: Int) -> (keyWidth: CGFloat, sideWidth: CGFloat) {
+        let count = CGFloat(max(1, keyCount))
+        let keyWidth = min(pitch, (clusterWidth - 88 - (count + 1) * gap) / count)
+        return (keyWidth, (clusterWidth - count * keyWidth - (count + 1) * gap) / 2)
     }
 
     /// - Parameters:
     ///   - width: 当前键盘可用宽度（pt）
     ///   - regularWidth: horizontalSizeClass == .regular
     ///   - rememberedSoloPitch: 该设备最近一次窄屏（<600pt）的键距；无则 nil
-    static func derive(width: CGFloat, regularWidth: Bool, rememberedSoloPitch: CGFloat?) -> FoldLayout {
+    static func derive(width: CGFloat, regularWidth: Bool, rememberedSoloPitch: CGFloat?, keyHeight: CGFloat = keyHeightConst) -> FoldLayout {
         let split = regularWidth && width >= splitMinWidth
         guard split else {
             let p = soloPitch(for: width)
             return FoldLayout(mode: .solo, pitch: p, gap: gapConst, margin: marginConst,
-                              keyHeight: keyHeightConst,
+                              keyHeight: keyHeight,
                               clusterWidth: width - 2 * marginConst, gutterWidth: 0)
         }
         let base = rememberedSoloPitch ?? 44
@@ -55,25 +61,24 @@ struct FoldLayout {
         let cluster = CGFloat(columnsPerHalf) * pitch + CGFloat(columnsPerHalf - 1) * gapConst
         let gutter = max(minGutter, width - 2 * cluster - 2 * marginConst)
         return FoldLayout(mode: .split, pitch: pitch, gap: gapConst, margin: marginConst,
-                          keyHeight: keyHeightConst, clusterWidth: cluster, gutterWidth: gutter)
+                          keyHeight: keyHeight, clusterWidth: cluster, gutterWidth: gutter)
     }
 
     /// 布局签名：只有它变化才重建视图（避免逐帧重排）。
     var signature: String {
-        "\(mode.rawValue)-\(Int(pitch.rounded()))-\(Int(clusterWidth.rounded()))"
+        "\(mode.rawValue)-\(pitch)-\(clusterWidth)-\(keyHeight)"
     }
 }
 
-/// 每设备记忆（§7.4）。键盘扩展与宿主共享同一 suite。
+/// 每设备布局记忆保存在键盘自身容器，不要求 App Group 或完全访问。
 enum FoldLayoutMemory {
-    private static let suite = "dev.liana.ime.ios"
     private static let soloPitchKey = "layout.pitchSolo"
     private static let soloWidthKey = "layout.soloWidth"
 
-    private static var defaults: UserDefaults? { UserDefaults(suiteName: suite) }
+    private static var defaults: UserDefaults? { .standard }
 
     static var rememberedSoloPitch: CGFloat? {
-        guard let v = defaults?.object(forKey: soloPitchKey) as? Double, v >= 34, v <= 46 else { return nil }
+        guard let v = defaults?.object(forKey: soloPitchKey) as? Double, v >= 24, v <= 46 else { return nil }
         return CGFloat(v)
     }
 

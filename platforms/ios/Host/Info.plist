@@ -6,6 +6,21 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
 	<string>松萝输入法</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>发送文件给 Mac 桌宠</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.item</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -17,9 +32,21 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
+	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>连接你选择的 BLE 语音或编码设备，接收设备识别的文字。</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_liana-pet._tcp</string>
+	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>扫描你 Mac 桌宠显示的二维码，完成本地文件传输配对。</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>在同一局域网发现并连接你配对的 Mac，将你选择的文件发送给桌宠。</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 </dict>

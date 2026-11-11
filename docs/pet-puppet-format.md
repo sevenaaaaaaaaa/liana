@@ -56,6 +56,7 @@ happy.png …     其他表情图（可选）
 
 | 字段 | 说明 |
 |---|---|
+| `motion` | 可选，`{"intensity":1,"speed":1,"gaze":1,"reduced":false}`；幅度 0–2，速度 0.25–2，视线 0–2。旧包默认均为 1。减少动态或系统减少动态生效时限制幅度并停止随机闲逛，透明度通道不缩放。 |
 | `faces` | `front` / `left` / `right`：侧身形象溜达时按方向镜像 |
 | `rights` | `shareable`（作者声明原创或已获授权，可申请发布到松萝社区）/ `personal`（个人使用；本地使用与导出不受限） |
 | `images.<表情>` | 表情：`idle`（必需）`blink`（闭眼，用于眨眼）`talk`（张嘴，说话口型）`happy` `typing` `sleep` `surprised` `shy` `sad` `angry` `love` `tired` `covereyes`（输密码时捂眼）`listen`（语音时倾听）；扩展表情（全部可选）：输入相关 `thinking` `focus` `oops` `proud` `cheer` `shush` `eureka` `wink`，场景姿势 `gaming` `music` `watching` `coding` `coffee` `phone` `reading` `drawing` `headset` `stretch` `drink` `pillow`，通知 `notify_message` `notify_mail` `notify_meeting` `notify_alarm` `notify_ok` `notify_error` `notify_gift` `notify_battery` `notify_rain` `notify_sun`，情感互动 `petted` `puff` `giggle` `highfive` `wave` `hug` `cry` `scared` `dizzy` `bow` `thumbsup` `kiss` `back` `side_left` `side_right`；缺的表情按近似表情兜底（angry→sad，love→shy→happy，tired→sleep，shy→happy，covereyes→blink→sleep，listen→happy；扩展表情兜底到原来那个动作用的图，如 petted→happy、puff→angry、cry→sad、back→angry，见 `pet-puppet.js` 的 `FALLBACK`；最后用当前循环的图 / idle）；动作的 `image` 写 `side` 时按走动方向取 `side_left` / `side_right`；也可以自定义表情名供自己的动作引用 |
@@ -172,3 +173,5 @@ happy.png …     其他表情图（可选）
 本地使用不干预：用什么图片做形象、导出发给谁，都由用户自己决定。
 发布到松萝社区（nownexts.com）只收原创或已获授权的形象（`rights: shareable`），并经过审核。
 第三方形象源的内容由发布者自行负责。
+
+定制工作台、模型动作草稿与本地工具接入见 [本地桌宠定制工作台](pet-studio.md)。

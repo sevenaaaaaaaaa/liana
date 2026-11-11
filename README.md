@@ -24,7 +24,7 @@
 > **三个承诺**
 >
 > 🔒 **你的按键永远不离开你的设备** —— 引擎、词典、学习全部本机运行,安装包可断网使用
-> 🙈 **零遥测、输入零云端** —— 没有"匿名上报",没有"联网纠错",本地 AI 模型由你显式下载（唯一的例外是桌宠形象工坊里可选的「AI 补全表情」：用你自己配置的图像服务和 Key，点了才上传那一张「平时」图）
+> 🙈 **零遥测、输入零云端** —— 没有"匿名上报",没有"联网纠错",本地 AI 模型由你显式下载（桌宠形象工坊可选的「AI 补全表情」与「文字设计动作」使用你配置的服务和 Key，点击并同意后才发送参考图或制作描述）
 > 🔍 **一切可审计** —— AGPL-3.0 开源,Rust 内核零第三方依赖,插件是数据不是代码
 
 ## 这是什么
@@ -50,6 +50,10 @@
 - **局域网 P2P 同步(默认关闭)** — 设备间扫码配对(Ed25519 + 一次性配对码 + 6 位校验码防中间人),mDNS 发现、端到端加密,没有服务器没有账号;用户词与剪切板历史 ChaCha20-Poly1305 加密落盘,密钥在系统钥匙串
 
 桌宠不是贴图:它是**皮肤资产 + 渲染器**([ADR-0007](docs/adr/0007-desktop-pet-renderers.md))——内置 VRM 样例零下载,VRM 3D 渲染器本地离线运行(WKWebView + three.js + three-vrm),输入焦点在哪块屏幕就在哪块屏幕互动;气泡只报本机任务,**永不承载付款与营销**([ADR-0006](docs/adr/0006-notifications-and-stats.md))。
+
+## 本地桌宠定制
+
+形象工坊新增「定制工作台」：一张图调整幅度、速度和视线，黑白底检查并修整毛边；MiniMax / Anthropic / 兼容 API / Codex CLI 生成可校验、可编辑的动作草稿。本机工具可接 Blender、FFmpeg、ComfyUI 与自己的制作脚本，导入 PNG、纸偶包或 VRM。详见 [定制指南](docs/pet-studio.md)。
 
 ## 知你自进化
 
@@ -87,7 +91,7 @@
 > 若「松萝」不在列表里，**注销并重新登录一次**即可（macOS 对全新输入法需重新扫描）。
 > 首次打开若被 Gatekeeper 拦下：右键安装器 → **打开**（免此步骤需 Developer ID 公证版本）。
 
-不想自己构建？[GitHub Releases](https://github.com/sevenaaaaaaaaa/liana/releases) 有现成安装包（tag 推送自动构建）：**macOS** DMG（含安装器；ad-hoc 签名未公证，首次打开右键 → 打开）、**Android** 签名 APK、**Linux** ibus 引擎 tarball（`sudo ./install.sh`）。iOS / Windows / 鸿蒙尚在骨架阶段，暂不出包。
+不想自己构建？[GitHub Releases](https://github.com/sevenaaaaaaaaa/liana/releases) 有现成安装包：**macOS** DMG（含安装器，签名/公证状态见对应发布说明）、**Android** 签名 APK、**Linux** ibus 引擎 tarball（`sudo ./install.sh`）。[Nightly](https://github.com/sevenaaaaaaaaa/liana/releases/tag/nightly) 同时提供 **iOS 未签名 IPA**，使用自己的工具重签主 App 和键盘扩展后安装；也可在本地[构建 IPA](platforms/ios/README.md)。Windows / 鸿蒙暂不出包。
 
 ### 从源码构建（开发者）
 
@@ -110,13 +114,15 @@ cargo run -p xtask -- plugin check plugins/skin-mine
 
 ## 平台与当前状态
 
+iPhone 可与 Mac 桌宠[扫码配对并发送文件](docs/pet-link.md)，文件保存在 Mac 下载目录的「松萝收件箱」。两端都需升级到包含此功能的版本，跨实体设备使用仍待验收。
+
 六端共用同一 Rust 内核（`liana.h` C ABI，内核零平台改动）：
 
 | 平台 | 集成 | 状态 |
 |---|---|---|
 | macOS | InputMethodKit + Liquid Glass 候选窗 | ✅ 日常可用（v0.1.0 起） |
 | Android | InputMethodService + JNI 垫片（Kotlin） | ✅ APK 构建成功，待真机验收 |
-| iOS | 键盘扩展 + 静态链接（Swift） | ✅ 模拟器构建/启动验证通过，待真机 |
+| iOS | 键盘扩展 + 静态链接（Swift） | ✅ arm64 IPA 构建、模拟器键盘行为测试通过，待实体 iPhone 验收 |
 | Linux | IBus 引擎（Python/GI + ctypes） | ✅ 引擎完成，绑定层冒烟 11/11，待实机 |
 | HarmonyOS NEXT | InputMethodExtensionAbility + NAPI | 🟡 脚手架 + OHOS 静态库就绪，待 DevEco 联调 |
 | Windows | TSF COM DLL（C++ 壳 + Rust 静态内核） | 🟡 骨架 + 按键流接通，组合上屏待调试 |
@@ -140,7 +146,7 @@ cargo run -p xtask -- plugin check plugins/skin-mine
 
 ## 当前边界
 
-- **目前只有 macOS 可用**(macOS 13+,M1 里程碑进行中);Windows / Linux / 移动端 / 鸿蒙按 M3–M5 排期,未落地
+- **macOS 为日常使用端**（macOS 13+）；iOS 可本地构建 IPA，Android 可构建 APK，均待实体设备验收；其他平台状态见上表。
 - **日语只有罗马字 → 假名**:假名 → 汉字(JMdict + Viterbi)在 M2,尚不可用
 - **跨端同步传输未完成**:协议与合并内核(HLC + LWW/CRDT)已实现并有测试,QUIC/TLS 传输层与配对 UI 在 M3;当前版本同步默认关闭
 - **不进输入法商店、无云词库**:安装靠 DMG / 脚本,词库更新随版本发布;这是隐私承诺的代价,也是选择

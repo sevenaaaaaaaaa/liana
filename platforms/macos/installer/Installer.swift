@@ -129,6 +129,19 @@ final class InstallerModel: ObservableObject {
     var sourceLM: String { Bundle.main.resourcePath.map { $0 + "/base.lm" } ?? "" }
     var userDataDir: String { NSHomeDirectory() + "/Library/Application Support/Liana" }
 
+    init() {
+        let fm = FileManager.default
+        systemWide = fm.fileExists(atPath: systemAppPath) && !fm.fileExists(atPath: userAppPath)
+        let existing = UserDefaults(suiteName: imeBundleID)
+        mode = existing?.string(forKey: "LianaMode") ?? mode
+        traditional = existing?.object(forKey: "LianaTraditional") as? Bool ?? traditional
+        clipboard = existing?.object(forKey: "LianaClipboardEnabled") as? Bool ?? clipboard
+        pet = existing?.object(forKey: "LianaPetEnabled") as? Bool ?? pet
+        appMemory = existing?.object(forKey: "LianaAppModeMemoryEnabled") as? Bool ?? appMemory
+        stats = existing?.object(forKey: "LianaStatsEnabled") as? Bool ?? stats
+        halfPunct = existing?.object(forKey: "LianaForceHalfPunctuation") as? Bool ?? halfPunct
+    }
+
     var isInstalled: Bool {
         FileManager.default.fileExists(atPath: userAppPath) || FileManager.default.fileExists(atPath: systemAppPath)
     }
@@ -170,6 +183,12 @@ final class InstallerModel: ObservableObject {
             InstallStep(id: 4, title: "等待系统收录"),
         ]
         set(0, .running)
+        let signature = Self.runExecutable("/usr/bin/codesign", arguments: ["--verify", "--deep", "--strict", sourceApp])
+        guard signature.status == 0 else {
+            fail(0, "安装包签名校验失败，请重新下载。 " + signature.output)
+            stage = .finish
+            return
+        }
         saveConfig()
         set(0, .done)
         if systemWide {
@@ -198,9 +217,21 @@ final class InstallerModel: ObservableObject {
         do {
             try fm.createDirectory(atPath: userDataDir, withIntermediateDirectories: true)
             try fm.createDirectory(atPath: NSHomeDirectory() + "/Library/Input Methods", withIntermediateDirectories: true)
+            let verification = Self.runExecutable("/usr/bin/codesign", arguments: ["--verify", "--deep", "--strict", sourceApp])
+            guard verification.status == 0 else { throw NSError(domain: "Liana.Install", code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "安装包签名校验失败，请重新下载。 " + verification.output]) }
+            let staged = NSHomeDirectory() + "/Library/.liana-install-" + UUID().uuidString
+            try fm.createDirectory(atPath: staged, withIntermediateDirectories: true)
+            defer { try? fm.removeItem(atPath: staged) }
+            try fm.copyItem(atPath: sourceApp, toPath: staged + "/Liana.app")
             Self.runShell("/usr/bin/killall Liana")
-            try? fm.removeItem(atPath: dest)
-            try fm.copyItem(atPath: sourceApp, toPath: dest)
+            let backup = staged + "/previous.app"
+            if fm.fileExists(atPath: dest) { try fm.moveItem(atPath: dest, toPath: backup) }
+            do { try fm.moveItem(atPath: staged + "/Liana.app", toPath: dest) }
+            catch {
+                if fm.fileExists(atPath: backup) { try? fm.moveItem(atPath: backup, toPath: dest) }
+                throw error
+            }
             Self.runShell("/usr/bin/xattr -dr com.apple.quarantine \"\(dest)\"")
             onMain { self.set(1, .done) }
         } catch {
@@ -225,17 +256,40 @@ final class InstallerModel: ObservableObject {
             onMain { self.set(2, .done, detail: "安装包未带外部词库，使用内置词库") }
         }
         onMain { self.set(3, .running) }
-        let bin = "\"\(dest)/Contents/MacOS/Liana\""
-        append(Self.runShell("\(bin) --register-input-source"))
-        append(Self.runShell("\(bin) --enable-input-source"))
-        append(Self.runShell("\(bin) --dedupe-input-source"))
-        Self.runShell("/usr/bin/killall TextInputMenuAgent imklaunchagent")
-        // 自检兜底：副本唯一 / 注册不双写 / 菜单只有一条 / 已启用；失败也继续，只是把诊断打到日志
-        let check = Self.runShell("\(bin) --verify-install")
+        registerInstalledApp(at: dest)
+    }
+
+    private func registerInstalledApp(at path: String) {
+        let bin = path + "/Contents/MacOS/Liana"
+        for command in ["--repair-input-source"] {
+            let result = Self.runExecutable(bin, arguments: [command])
+            append(result.output)
+            if result.status == 2 {
+                onMain {
+                    self.set(3, .done, detail: "程序已安装，等待系统原生启用")
+                    self.startPolling()
+                    self.openKeyboardSettings()
+                }
+                return
+            }
+            guard result.status == 0 else {
+                onMain {
+                    self.fail(3, "输入源注册未完成，请查看日志并重试。")
+                    self.stage = .finish
+                }
+                return
+            }
+        }
+        _ = Self.runExecutable("/usr/bin/killall", arguments: ["-u", NSUserName(), "TextInputMenuAgent", "TextInputSwitcher"])
+        let check = Self.runExecutable(bin, arguments: ["--verify-install-stable"])
+        append(check.output)
+        guard check.status == 0 else {
+            onMain { self.fail(3, "注册后的独立进程检查未通过，详见诊断。 "); self.stage = .finish }
+            return
+        }
         onMain {
             self.set(3, .done)
-            self.append(check)
-            self.append("✅ 已安装到 \(dest)")
+            self.append("已复制到 \(path)，正在确认启用状态…")
             self.startPolling()
         }
     }
@@ -253,19 +307,25 @@ final class InstallerModel: ObservableObject {
         DICT_DST="/Users/\(user)/Library/Application Support/Liana"
         mkdir -p "/Library/Input Methods"
         # 同一输入法两份会让菜单出现两条「松萝」：装系统级之前先清掉用户级那份
+        /usr/bin/codesign --verify --deep --strict "$SRC"
+        STAGE=$(mktemp -d "/Library/.liana-install.XXXXXX")
+        trap 'rm -rf "$STAGE"' EXIT
+        cp -R "$SRC" "$STAGE/Liana.app"
+        /usr/bin/codesign --verify --deep --strict "$STAGE/Liana.app"
+        killall -u \(user) Liana 2>/dev/null || true
+        if [ -d "$DST" ]; then mv "$DST" "$STAGE/previous.app"; fi
+        if ! mv "$STAGE/Liana.app" "$DST"; then
+            if [ -d "$STAGE/previous.app" ]; then mv "$STAGE/previous.app" "$DST"; fi
+            exit 1
+        fi
         rm -rf "/Users/\(user)/Library/Input Methods/Liana.app"
-        rm -rf "$DST"
-        cp -R "$SRC" "$DST"
         chown -R root:wheel "$DST"
         chmod -R go-w "$DST"
         xattr -dr com.apple.quarantine "$DST" 2>/dev/null || true
         mkdir -p "$DICT_DST"
+        chown \(user) "$DICT_DST"
         if [ -f "$DICT_SRC" ]; then cp "$DICT_SRC" "$DICT_DST/base.ifd"; chown \(user) "$DICT_DST/base.ifd" || true; fi
         if [ -f "$LM_SRC" ]; then cp "$LM_SRC" "$DICT_DST/base.lm"; chown \(user) "$DICT_DST/base.lm" || true; fi
-        "$DST/Contents/MacOS/Liana" --register-input-source || true
-        "$DST/Contents/MacOS/Liana" --enable-input-source || true
-        "$DST/Contents/MacOS/Liana" --dedupe-input-source || true
-        "$DST/Contents/MacOS/Liana" --verify-install || true
         """
         let path = NSTemporaryDirectory() + "liana-install.sh"
         do {
@@ -283,10 +343,10 @@ final class InstallerModel: ObservableObject {
         }
         set(1, .done)
         set(2, .done)
-        set(3, .done)
-        Self.runShell("/usr/bin/killall TextInputMenuAgent imklaunchagent")
-        append("✅ 已安装到 \(systemAppPath)")
-        startPolling()
+        // 授权进程只负责复制；TIS 与 CFPreferences 必须在登录用户会话运行。
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            self?.registerInstalledApp(at: "/Library/Input Methods/Liana.app")
+        }
     }
 
     // MARK: 收录检测
@@ -337,17 +397,28 @@ final class InstallerModel: ObservableObject {
     }
 
     func isRegistered() -> Bool {
-        guard let list = TISCreateInputSourceList(nil, true)?.takeRetainedValue() as? [TISInputSource] else {
+        guard let list = TISCreateInputSourceList(nil, false)?.takeRetainedValue() as? [TISInputSource] else {
             return false
         }
+        let info = Bundle(path: sourceApp)?.infoDictionary ?? [:]
+        let policy = InputSourceRegistration(bundleID: imeBundleID,
+            modeIDs: InputSourceRegistration.declaredModes(in: info, bundleID: imeBundleID))
+        let hb = CFPreferencesCopyAppValue("AppleEnabledInputSources" as CFString, "com.apple.HIToolbox" as CFString) as? [[String: Any]] ?? []
+        let tp = CFPreferencesCopyAppValue("AppleEnabledThirdPartyInputSources" as CFString, "com.apple.inputsources" as CFString) as? [[String: Any]] ?? []
+        guard policy.isCanonical(hitoolbox: hb, thirdParty: tp) else { return false }
+        var selectableIDs: [String] = []
         for source in list {
             guard let idRef = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) else { continue }
             let id = unsafeBitCast(idRef, to: CFString.self) as String
-            if id.hasPrefix(imeBundleID) {
-                return true
+            if (id == imeBundleID || id.hasPrefix(imeBundleID + ".")),
+               let selectable = TISGetInputSourceProperty(source, kTISPropertyInputSourceIsSelectCapable),
+               CFBooleanGetValue(unsafeBitCast(selectable, to: CFBoolean.self)),
+               let enabled = TISGetInputSourceProperty(source, kTISPropertyInputSourceIsEnabled),
+               CFBooleanGetValue(unsafeBitCast(enabled, to: CFBoolean.self)) {
+                selectableIDs.append(id)
             }
         }
-        return false
+        return selectableIDs.count == 1
     }
 
     // MARK: 卸载
@@ -424,6 +495,19 @@ final class InstallerModel: ObservableObject {
         NSAppleScript(source: script)?.executeAndReturnError(&error)
         if error != nil { return false }
         return !FileManager.default.fileExists(atPath: "/Library/Input Methods/Liana.app")
+    }
+
+    static func runExecutable(_ path: String, arguments: [String]) -> (status: Int32, output: String) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = arguments
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        do { try process.run() } catch { return (-1, error.localizedDescription) }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return (process.terminationStatus, String(data: data, encoding: .utf8) ?? "")
     }
 
     @discardableResult
@@ -550,7 +634,9 @@ struct WelcomeView: View {
                     }
                 }
                 .font(.system(size: 12))
-                Text("推荐设置：仅当前用户 · 全拼 · 隐私优先，无需管理员密码")
+                Text(model.isInstalled
+                    ? (model.systemWide ? "更新现有系统安装 · 保留当前偏好 · 需要管理员验证" : "更新现有用户安装 · 保留当前偏好")
+                    : "推荐设置：仅当前用户 · 全拼 · 隐私优先，无需管理员密码")
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             }

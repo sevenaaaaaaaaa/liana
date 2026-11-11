@@ -201,11 +201,19 @@
   };
   const SCENE_ALWAYS = ['game', 'music', 'watch'];
 
+  let motion = { intensity: 1, speed: 1, gaze: 1, reduced: false };
+  const systemReduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const reducedMotion = () => motion.reduced || systemReduced.matches;
+
   async function loadPack() {
     library = await loadJSON('./actions.json');
     const pet = await loadJSON(packBase + 'pet.json');
     const puppet = pet.puppet || {};
     faces = puppet.faces || 'front';
+    const m = puppet.motion || {};
+    const bounded = (value, fallback, min, max) => Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback;
+    motion = { intensity: bounded(m.intensity, 1, 0, 2), speed: bounded(m.speed, 1, 0.25, 2),
+      gaze: bounded(m.gaze, 1, 0, 2), reduced: m.reduced === true };
     lines = puppet.lines || {};
     // 包内动作：同名覆盖预置；触发/状态映射逐项覆盖
     Object.assign(library.actions, puppet.actions || {});
@@ -346,7 +354,7 @@
         post({ say: pick(action.say) });
       }
     }
-    if (action.walk && !preview) {
+    if (action.walk && !preview && !reducedMotion()) {
       const dir = Math.random() < 0.5 ? -1 : 1;
       walkDir = dir;
       if (faces !== 'front') facing = (faces === 'right' ? dir : -dir);
@@ -422,14 +430,14 @@
     if (prevLoop) {
       const k = Math.min(1, (now - prevLoop.fadeFrom) / 0.35);
       const prev = library.actions[prevLoop.id];
-      if (prev) addAction(p, prev, now - prevLoop.since, 1 - k);
-      if (cur) addAction(p, cur, now - loop.since, k);
+      if (prev) addAction(p, prev, (now - prevLoop.since) * motion.speed, 1 - k);
+      if (cur) addAction(p, cur, (now - loop.since) * motion.speed, k);
       if (k >= 1) prevLoop = null;
     } else if (cur) {
-      addAction(p, cur, now - loop.since, 1);
+      addAction(p, cur, (now - loop.since) * motion.speed, 1);
     }
     shots = shots.filter((s) => {
-      const t = now - s.start;
+      const t = (now - s.start) * motion.speed;
       const dur = +s.action.duration || 1;
       if (t > dur) return false;
       // 波形类通道（sin/bob）在首尾 0.2s 内淡入淡出，避免跳变
@@ -448,17 +456,18 @@
     gazeNow.x += (gazeTarget.x - gazeNow.x) * lerp;
     gazeNow.y += (gazeTarget.y - gazeNow.y) * lerp;
     gazeNow.near += (gazeTarget.near - gazeNow.near) * lerp;
-    const gk = 0.6 + gazeNow.near * 0.9;
+    const gk = (0.6 + gazeNow.near * 0.9) * motion.gaze;
     p['head.rot'] += -gazeNow.x * 0.045 * gk;
     p['head.tx'] += gazeNow.x * 0.012 * gk;
     p['head.ty'] += gazeNow.y * 0.008 * gk;
     p.lean += gazeNow.x * 0.018 * gk;
     if (gazeNow.near > 0.5 && gazeNow.y > 0.25) {
-      p['head.rot'] += -0.04 * (gazeNow.near - 0.5) * Math.sign(gazeNow.x || 1);
-      p['root.sy'] += 0.015 * (gazeNow.near - 0.5);   // 踮脚看
+      p['head.rot'] += -0.04 * (gazeNow.near - 0.5) * Math.sign(gazeNow.x || 1) * motion.gaze;
+      p['root.sy'] += 0.015 * (gazeNow.near - 0.5) * motion.gaze;   // 踮脚看
     }
     for (const ch of CHANNELS) {
       const lim = LIMITS[ch];
+      if (ch !== 'alpha') p[ch] *= motion.intensity * (reducedMotion() ? 0.15 : 1);
       p[ch] = Math.max(-lim, Math.min(lim, p[ch]));
     }
     return p;
@@ -579,7 +588,7 @@
   }
 
   function scheduleIdle() {
-    if (preview || state !== 'idle' || shots.length || now < nextIdleAt) return;
+    if (preview || reducedMotion() || state !== 'idle' || shots.length || now < nextIdleAt) return;
     nextIdleAt = now + 6 + Math.random() * 8;
     if (roam && library.triggers.roam && Math.random() < 0.25) trigger('roam');
     else trigger('idle');
@@ -611,7 +620,7 @@
     const k = fadeStart < 0 ? 1 : Math.min(1, (now - fadeStart) / FADE);
     // 换表情时「压一下再弹回」：交叉淡入的同时轻微挤压，盖住两张图之间的细小差异
     if (k < 1) {
-      const pop = Math.sin(Math.PI * k);
+      const pop = reducedMotion() ? 0 : Math.sin(Math.PI * k) * motion.intensity;
       p['root.sy'] -= 0.06 * pop;
       p['root.sx'] += 0.035 * pop;
     }

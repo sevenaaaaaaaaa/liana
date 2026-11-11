@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>接收你配对的 iPhone 主动发送给桌宠的文件，仅在同一局域网连接。</string>
+    <key>NSBonjourServices</key>
+    <array><string>_liana-pet._tcp</string></array>
     <key>TISInputSourceID</key>
     <string>dev.liana.inputmethod.ime</string>
     <key>TISIntendedLanguage</key>

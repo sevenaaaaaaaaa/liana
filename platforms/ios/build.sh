@@ -1,51 +1,65 @@
 #!/usr/bin/env bash
-# iOS 构建一条龙：Rust 静态库（真机 + 模拟器）→ 词典 → XcodeGen → xcodebuild
-#
-# 前置：rustup 目标 aarch64-apple-ios / aarch64-apple-ios-sim、Xcode、xcodegen(brew)
-# 产物：build/Release-iphonesimulator/LianaApp.app（可拖进模拟器试）
+# iPhone IPA (unsigned for the user's signing tool) or simulator build.
+# Usage: ./build.sh [device|simulator|all] -- defaults to device.
 set -euo pipefail
-
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 export PATH="$HOME/.cargo/bin:$PATH"
-SCHEME="LianaApp"
+MODE="${1:-device}"
+case "$MODE" in device|simulator|all) ;; *) echo 'Usage: ./build.sh [device|simulator|all]' >&2; exit 2 ;; esac
+VERSION="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$ROOT/Cargo.toml" | head -1)"
+mkdir -p "$HERE/libs" "$HERE/Resources" "$HERE/build" "$ROOT/dist"
 
-echo "==> 1/4 Rust 静态库（device + simulator）"
-cargo build --release -p liana-ffi --target aarch64-apple-ios
-cargo build --release -p liana-ffi --target aarch64-apple-ios-sim
-cargo build --release -p liana-ffi --target x86_64-apple-ios
-mkdir -p "$HERE/libs"
-cp "$ROOT/target/aarch64-apple-ios/release/libliana_ffi.a" "$HERE/libs/libliana_ffi_device.a"
-# 模拟器库：arm64-sim + x86_64-sim 合并（generic 模拟器目标两个切片都要）
-lipo -create \
-    "$ROOT/target/aarch64-apple-ios-sim/release/libliana_ffi.a" \
-    "$ROOT/target/x86_64-apple-ios/release/libliana_ffi.a" \
-    -output "$HERE/libs/libliana_ffi_sim.a"
+# Bounded dictionary: full desktop dictionaries exceed the keyboard extension's memory budget.
+python3 "$ROOT/tools/build_ios_dict.py" "$ROOT/crates/dict/data/base-large.tsv" "$HERE/build/mobile.tsv"
+cargo run --quiet --manifest-path "$ROOT/Cargo.toml" -p xtask -- \
+    dict build "$HERE/build/mobile.tsv" -o "$HERE/Resources/base.ifd" --no-packs
 
-echo "==> 2/4 生成词典（Resources/base.ifd）"
-DICT_OUT="$HERE/Resources/base.ifd"
-DICT_SRC="$ROOT/crates/dict/data/base-large.tsv"
-# 基础词库或官方词包（同目录 packs/default，构建时自动合并）有变化就重建
-if [[ ! -f "$DICT_OUT" || -n "$(find "$(dirname "$DICT_SRC")" -name "*.tsv" -newer "$DICT_OUT" -print -quit)" ]]; then
-    mkdir -p "$HERE/Resources"
-    cargo run --quiet --manifest-path "$ROOT/Cargo.toml" -p xtask -- \
-        dict build "$DICT_SRC" -o "$DICT_OUT"
-else
-    echo "词典已是最新，跳过"
+if [[ "$MODE" == device || "$MODE" == all ]]; then
+    echo '==> Building Rust for iPhone (arm64)'
+    IPHONEOS_DEPLOYMENT_TARGET=15.0 cargo build --release --manifest-path "$ROOT/Cargo.toml" \
+        -p liana-ffi --no-default-features --target aarch64-apple-ios
+    cp "$ROOT/target/aarch64-apple-ios/release/libliana_ffi.a" "$HERE/libs/libliana_ffi_device.a"
+fi
+if [[ "$MODE" == simulator || "$MODE" == all ]]; then
+    if [[ "$(uname -m)" == arm64 ]]; then SIM_TARGET=aarch64-apple-ios-sim; SIM_ARCH=arm64
+    else SIM_TARGET=x86_64-apple-ios; SIM_ARCH=x86_64; fi
+    echo "==> Building Rust for Simulator ($SIM_ARCH)"
+    IPHONEOS_DEPLOYMENT_TARGET=15.0 cargo build --release --manifest-path "$ROOT/Cargo.toml" \
+        -p liana-ffi --no-default-features --target "$SIM_TARGET"
+    cp "$ROOT/target/$SIM_TARGET/release/libliana_ffi.a" "$HERE/libs/libliana_ffi_sim.a"
 fi
 
-echo "==> 3/4 XcodeGen 生成工程"
 cd "$HERE"
 xcodegen generate
-
-echo "==> 4/4 xcodebuild（iOS Simulator）"
-xcodebuild -project Liana.xcodeproj -scheme "$SCHEME" \
-    -destination "generic/platform=iOS Simulator" \
-    -configuration Release -derivedDataPath "$HERE/build" build \
-    | tail -3
-
-APP="$HERE/build/Build/Products/Release-iphonesimulator/LianaApp.app"
-[[ -d "$APP" ]] || { echo "未找到 $APP" >&2; exit 1; }
-echo
-echo "完成: $APP"
-echo "试跑: xcrun simctl install booted \"$APP\" && xcrun simctl launch booted dev.liana.ime.ios"
+build_app() {
+    local sdk="$1" destination="$2" arch="$3" log="$HERE/build/$1.log"
+    if ! xcodebuild -project Liana.xcodeproj -scheme LianaApp -sdk "$sdk" \
+        -destination "$destination" -configuration Release -derivedDataPath "$HERE/build" \
+        ARCHS="$arch" ONLY_ACTIVE_ARCH=YES MARKETING_VERSION="$VERSION" \
+        CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build > "$log" 2>&1; then
+        tail -70 "$log" >&2
+        return 1
+    fi
+    tail -3 "$log"
+}
+if [[ "$MODE" == device || "$MODE" == all ]]; then
+    build_app iphoneos 'generic/platform=iOS' arm64
+    APP="$HERE/build/Build/Products/Release-iphoneos/LianaApp.app"
+    BUILD_NUMBER="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")"
+    IPA="$ROOT/dist/Liana-iOS-$VERSION-build$BUILD_NUMBER-unsigned.ipa"
+    STAGE="$(mktemp -d "$HERE/build/ipa.XXXXXX")"
+    trap 'rm -rf "$STAGE"' EXIT
+    mkdir -p "$STAGE/Payload"
+    /usr/bin/ditto "$APP" "$STAGE/Payload/LianaApp.app"
+    python3 "$HERE/validate_ipa.py" --app "$STAGE/Payload/LianaApp.app"
+    /usr/bin/ditto -c -k --keepParent "$STAGE/Payload" "$IPA"
+    python3 "$HERE/validate_ipa.py" "$IPA"
+    (cd "$(dirname "$IPA")" && shasum -a 256 "$(basename "$IPA")") > "$IPA.sha256"
+    echo "IPA: $IPA"
+    echo 'Signing: unsigned device build; re-sign both the app and embedded keyboard extension with your installation tool.'
+fi
+if [[ "$MODE" == simulator || "$MODE" == all ]]; then
+    build_app iphonesimulator 'generic/platform=iOS Simulator' "$SIM_ARCH"
+    echo "Simulator: $HERE/build/Build/Products/Release-iphonesimulator/LianaApp.app"
+fi

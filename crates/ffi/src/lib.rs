@@ -492,10 +492,15 @@ pub unsafe extern "C" fn liana_pause_rerank_ready(session: *mut LianaSession) ->
     if session.is_null() {
         return 0;
     }
-    guard_int(|| {
+    #[cfg(feature = "rerank")]
+    return guard_int(|| {
         let session = unsafe { &*session };
         i32::from(session.inner.pause_rerank_ready())
-    })
+    });
+    #[cfg(not(feature = "rerank"))]
+    {
+        0
+    }
 }
 
 /// 停顿接手：用 25M 高精度模型对当前组合态做一次层内融合重排。
@@ -505,10 +510,15 @@ pub unsafe extern "C" fn liana_pause_rerank(session: *mut LianaSession) -> i32 {
     if session.is_null() {
         return 0;
     }
-    guard_int(|| {
+    #[cfg(feature = "rerank")]
+    return guard_int(|| {
         let session = unsafe { &mut *session };
         i32::from(session.inner.pause_rerank())
-    })
+    });
+    #[cfg(not(feature = "rerank"))]
+    {
+        0
+    }
 }
 
 #[unsafe(no_mangle)]

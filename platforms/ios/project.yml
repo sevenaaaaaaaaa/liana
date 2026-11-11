@@ -4,6 +4,7 @@ options:
   deploymentTarget:
     iOS: "15.0"
   createIntermediateGroups: true
+  developmentLanguage: zh-Hans
 
 targets:
   LianaApp:
@@ -11,6 +12,8 @@ targets:
     platform: iOS
     sources:
       - Host
+      - path: ../apple/PetLinkTransport.swift
+      - path: ../apple/PetLinkSender.swift
     dependencies:
       - target: LianaKeyboard
         embed: true
@@ -18,11 +21,27 @@ targets:
       path: Host/Info.plist
       properties:
         CFBundleDisplayName: 松萝输入法
+        NSBluetoothAlwaysUsageDescription: 连接你选择的 BLE 语音或编码设备，接收设备识别的文字。
+        NSCameraUsageDescription: 扫描你 Mac 桌宠显示的二维码，完成本地文件传输配对。
+        NSLocalNetworkUsageDescription: 在同一局域网发现并连接你配对的 Mac，将你选择的文件发送给桌宠。
+        NSBonjourServices: ["_liana-pet._tcp"]
+        LSSupportsOpeningDocumentsInPlace: true
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: 发送文件给 Mac 桌宠
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: ["public.item"]
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.liana.ime.ios
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         MARKETING_VERSION: 0.8.0
+        CURRENT_PROJECT_VERSION: 4
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGNING_ALLOWED: "NO"
 
@@ -37,13 +56,25 @@ targets:
       path: Keyboard/Info.plist
       properties:
         CFBundleDisplayName: 松萝键盘
+        NSBluetoothAlwaysUsageDescription: 仅在你点击扫描或连接时访问蓝牙，接收所选 BLE 设备的文字。
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.keyboard-service
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).KeyboardViewController
+          NSExtensionAttributes:
+            IsASCIICapable: true
+            PrefersRightToLeft: false
+            PrimaryLanguage: zh-Hans
+            RequestsOpenAccess: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.liana.ime.ios.keyboard
         MARKETING_VERSION: 0.8.0
+        CURRENT_PROJECT_VERSION: 4
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+        APPLICATION_EXTENSION_API_ONLY: YES
         SWIFT_OBJC_BRIDGING_HEADER: Keyboard/bridge.h
         HEADER_SEARCH_PATHS: "$(SRCROOT)/../../crates/ffi/include"
         # 真机/模拟器两份静态库，按 SDK 自动选择
@@ -51,3 +82,37 @@ targets:
         OTHER_LDFLAGS[sdk=iphonesimulator*]: "$(SRCROOT)/libs/libliana_ffi_sim.a"
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGNING_ALLOWED: "NO"
+
+
+  LianaKeyboardTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Keyboard
+      - path: Tests/KeyboardBehaviorTests.swift
+      - path: Host/ViewController.swift
+      - path: Host/PetLinkViewController.swift
+      - path: Host/PairingScannerViewController.swift
+      - path: ../apple/PetLinkTransport.swift
+      - path: ../apple/PetLinkSender.swift
+      - path: Resources/base.ifd
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.liana.ime.ios.tests
+        SWIFT_VERSION: "5.0"
+        SWIFT_OBJC_BRIDGING_HEADER: Keyboard/bridge.h
+        HEADER_SEARCH_PATHS: "$(SRCROOT)/../../crates/ffi/include"
+        OTHER_LDFLAGS: "$(SRCROOT)/libs/libliana_ffi_device.a"
+        OTHER_LDFLAGS[sdk=iphonesimulator*]: "$(SRCROOT)/libs/libliana_ffi_sim.a"
+        CODE_SIGNING_ALLOWED: NO
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  LianaKeyboardTests:
+    build:
+      targets:
+        LianaKeyboardTests: [test]
+    test:
+      targets:
+        - LianaKeyboardTests

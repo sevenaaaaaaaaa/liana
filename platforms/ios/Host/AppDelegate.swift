@@ -13,4 +13,10 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         window?.makeKeyAndVisible()
         return true
     }
+
+    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        guard url.isFileURL, let controller = window?.rootViewController as? ViewController else { return false }
+        controller.showMacLink(file: url)
+        return true
+    }
 }
