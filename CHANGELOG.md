@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+## 0.9.1 — 2026-11-12 · Android 构建修复
+
+- 修复 Android release 包构建失败：首次安装引导页把 `lineSpacing(...)` 当成 TextView 的方法调用，Kotlin 编译报 `Unresolved reference 'lineSpacing'`；改为 `setLineSpacing(...)`。v0.9.0 的 macOS / Linux 产物不受影响，Android 请用 0.9.1 的 APK。
+
 ## 0.9.0 — 2026-11-12 · iOS 黑白体验重构与移动输入工具
 
 ### iOS 黑白体验重构（build 7）
