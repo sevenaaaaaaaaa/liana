@@ -15,8 +15,7 @@ enum LianaTheme {
 
 /// 松萝 iOS 键盘扩展。
 ///
-/// 与 macOS 端同构：Swift 只做 UI 与协议翻译，引擎逻辑全部来自
-/// 静态链接的 Rust 内核（libliana_ffi.a，经 bridge.h 直调 liana.h）。
+/// Rust 拼音与移动端本地形码、手写、滑行解码由串行后台队列驱动。
 /// 键盘扩展使用紧凑词库；内存预算随设备和系统而变。
 ///
 /// 触控创新（统一设计语言 §3）：
@@ -28,8 +27,20 @@ class KeyboardViewController: UIInputViewController {
 
     // MARK: - 输入状态（与视图生命周期解耦：视图重建不得丢失）
 
-    private var session: OpaquePointer?
-    private var modeIdx = 0
+    private let engine = MobileEngine()
+    private var method = MobileInputMethod.saved
+    private var english = false
+    private var traditional = false
+    private var latestRequest = 0
+    private var candidateRaw = ""
+    private var visibleForInput = true
+    private var candidateButtons: [UIButton] = []
+    private var renderedCandidates: [String] = []
+    private var renderedCandidateFont: Double = 0
+    private var handwritingPanel: HandwritingPanel?
+    private var featurePanel: KeyboardToolsPanel?
+    private var clipboardSender: PetLinkSender?
+    private var glidePoints: [CGPoint] = []
     private var candidates: [String] = []
     private var rawInput = ""
     private var composingText = ""
@@ -82,7 +93,6 @@ class KeyboardViewController: UIInputViewController {
     private let hapticLight = UIImpactFeedbackGenerator(style: .light)
     private let hapticStrong = UIImpactFeedbackGenerator(style: .medium)
 
-    private static let modes = ["pinyin", "en"]
     private static let rowSpacing: CGFloat = 5
     private static let stripHeight: CGFloat = 46
     private static let headerHeight: CGFloat = 44
@@ -96,24 +106,39 @@ class KeyboardViewController: UIInputViewController {
 
     // MARK: - 生命周期
 
+    override func loadView() {
+        let root = KeyboardInputView(frame: .zero, inputViewStyle: .keyboard)
+        root.allowsSelfSizing = true
+        view = root
+        inputView = root
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         applyAppearance()
-        loadEngine()
+        engine.onUpdate = { [weak self] in self?.receive($0) }
         primaryLanguage = "zh-Hans"
         buildUI()
+        latestRequest = engine.start(bundle: Bundle(for: KeyboardViewController.self), mode: method.rawValue)
+        hapticLight.prepare()
+        hapticStrong.prepare()
     }
+
+    override func viewWillAppear(_ animated: Bool) { super.viewWillAppear(animated); visibleForInput = true }
 
     override func viewWillDisappear(_ animated: Bool) {
         saveWork?.cancel()
-        saveUserWords()
+        visibleForInput = false
+        rawInput = ""; candidateRaw = ""; candidates = []; composingText = ""
+        handwritingPanel?.clear(); renderCandidates()
+        clipboardSender?.disconnect(); clipboardSender = nil
+        _ = engine.submit(.save, document: nil)
         preferences.save()
         devicePanel?.stop()
         devicePanel?.removeFromSuperview()
         devicePanel = nil
         stopRepeat()
-        if let session { liana_clear(session) }
-        refreshCandidates()
+        _ = engine.submit(.clear, document: nil)
         super.viewWillDisappear(animated)
     }
 
@@ -121,50 +146,44 @@ class KeyboardViewController: UIInputViewController {
         repeatTimer?.invalidate()
         saveWork?.cancel()
         geometrySave?.cancel()
-        if let session { liana_free(session) }
     }
 
     override func textDidChange(_ textInput: UITextInput?) {
         super.textDidChange(textInput)
         let id = textDocumentProxy.documentIdentifier
-        if let previous = documentID, previous != id, let session {
-            liana_clear(session)
+        if let previous = documentID, previous != id {
             devicePanel?.stop()
-            refreshCandidates()
+            send(.clear)
         }
         documentID = id
     }
 
-    private func loadEngine() {
-        let dictURL = Bundle(for: KeyboardViewController.self).url(forResource: "base", withExtension: "ifd")
-        if let path = dictURL?.path {
-            session = liana_new_with_dict("pinyin", path)
-        }
-        if session == nil {
-            session = liana_new("pinyin")
-        }
-        // 用户词保存在键盘自身的沙盒，无需共享容器或完全访问。
-        if let tsv = readUserWords() {
-            liana_user_import(session, tsv)
-        }
+    private func send(_ action: MobileEngine.Action) {
+        let id = textDocumentProxy.documentIdentifier
+        if let documentID, documentID != id { _ = engine.submit(.clear, document: id) }
+        documentID = id
+        latestRequest = engine.submit(action, document: id)
     }
-
-    private func saveUserWords() {
-        guard let session, let tsv = liana_user_export(session) else { return }
-        let tsvString = String(cString: tsv)
-        liana_free_string(tsv)
-        writeUserWords(tsvString)
-    }
-
-    private func readUserWords() -> String? { UserDefaults.standard.string(forKey: "user_dict_tsv") }
-
-    private func writeUserWords(_ tsv: String) {
-        UserDefaults.standard.set(tsv, forKey: "user_dict_tsv")
+    func whenInputIdle(_ completion: @escaping () -> Void) { engine.whenIdle(completion) }
+    private func receive(_ update: MobileEngine.Update) {
+        guard visibleForInput, update.document == nil || update.document == textDocumentProxy.documentIdentifier else { return }
+        if !update.committed.isEmpty {
+            textDocumentProxy.insertText(update.committed)
+            if update.sequence >= latestRequest { handwritingPanel?.clear() }
+            scheduleSave()
+        }
+        for _ in 0..<update.deletes { textDocumentProxy.deleteBackward() }
+        guard update.sequence >= latestRequest else { return }
+        candidates = update.snapshot.candidates
+        rawInput = update.snapshot.raw
+        candidateRaw = rawInput
+        composingText = update.snapshot.message ?? update.snapshot.preedit
+        renderCandidates()
     }
 
     private func scheduleSave() {
         saveWork?.cancel()
-        let work = DispatchWorkItem { [weak self] in self?.saveUserWords() }
+        let work = DispatchWorkItem { [weak self] in _ = self?.engine.submit(.save, document: nil) }
         saveWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.7, execute: work)
     }
@@ -183,7 +202,7 @@ class KeyboardViewController: UIInputViewController {
             root.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             root.topAnchor.constraint(equalTo: view.topAnchor),
         ])
-        rootBottom = root.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -CGFloat(preferences.bottomPadding))
+        rootBottom = root.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -8 - CGFloat(preferences.bottomPadding))
         rootBottom.isActive = true
 
         let header = UIView()
@@ -204,8 +223,9 @@ class KeyboardViewController: UIInputViewController {
         entryDock.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(entryDock)
         entryLeading = entryDock.leadingAnchor.constraint(equalTo: header.leadingAnchor)
-        NSLayoutConstraint.activate([entryLeading, entryDock.widthAnchor.constraint(equalToConstant: 176), entryDock.heightAnchor.constraint(equalToConstant: 44), entryDock.centerYAnchor.constraint(equalTo: header.centerYAnchor)])
+        NSLayoutConstraint.activate([entryLeading, entryDock.widthAnchor.constraint(equalToConstant: 220), entryDock.heightAnchor.constraint(equalToConstant: 44), entryDock.centerYAnchor.constraint(equalTo: header.centerYAnchor)])
         let grip = toolbarButton("arrow.up.and.down.and.arrow.left.and.right", label: "拖动调高度与入口位置", id: "layout.drag")
+        grip.menu = UIMenu(children: [UIAction(title: "输入工具：方案、词库、表情、语音、同步") { [weak self] _ in self?.toggleTools() }])
         grip.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(dragLayout(_:))))
         grip.accessibilityCustomActions = [
             UIAccessibilityCustomAction(name: "增高键盘", target: self, selector: #selector(increaseHeight)),
@@ -214,6 +234,7 @@ class KeyboardViewController: UIInputViewController {
         entryDock.addArrangedSubview(grip)
         let settings = toolbarButton("slider.horizontal.3", label: "调整键盘比例", id: "layout.settings")
         settings.addAction(UIAction { [weak self] _ in self?.toggleAdjustments() }, for: .touchUpInside)
+        settings.menu = UIMenu(children: [UIAction(title: "输入工具 · 词库／表情／语音／剪贴板") { [weak self] _ in self?.toggleTools() }])
         entryDock.addArrangedSubview(settings)
         let devices = toolbarButton("waveform", label: "连接语音与编码设备", id: "devices.open")
         devices.addAction(UIAction { [weak self] _ in self?.toggleDevices() }, for: .touchUpInside)
@@ -223,17 +244,20 @@ class KeyboardViewController: UIInputViewController {
         clearButton.accessibilityIdentifier = "composition.clear"
         clearButton.accessibilityLabel = "取消当前拼音"
         clearButton.addAction(UIAction { [weak self] _ in
-            guard let self, let session = self.session else { return }
-            liana_clear(session)
-            self.refreshCandidates()
+            guard let self else { return }
+            self.handwritingPanel?.clear()
+            self.send(.clear)
         }, for: .touchUpInside)
         entryDock.addArrangedSubview(clearButton)
+        let tools = toolbarButton("square.grid.2x2", label: "输入工具：词库、表情、语音与同步", id: "tools.open")
+        tools.addAction(UIAction { [weak self] _ in self?.toggleTools() }, for: .touchUpInside)
+        entryDock.addArrangedSubview(tools)
         tradButton = UIButton(type: .system)
         tradButton.setTitle("简", for: .normal)
         tradButton.accessibilityLabel = "切换简繁体"
         tradButton.addAction(UIAction { [weak self] _ in self?.onTraditionalToggle() }, for: .touchUpInside)
         root.addArrangedSubview(header)
-        heightConstraint = view.heightAnchor.constraint(equalToConstant: Self.headerHeight + Self.stripHeight + keyboardAreaHeight + CGFloat(preferences.bottomPadding))
+        heightConstraint = view.heightAnchor.constraint(equalToConstant: Self.headerHeight + Self.stripHeight + keyboardAreaHeight + 8 + CGFloat(preferences.bottomPadding))
         heightConstraint?.priority = .init(999)
         heightConstraint?.isActive = true
 
@@ -266,6 +290,13 @@ class KeyboardViewController: UIInputViewController {
         areaHeight = area.heightAnchor.constraint(equalToConstant: keyboardAreaHeight)
         areaHeight.isActive = true
         keyboardArea = area
+        let glide = GlidePan(target: self, action: #selector(onGlide(_:)))
+        glide.allow = { [weak self] point in
+            guard let self, self.page == .letters, (self.english || self.method == .pinyin), self.featurePanel == nil, self.adjustmentPanel == nil, self.devicePanel == nil,
+                  let key = self.keyboardArea.hitTest(point, with: nil) as? UIButton, let title = key.title(for: .normal) else { return false }
+            return title.count == 1 && title.first!.isASCII && title.first!.isLetter
+        }
+        area.addGestureRecognizer(glide)
         root.addArrangedSubview(area)
     }
 
@@ -288,10 +319,9 @@ class KeyboardViewController: UIInputViewController {
             rememberedSoloPitch: FoldLayoutMemory.rememberedSoloPitch,
             keyHeight: CGFloat(preferences.keyHeight)
         )
-        let signature = layout.signature + "-\(width)-\(preferences.alignment)-\(page)-\(shifted)-\(capsLocked)"
+        let signature = layout.signature + "-\(width)-\(preferences.alignment)-\(page)-\(shifted)-\(capsLocked)-\(currentMode())"
         guard signature != layoutSignature else { return }
 
-        let isFirstBuild = layoutSignature.isEmpty
         layoutSignature = signature
         if layout.mode == .solo {
             FoldLayoutMemory.rememberSolo(pitch: layout.pitch, width: width)
@@ -300,22 +330,17 @@ class KeyboardViewController: UIInputViewController {
         isAssembling = true
         let apply: () -> Void = { [weak self] in
             guard let self else { return }
-            switch layout.mode {
+            if self.method == .handwriting && !self.english && self.page == .letters {
+                self.assembleHandwriting()
+            } else if self.method == .t9 && !self.english && self.page == .letters {
+                self.assembleNineKey(layout)
+            } else { switch layout.mode {
             case .solo: self.assembleSolo(layout)
             case .split: self.assembleSplit(layout)
-            }
+            } }
             self.keyboardArea.layoutIfNeeded()
         }
-        if animated && !isFirstBuild && !isAdjusting && !UIAccessibility.isReduceMotionEnabled {
-            // 折叠/展开瞬间不做逐键 morph（v1.1），用交叉淡入消除闪断（D5）
-            UIView.transition(with: keyboardArea,
-                              duration: 0.22,
-                              options: [.transitionCrossDissolve, .allowUserInteraction],
-                              animations: apply,
-                              completion: nil)
-        } else {
-            apply()
-        }
+        apply()
         isAssembling = false
 
         // 重建后：中/简/EN 标题、候选都必须原地恢复（L2）
@@ -323,6 +348,7 @@ class KeyboardViewController: UIInputViewController {
         renderCandidates()
         if let adjustmentPanel { keyboardArea.bringSubviewToFront(adjustmentPanel) }
         if let devicePanel { keyboardArea.bringSubviewToFront(devicePanel) }
+        if let featurePanel { keyboardArea.bringSubviewToFront(featurePanel) }
     }
 
     // MARK: - 布局 A：单块（外屏 / 手机）
@@ -373,11 +399,12 @@ class KeyboardViewController: UIInputViewController {
             ("🌐", fnWidth, {}),
             ("中", fnWidth, { [weak self] in self?.onModeToggle() }),
             ("空格", spaceWidth, { [weak self] in self?.onSpace() }),
-            (currentMode() == "pinyin" ? "，" : ",", fnWidth, { [weak self] in self?.onPunctuation() }),
+            (!english && method == .mspy ? ";" : (!english ? "，" : ","), fnWidth, { [weak self] in self?.onPunctuation() }),
             ("⏎", fnWidth, { [weak self] in self?.onEnter() }),
         ]
         let row = letterRow(items, height: layout.keyHeight)
         modeButton = row.arrangedSubviews[2] as? UIButton
+        configureModeMenu()
         return row
     }
 
@@ -416,7 +443,9 @@ class KeyboardViewController: UIInputViewController {
         let rightSpace = max(64, cw - 2 * fnWidth - 2 * gap)
         let rightFnItems: [(String, CGFloat, () -> Void)] = [
             ("空格", rightSpace, { [weak self] in self?.onSpace() }),
-            (".", fnWidth, { [weak self] in self?.commitPending(); self?.insertText(".") }),
+            (!english && method == .mspy ? ";" : ".", fnWidth, { [weak self] in
+                if self?.method == .mspy && self?.english == false { self?.send(.feed(";")) } else { self?.insertText(".") }
+            }),
             ("⏎", fnWidth, { [weak self] in self?.onEnter() }),
         ]
 
@@ -596,7 +625,8 @@ class KeyboardViewController: UIInputViewController {
     }
 
     private func resetKeyboardArea() {
-        keyboardArea.subviews.filter { $0 !== adjustmentPanel && $0 !== devicePanel }.forEach { $0.removeFromSuperview() }
+        keyboardArea.subviews.filter { $0 !== adjustmentPanel && $0 !== devicePanel && $0 !== featurePanel }.forEach { $0.removeFromSuperview() }
+        handwritingPanel = nil
         backspaceButtons.removeAll()
         returnButtons.removeAll()
         wbComposing = nil
@@ -623,19 +653,23 @@ class KeyboardViewController: UIInputViewController {
     }
 
     private func updateGeometry() {
-        heightConstraint?.constant = Self.headerHeight + Self.stripHeight + keyboardAreaHeight + view.safeAreaInsets.bottom + CGFloat(preferences.bottomPadding)
+        let requested = Self.headerHeight + Self.stripHeight + keyboardAreaHeight + view.safeAreaInsets.bottom + 8 + CGFloat(preferences.bottomPadding)
+        heightConstraint?.constant = requested
+        (inputView as? KeyboardInputView)?.requestedHeight = requested
+        preferredContentSize = CGSize(width: view.bounds.width, height: requested)
         areaHeight?.constant = keyboardAreaHeight
-        rootBottom?.constant = -CGFloat(preferences.bottomPadding)
+        rootBottom?.constant = -8 - CGFloat(preferences.bottomPadding)
         guard entryDock != nil else { return }
-        let travel = max(0, view.bounds.width - 176 - 8)
+        let travel = max(0, view.bounds.width - 220 - 8)
         let x = 4 + travel * CGFloat(preferences.entryPosition)
         entryLeading.constant = x
         let leftSpace = x - 12
-        let rightSpace = view.bounds.width - x - 176 - 12
-        compositionLeading.constant = leftSpace >= rightSpace ? 8 : x + 184
+        let rightSpace = view.bounds.width - x - 220 - 12
+        compositionLeading.constant = leftSpace >= rightSpace ? 8 : x + 228
         compositionWidth.constant = max(0, max(leftSpace, rightSpace))
         if let adjustmentPanel { keyboardArea.bringSubviewToFront(adjustmentPanel) }
         if let devicePanel { keyboardArea.bringSubviewToFront(devicePanel) }
+        if let featurePanel { keyboardArea.bringSubviewToFront(featurePanel) }
     }
 
     private func applyPreferences(persist: Bool = true) {
@@ -683,7 +717,9 @@ class KeyboardViewController: UIInputViewController {
     }
 
     private func toggleAdjustments() {
+
         if let adjustmentPanel { adjustmentPanel.removeFromSuperview(); self.adjustmentPanel = nil; return }
+        featurePanel?.removeFromSuperview(); featurePanel = nil
         devicePanel?.stop()
         devicePanel?.removeFromSuperview()
         devicePanel = nil
@@ -800,6 +836,7 @@ class KeyboardViewController: UIInputViewController {
 
     private func toggleDevices() {
         if let devicePanel { devicePanel.stop(); devicePanel.removeFromSuperview(); self.devicePanel = nil; return }
+        featurePanel?.removeFromSuperview(); featurePanel = nil
         adjustmentPanel?.removeFromSuperview()
         adjustmentPanel = nil
         let panel = BluetoothDevicePanel(hasFullAccess: { [weak self] in self?.hasFullAccess ?? false }, insert: { [weak self] text in
@@ -886,13 +923,7 @@ class KeyboardViewController: UIInputViewController {
     private func startRepeat() {
         guard repeatTimer == nil else { return }
         repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.065, repeats: true) { [weak self] _ in
-            guard let self, let session = self.session else { return }
-            if !self.rawInput.isEmpty {
-                liana_backspace(session)
-                self.refreshCandidates()
-            } else {
-                self.textDocumentProxy.deleteBackward()
-            }
+            self?.onBackspace()
         }
     }
 
@@ -926,149 +957,104 @@ class KeyboardViewController: UIInputViewController {
     }
 
     private func onPunctuation() {
-        commitPending()
-        insertText(currentMode() == "pinyin" ? "，" : ",")
+        if method == .mspy, !english, page == .letters { send(.feed(";")); return }
+        send(.literal(english ? "," : "，"))
     }
 
     private func commitPending() {
-        var attempts = 0
-        while !rawInput.isEmpty && attempts < 64 {
-            let before = rawInput
-            if candidates.isEmpty { commitRaw() } else { selectCandidate(0) }
-            attempts += 1
-            if before == rawInput { commitRaw(); break }
-        }
+        send(.literal(""))
     }
 
     private func onLetter(_ ch: Character) {
-        guard let session else { return }
-        if currentMode() == "en" || shifted {
-            commitPending()
-            insertText(shifted ? String(ch).uppercased() : String(ch))
+        if english || shifted {
+            send(.literal(shifted ? String(ch).uppercased() : String(ch)))
             if shifted && !capsLocked { shifted = false; rebuildKeyboardIfNeeded(animated: false) }
             return
         }
-        if liana_feed(session, String(ch)) == 1 {
-            refreshCandidates()
-        }
+        rawInput += String(ch)
+        composingLabel?.text = rawInput
+        send(.feed(String(ch)))
     }
 
     private func onBackspace() {
-        guard let session else { return }
-        if !rawInput.isEmpty {
-            liana_backspace(session)
-            refreshCandidates()
-        } else {
-            textDocumentProxy.deleteBackward()
-        }
+        if method == .handwriting, !english, !rawInput.isEmpty { handwritingPanel?.undo(); return }
+        if !rawInput.isEmpty { rawInput.removeLast(); composingLabel?.text = rawInput }
+        send(.backspace)
     }
 
     private func onSpace() {
-        if !candidates.isEmpty {
-            selectCandidate(0)
-        } else {
-            insertText(" ")
-        }
+        send(.space)
     }
 
     private func onEnter() {
-        if !rawInput.isEmpty { commitPending() }
-        else { insertText("\n") }
+        send(.enter)
     }
 
     private func onModeToggle() {
-        commitPending()
-        modeIdx = (modeIdx + 1) % Self.modes.count
+        english.toggle()
         applyMode()
     }
 
     private func onTraditionalToggle() {
-        guard let session else { return }
-        let on = liana_traditional(session) == 0
-        liana_set_traditional(session, on ? 1 : 0)
-        tradButton?.setTitle(on ? "繁" : "简", for: .normal)
-        refreshCandidates()
+        traditional.toggle()
+        tradButton?.setTitle(traditional ? "繁" : "简", for: .normal)
+        send(.traditional(traditional))
     }
 
     private func applyMode() {
-        guard let session else { return }
-        let mode = Self.modes[modeIdx]
-        liana_set_mode(session, mode)
-        liana_clear(session)
-        modeButton?.setTitle(mode == "pinyin" ? "中" : "EN", for: .normal)
-        primaryLanguage = mode == "pinyin" ? "zh-Hans" : "en-US"
-        refreshCandidates()
+        send(.mode(currentMode()))
+        modeButton?.setTitle(english ? "EN" : "中", for: .normal)
+        primaryLanguage = english ? "en-US" : "zh-Hans"
         layoutSignature = ""
         rebuildKeyboardIfNeeded(animated: false)
     }
 
-    private func currentMode() -> String { Self.modes[modeIdx] }
+    private func currentMode() -> String { english ? "en" : method.rawValue }
 
     /// 视图重建后把状态重新贴回按钮（按钮是新建的，默认显示"中/简"）。
     private func syncModeLabels() {
-        modeButton?.setTitle(currentMode() == "pinyin" ? "中" : "EN", for: .normal)
-        guard let session else { return }
-        tradButton?.setTitle(liana_traditional(session) == 1 ? "繁" : "简", for: .normal)
+        modeButton?.setTitle(english ? "EN" : "中", for: .normal)
+        tradButton?.setTitle(traditional ? "繁" : "简", for: .normal)
+        configureModeMenu()
     }
 
     private func selectCandidate(_ index: Int) {
-        guard let session, let p = liana_select(session, UInt32(index)) else { return }
-        let text = String(cString: p)
-        liana_free_string(p)
-        insertText(text)
-        scheduleSave()
+        guard candidates.indices.contains(index) else { return }
+        send(.select(index, raw: candidateRaw, text: candidates[index]))
         // 上屏加强触觉：形成"上屏了"的身体确认（§3.1）
         hapticStrong.impactOccurred()
         // 引擎可能仍留剩余缓冲，候选要立刻跟着变（L2 而不是等下一次按键）
-        refreshCandidates()
     }
 
     private func commitRaw() {
-        guard let session, let p = liana_commit_raw(session) else { return }
-        let text = String(cString: p)
-        liana_free_string(p)
-        insertText(text)
-        hapticStrong.impactOccurred()
-        refreshCandidates()
+        commitPending()
     }
 
     private func insertText(_ text: String) {
-        textDocumentProxy.insertText(text)
+        send(.literal(text))
     }
 
     // MARK: - 候选刷新（状态 → 渲染，两处入口共用）
 
-    private func refreshCandidates() {
-        candidates = []
-        rawInput = ""
-        composingText = ""
-
-        if let session, let p = liana_composition_json(session) {
-            let jsonString = String(cString: p)
-            liana_free_string(p)
-            if let data = jsonString.data(using: .utf8),
-               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let raw = obj["raw"] as? String, !raw.isEmpty {
-                rawInput = raw
-                let preedit = obj["preedit"] as? String ?? ""
-                composingText = preedit.isEmpty ? raw : preedit
-                let arr = obj["candidates"] as? [[String: Any]] ?? []
-                candidates = arr.prefix(9).compactMap { $0["text"] as? String }
-            }
-        }
-        renderCandidates()
-    }
-
     private func renderCandidates() {
+        renderWorkbench()
         guard candidateStrip != nil else { return }
-        candidateStrip.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        composingLabel?.text = composingText.isEmpty ? (currentMode() == "pinyin" ? "松萝 · 拼音" : "松萝 · English") : composingText
+        composingLabel?.text = composingText.isEmpty ? (english ? "松萝 · English" : "松萝 · " + method.title) : composingText
         clearButton?.isHidden = rawInput.isEmpty
         for button in returnButtons { button.accessibilityLabel = rawInput.isEmpty ? "换行" : "确认候选" }
-        for (i, text) in candidates.enumerated() {
-            candidateStrip.addArrangedSubview(candidateButton(text, index: i))
+        guard renderedCandidates != candidates || renderedCandidateFont != preferences.candidateFont else { return }
+        renderedCandidates = candidates; renderedCandidateFont = preferences.candidateFont
+        while candidateButtons.count < candidates.count {
+            let button = candidateButton("", index: candidateButtons.count)
+            candidateButtons.append(button); candidateStrip.addArrangedSubview(button)
         }
-        renderWorkbench()
+        for (i, button) in candidateButtons.enumerated() {
+            button.isHidden = i >= candidates.count
+            if i < candidates.count {
+                UIView.performWithoutAnimation { button.setTitle(candidates[i], for: .normal) }
+                button.titleLabel?.font = .systemFont(ofSize: CGFloat(preferences.candidateFont), weight: .bold)
+            }
+        }
     }
 
     /// 候选条目：点击选中；上滑 ≥ 24pt 直接着该候选上屏（§3.2）。
@@ -1086,6 +1072,7 @@ class KeyboardViewController: UIInputViewController {
         b.addAction(UIAction { [weak self] _ in self?.selectCandidate(index) }, for: .touchUpInside)
         let swipeUp = UISwipeGestureRecognizer(target: self, action: #selector(onCandidateSwipeUp(_:)))
         swipeUp.direction = .up
+        swipeUp.delaysTouchesEnded = false
         b.addGestureRecognizer(swipeUp)
         return b
     }
@@ -1096,3 +1083,146 @@ class KeyboardViewController: UIInputViewController {
         selectCandidate(b.tag)
     }
 }
+
+
+extension KeyboardViewController {
+    private func configureModeMenu() {
+        modeButton?.menu = UIMenu(title: "输入方案（点按切换中英）", children: MobileInputMethod.allCases.map { item in
+            UIAction(title: item.title, state: method == item && !english ? .on : .off) { [weak self] _ in self?.chooseMethod(item) }
+        } + [UIAction(title: "输入工具 · 词库／语音／表情／同步") { [weak self] _ in self?.toggleTools() }])
+    }
+    private func chooseMethod(_ item: MobileInputMethod) {
+        method = item; english = false; page = .letters
+        UserDefaults.standard.set(item.rawValue, forKey: "keyboard.method")
+        featurePanel?.removeFromSuperview(); featurePanel = nil
+        applyMode()
+    }
+    private func pinKeyboard(_ content: UIView) {
+        content.translatesAutoresizingMaskIntoConstraints = false
+        keyboardArea.addSubview(content)
+        NSLayoutConstraint.activate([content.leadingAnchor.constraint(equalTo: keyboardArea.leadingAnchor, constant: 5),content.trailingAnchor.constraint(equalTo: keyboardArea.trailingAnchor, constant: -5),content.topAnchor.constraint(equalTo: keyboardArea.topAnchor),content.bottomAnchor.constraint(equalTo: keyboardArea.bottomAnchor)])
+    }
+    private func basicFunctions() -> UIStackView {
+        let row = UIStackView(); row.spacing = 5; row.distribution = .fillEqually
+        for (text, action): (String, () -> Void) in [("123",{ [weak self] in self?.togglePage() }),("🌐",{}),("中",{ [weak self] in self?.onModeToggle() }),("空格",{ [weak self] in self?.onSpace() }),("⏎",{ [weak self] in self?.onEnter() })] {
+            let key = keyButton(text, action: action); row.addArrangedSubview(key); if text == "中" { modeButton = key }
+        }
+        configureModeMenu(); return row
+    }
+    private func assembleNineKey(_ layout: FoldLayout) {
+        resetKeyboardArea()
+        let column = UIStackView(); column.axis = .vertical; column.spacing = 5; column.distribution = .fillEqually
+        let values = [["1 · 符号", "2 ABC", "3 DEF"],["4 GHI", "5 JKL", "6 MNO"],["7 PQRS", "8 TUV", "9 WXYZ"]]
+        for titles in values {
+            let row = UIStackView(); row.spacing = 5; row.distribution = .fillEqually
+            for title in titles { row.addArrangedSubview(keyButton(title) { [weak self] in
+                guard let self else { return }
+                if title.hasPrefix("1") { self.insertText("，") } else { self.send(.feed(String(title.prefix(1)))) }
+            }) }
+            let back = keyButton(titles[0].hasPrefix("1") ? "⌫" : (titles[0].hasPrefix("4") ? "清空" : "工具")) { [weak self] in
+                if titles[0].hasPrefix("1") { self?.onBackspace() } else if titles[0].hasPrefix("4") { self?.send(.clear) } else { self?.toggleTools() }
+            }; row.addArrangedSubview(back); column.addArrangedSubview(row)
+        }
+        column.addArrangedSubview(basicFunctions()); pinKeyboard(column)
+    }
+    private func assembleHandwriting() {
+        resetKeyboardArea()
+        let column = UIStackView(); column.axis = .vertical; column.spacing = 5
+        let canvas = HandwritingPanel(); handwritingPanel = canvas
+        canvas.accessibilityLabel = "手写区域"; canvas.onStrokes = { [weak self] in self?.send(.handwriting($0)) }
+        column.addArrangedSubview(canvas)
+        let row = UIStackView(); row.spacing = 5; row.distribution = .fillEqually
+        row.addArrangedSubview(keyButton("撤销一笔") { [weak canvas] in canvas?.undo() })
+        row.addArrangedSubview(keyButton("清空") { [weak self, weak canvas] in canvas?.clear(); self?.send(.clear) })
+        row.addArrangedSubview(keyButton("⌫") { [weak self] in self?.onBackspace() })
+        row.addArrangedSubview(keyButton("工具") { [weak self] in self?.toggleTools() })
+        row.heightAnchor.constraint(equalToConstant: 40).isActive = true; column.addArrangedSubview(row)
+        let functions = basicFunctions(); functions.heightAnchor.constraint(equalToConstant: CGFloat(preferences.keyHeight)).isActive = true; column.addArrangedSubview(functions); pinKeyboard(column)
+    }
+    @objc private func onGlide(_ gesture: UIPanGestureRecognizer) {
+        let point = gesture.location(in: keyboardArea)
+        switch gesture.state {
+        case .began: glidePoints = [gesture.location(in: keyboardArea) - gesture.translation(in: keyboardArea),point]
+        case .changed: glidePoints.append(point)
+        case .ended:
+            glidePoints.append(point)
+            var centers: [String: CGPoint] = [:]
+            func collect(_ view: UIView) {
+                if let key = view as? UIButton, let title = key.title(for: .normal)?.lowercased(), title.count == 1, title.first!.isASCII, title.first!.isLetter { centers[title] = key.convert(CGPoint(x:key.bounds.midX,y:key.bounds.midY),to:keyboardArea) }
+                view.subviews.forEach(collect)
+            }
+            collect(keyboardArea); send(.glide(glidePoints, centers, english))
+        default: glidePoints = []
+        }
+    }
+    private func toggleTools() {
+        if let panel = featurePanel { panel.removeFromSuperview(); featurePanel = nil; return }
+        adjustmentPanel?.removeFromSuperview(); adjustmentPanel = nil
+        devicePanel?.stop(); devicePanel?.removeFromSuperview(); devicePanel = nil
+        let panel = KeyboardToolsPanel(); featurePanel = panel; installPanel(panel)
+        panel.onClose = { [weak self] in self?.toggleTools() }
+        panel.onMethod = { [weak self] in self?.chooseMethod($0) }
+        panel.onInsert = { [weak self] in self?.insertText($0) }
+        panel.onReceive = { [weak self] in self?.receiveHostContent() }
+        panel.onSystemLexicon = { [weak self] in self?.importSystemLexicon() }
+        panel.onClipboardSend = { [weak self] in self?.clipboardToMac(pull: false) }
+        panel.onClipboardReceive = { [weak self] in self?.clipboardToMac(pull: true) }
+    }
+    private func receiveHostContent() {
+        guard hasFullAccess else { featurePanel?.status("请先在系统键盘设置中允许完全访问，才能接收剪贴板内容。"); return }
+        do {
+            guard let payload = try KeyboardPayload.read() else { featurePanel?.status("请先打开主 App，复制文字／词库／GIF 或 Mac 配对内容，再回到这里接收。"); return }
+            switch payload.kind {
+            case "words": send(.importWords(payload.words ?? [])); featurePanel?.status("正在导入本地词库…")
+            case "text": insertText(payload.text ?? ""); featurePanel?.status("已插入文字。")
+            case "gif": try KeyboardToolsPanel.saveGIF(payload.gif ?? Data()); toggleTools(); toggleTools(); featurePanel?.status("GIF 已导入，点缩略图复制后粘贴。")
+            case "pairing":
+                let profile = try PetLink.Profile.parse(payload.text ?? "")
+                try PetLink.store(profile, account: "keyboard.mac")
+                featurePanel?.status("Mac 配对已保存在键盘钥匙串，可发送／接收剪贴板。")
+            default: throw MobileImportError.message("不支持的内容类型。")
+            }
+        } catch { featurePanel?.status(error.localizedDescription) }
+    }
+    private func clipboardToMac(pull: Bool) {
+        guard hasFullAccess else { featurePanel?.status("同步剪贴板需要允许键盘完全访问。"); return }
+        guard let profile = PetLink.load(account: "keyboard.mac") else { featurePanel?.status("先在主 App「移动输入工具」复制 Mac 配对，再在这里接收 App 内容。"); return }
+        let text: String?
+        if pull { text = nil } else {
+            guard let value = UIPasteboard.general.string else { featurePanel?.status("当前剪贴板没有文字。"); return }; text = value
+        }
+        clipboardSender?.disconnect()
+        let defaults = UserDefaults.standard
+        let id = defaults.string(forKey: "PetLink.keyboardID").flatMap(UUID.init(uuidString:)) ?? UUID()
+        defaults.set(id.uuidString, forKey: "PetLink.keyboardID")
+        let sender = PetLinkSender(deviceID: id, deviceName: "松萝 iOS 键盘")
+        clipboardSender = sender
+        sender.onStatus = { [weak self] in self?.featurePanel?.status($0) }
+        sender.onReady = { [weak sender] in sender?.clipboard(text: text) }
+        sender.onClipboard = { [weak self, weak sender] value in
+            if let value { UIPasteboard.general.string = value; self?.featurePanel?.status("Mac 文字已复制到 iPhone 剪贴板，请粘贴。") }
+            sender?.disconnect(silent: true); self?.clipboardSender = nil
+        }
+        sender.onFailure = { [weak self, weak sender] in sender?.disconnect(silent: true); self?.clipboardSender = nil }
+        sender.connect(profile: profile)
+    }
+    private func importSystemLexicon() {
+        featurePanel?.status("正在读取系统公开的补充词库…")
+        requestSupplementaryLexicon { [weak self] lexicon in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let words = lexicon.entries.prefix(20000).compactMap { entry -> MobileWord? in
+                    let code = entry.userInput.allSatisfy({ $0.isASCII && $0.isLetter }) && !entry.userInput.isEmpty ? entry.userInput : MobileDictionaryImport.reading(entry.documentText)
+                    return code.isEmpty ? nil : MobileWord(word:entry.documentText,code:code,kind:"pinyin",reading:MobileDictionaryImport.reading(entry.documentText))
+                }
+                DispatchQueue.main.async { self?.send(.importWords(words)); self?.featurePanel?.status("已提交 \(words.count) 条补充词条（联系人、文本替换等）；iOS 不开放完整系统词库。") }
+            }
+        }
+    }
+}
+
+private final class GlidePan: UIPanGestureRecognizer, UIGestureRecognizerDelegate {
+    var allow: ((CGPoint) -> Bool)?
+    override init(target: Any?, action: Selector?) { super.init(target: target, action: action); delegate = self; maximumNumberOfTouches = 1 }
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool { allow?(touch.location(in: view)) ?? false }
+}
+private func - (left: CGPoint, right: CGPoint) -> CGPoint { CGPoint(x:left.x-right.x,y:left.y-right.y) }

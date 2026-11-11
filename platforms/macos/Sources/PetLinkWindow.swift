@@ -7,6 +7,7 @@ final class PetLinkWindow: NSWindowController {
     private var profile: PetLink.Profile?
     private let status = NSTextField(wrappingLabelWithString: "接收已关闭")
     private let qr = NSImageView()
+    private let clipboardToggle = NSButton(checkboxWithTitle: "允许已配对设备发送／读取文字剪贴板", target: nil, action: nil)
     private let toggle = NSButton(title: "开始接收", target: nil, action: nil)
     private let copy = NSButton(title: "复制配对码", target: nil, action: nil)
     private let rotate = NSButton(title: "撤销全部配对并换码", target: nil, action: nil)
@@ -15,7 +16,7 @@ final class PetLinkWindow: NSWindowController {
     }
 
     private init() {
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 600), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 650), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
         window.title = "连接 iPhone · 桌宠收件箱"
         window.isReleasedWhenClosed = false
         super.init(window: window)
@@ -45,12 +46,15 @@ final class PetLinkWindow: NSWindowController {
         let actions = NSStackView(views: [toggle, copy, rotate])
         actions.spacing = 8
         stack.addArrangedSubview(actions)
+        clipboardToggle.state = UserDefaults.standard.bool(forKey: "PetLink.clipboard") ? .on : .off
+        clipboardToggle.target = self; clipboardToggle.action = #selector(toggleClipboard)
+        stack.addArrangedSubview(clipboardToggle)
         toggle.target = self; toggle.action = #selector(toggleReceiving)
         copy.target = self; copy.action = #selector(copyCode)
         rotate.target = self; rotate.action = #selector(rotateCode)
         let folder = NSButton(title: "打开松萝收件箱", target: self, action: #selector(openFolder))
         stack.addArrangedSubview(folder)
-        let note = NSTextField(wrappingLabelWithString: "仅接收已配对设备主动选择的文件，不同步按键或剪贴板。单文件上限 200MB。配对码含密钥，请只交给自己的设备。文件会一直保留，不自动打开。")
+        let note = NSTextField(wrappingLabelWithString: "仅接收已配对设备主动选择的文件；剪贴板默认关闭，勾选后允许配对设备按需发送／读取文字（最多 4KB）。单文件上限 200MB。配对码含密钥，请只交给自己的设备。文件会一直保留，不自动打开。")
         note.font = .systemFont(ofSize: 11); note.textColor = .secondaryLabelColor
         stack.addArrangedSubview(note)
         note.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
@@ -72,12 +76,20 @@ final class PetLinkWindow: NSWindowController {
             self.profile = profile
             let receiver = PetLinkReceiver(profile: profile, directory: Self.directory)
             self.receiver = receiver
+            receiver.clipboardRead = { [weak self, weak receiver] in
+                guard let self, let receiver, self.receiver === receiver, self.clipboardToggle.state == .on else { throw PetLink.Failure.message("请在 Mac 桌宠收件箱勾选允许剪贴板同步。") }
+                return NSPasteboard.general.string(forType: .string) ?? ""
+            }
+            receiver.clipboardWrite = { [weak self, weak receiver] text in
+                guard let self, let receiver, self.receiver === receiver, self.clipboardToggle.state == .on else { throw PetLink.Failure.message("请在 Mac 桌宠收件箱勾选允许剪贴板同步。") }
+                NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text, forType: .string)
+            }
             receiver.onStatus = { [weak self] in self?.status.stringValue = $0 }
             receiver.authorize = { [weak self, weak receiver] _, name, finish in
                 guard let receiver, self?.receiver === receiver else { finish(false); return }
                 let alert = NSAlert()
                 alert.messageText = "允许「\(name)」给桌宠发送文件？"
-                alert.informativeText = "只有扫描或导入此 Mac 配对码的设备可以连接。允许后，该设备可将文件发送到松萝收件箱。"
+                alert.informativeText = "只有扫描或导入此 Mac 配对码的设备可以连接。允许后，该设备可发送文件；你另外勾选剪贴板许可后，也可按需发送／读取文字剪贴板。"
                 alert.addButton(withTitle: "允许配对"); alert.addButton(withTitle: "拒绝")
                 NSApp.activate(ignoringOtherApps: true)
                 finish(alert.runModal() == .alertFirstButtonReturn)
@@ -95,6 +107,7 @@ final class PetLinkWindow: NSWindowController {
             renderQR(profile.pairingCode)
         } catch { status.stringValue = error.localizedDescription }
     }
+    @objc private func toggleClipboard() { UserDefaults.standard.set(clipboardToggle.state == .on, forKey: "PetLink.clipboard") }
     @objc private func toggleReceiving() {
         if let receiver {
             receiver.stop(); self.receiver = nil

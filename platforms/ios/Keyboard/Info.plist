@@ -22,6 +22,10 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>仅在你点击扫描或连接时访问蓝牙，接收所选 BLE 设备的文字。</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_liana-pet._tcp</string>
+	</array>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionAttributes</key>
@@ -40,5 +44,7 @@
 		<key>NSExtensionPrincipalClass</key>
 		<string>$(PRODUCT_MODULE_NAME).KeyboardViewController</string>
 	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>仅在你主动同步剪贴板时，连接已配对 Mac。</string>
 </dict>
 </plist>

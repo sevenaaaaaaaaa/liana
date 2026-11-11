@@ -8,7 +8,7 @@ private final class MemoryDocument: NSObject, UITextDocumentProxy {
     var documentContextAfterInput: String? { "" }
     var selectedText: String? { nil }
     var documentInputMode: UITextInputMode? { nil }
-    let documentIdentifier = UUID()
+    var documentIdentifier = UUID()
     func insertText(_ value: String) { text += value }
     func deleteBackward() { if !text.isEmpty { text.removeLast() } }
     func adjustTextPosition(byCharacterOffset offset: Int) {}
@@ -32,8 +32,11 @@ private final class SimulatedPan: UIPanGestureRecognizer {
 final class KeyboardBehaviorTests: XCTestCase {
     private var savedPreferences: Data?
     private var savedAppearance: Any?
+    private var savedMethod: Any?
     override func setUp() {
         super.setUp()
+        savedMethod = UserDefaults.standard.object(forKey: "keyboard.method")
+        UserDefaults.standard.removeObject(forKey: "keyboard.method")
         savedPreferences = UserDefaults.standard.data(forKey: "keyboard.layout.v1")
         savedAppearance = UserDefaults.standard.object(forKey: "keyboard.appearance")
         UserDefaults.standard.set(0, forKey: "keyboard.appearance")
@@ -42,14 +45,16 @@ final class KeyboardBehaviorTests: XCTestCase {
     override func tearDown() {
         UserDefaults.standard.set(savedPreferences, forKey: "keyboard.layout.v1")
         UserDefaults.standard.set(savedAppearance, forKey: "keyboard.appearance")
+        UserDefaults.standard.set(savedMethod, forKey: "keyboard.method")
         super.tearDown()
     }
     private func fixture() -> FixtureKeyboard {
         let keyboard = FixtureKeyboard()
         keyboard.loadViewIfNeeded()
-        keyboard.view.frame = CGRect(x: 0, y: 0, width: 375, height: 289)
+        keyboard.view.frame = CGRect(x: 0, y: 0, width: 375, height: 297)
         keyboard.view.setNeedsLayout()
         keyboard.view.layoutIfNeeded()
+        drain(keyboard)
         return keyboard
     }
 
@@ -60,6 +65,12 @@ final class KeyboardBehaviorTests: XCTestCase {
     private func tap(_ id: String, _ keyboard: FixtureKeyboard) throws {
         let target = try button(id, keyboard)
         UIView.performWithoutAnimation { target.sendActions(for: .touchUpInside) }
+        drain(keyboard)
+    }
+    private func drain(_ keyboard: FixtureKeyboard) {
+        let idle = expectation(description: "decode queue idle")
+        keyboard.whenInputIdle { idle.fulfill() }
+        wait(for: [idle], timeout: 15)
     }
     private func typePinyin(_ value: String, _ keyboard: FixtureKeyboard) throws {
         for character in value { try tap("key." + String(character), keyboard) }
@@ -313,4 +324,145 @@ final class KeyboardBehaviorTests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
     }
+    func testBottomKeysHaveGuaranteedFooterAndSelfSizing() throws {
+        let keyboard = fixture()
+        for width: CGFloat in [320, 375, 430] {
+            keyboard.view.frame.size = CGSize(width: width, height: keyboard.view.intrinsicContentSize.height)
+            keyboard.view.setNeedsLayout(); keyboard.view.layoutIfNeeded()
+            let key = try button("key.⏎", keyboard)
+            let rect = key.convert(key.bounds, to: keyboard.view)
+            XCTAssertGreaterThanOrEqual(keyboard.view.bounds.maxY - rect.maxY, 8)
+            XCTAssertGreaterThanOrEqual(rect.height, 44)
+        }
+        let input = try XCTUnwrap(keyboard.inputView as? KeyboardInputView)
+        XCTAssertTrue(input.allowsSelfSizing)
+        XCTAssertEqual(input.systemLayoutSizeFitting(CGSize(width:430,height:216)).height,input.requestedHeight)
+        attachScreenshot("iPhone-bottom-spacing",keyboard)
+    }
+    func testRapidTapsEnqueueWithoutBlockingTouchThread() throws {
+        let keyboard = fixture()
+        let start = CACurrentMediaTime()
+        for _ in 0..<20 {
+            for character in "nihao" { try button("key."+String(character),keyboard).sendActions(for:.touchUpInside) }
+            try button("key.空格",keyboard).sendActions(for:.touchUpInside)
+        }
+        let elapsed = CACurrentMediaTime()-start
+        XCTAssertLessThan(elapsed,0.5,"Touch handling must not wait for decoding")
+        drain(keyboard)
+        XCTAssertEqual(keyboard.document.text,String(repeating:"你好",count:20))
+        print("120 rapid touch actions enqueued in \(elapsed) seconds")
+    }
+    func testNineKeyAndHandwritingLayoutsAreRealAndContained() throws {
+        UserDefaults.standard.set("t9",forKey:"keyboard.method")
+        let keyboard = fixture()
+        for key in ["6 MNO","4 GHI","4 GHI","2 ABC","6 MNO"] { try tap("key."+key,keyboard) }
+        XCTAssertEqual(try button("candidate.0",keyboard).title(for:.normal),"你好")
+        try tap("candidate.0",keyboard); XCTAssertEqual(keyboard.document.text,"你好")
+        attachScreenshot("iPhone-nine-key",keyboard)
+        UserDefaults.standard.set("handwriting",forKey:"keyboard.method")
+        let hand = fixture()
+        let canvas = try XCTUnwrap(allViews(hand.view).compactMap { $0 as? HandwritingPanel }.first)
+        canvas.onStrokes?([[[20,100],[128,100],[236,100]]]); drain(hand)
+        XCTAssertTrue((0..<9).contains { (try? button("candidate.\($0)",hand).title(for:.normal)) == "一" })
+        attachScreenshot("iPhone-handwriting",hand)
+    }
+    func testDictionaryParserAndGitHubURLs() throws {
+        let words=try MobileDictionaryImport.parse(Data("---\nname: test\n...\n松萝测试\tsong luo ce shi\t9999\n".utf8),wubi:false)
+        XCTAssertEqual(words.count,1); XCTAssertEqual(words[0].code,"song luo ce shi")
+        XCTAssertEqual(try MobileDictionaryImport.githubURL("https://github.com/rime/rime-wubi/blob/master/wubi86.dict.yaml").host,"raw.githubusercontent.com")
+        for bad in ["http://github.com/a/b/blob/main/a.txt","https://evil.example/a.txt","https://github.com/a/b"] { XCTAssertThrowsError(try MobileDictionaryImport.githubURL(bad)) }
+        XCTAssertThrowsError(try MobileDictionaryImport.parse(Data("invalid: yaml".utf8),wubi:true))
+    }
+
+    private func engineUpdate(_ engine: MobileEngine, _ action: MobileEngine.Action) -> MobileEngine.Update {
+        let done = expectation(description: "engine action")
+        var result: MobileEngine.Update!
+        engine.onUpdate = { result=$0; done.fulfill() }
+        engine.submit(action,document:nil)
+        wait(for:[done],timeout:15)
+        return result
+    }
+    func testWubiAndAllDoublePinyinSchemes() throws {
+        for (mode,code) in [("flypy","nihc"),("mspy","nihk"),("zrm","nihk"),("wubi","wqiy")] {
+            let engine=MobileEngine()
+            let ready=expectation(description:"start"); engine.onUpdate={ _ in ready.fulfill() }
+            engine.start(bundle:Bundle(for:Self.self),mode:mode); wait(for:[ready],timeout:15)
+            let decoded=engineUpdate(engine,.feed(code))
+            XCTAssertEqual(decoded.snapshot.candidates.first,mode == "wubi" ? "你" : "你好",mode)
+            let chosen=engineUpdate(engine,.space)
+            XCTAssertEqual(chosen.committed,mode == "wubi" ? "你" : "你好",mode)
+        }
+        UserDefaults.standard.set("mspy",forKey:"keyboard.method")
+        let keyboard=fixture()
+        XCTAssertNotNil(try button("key.;",keyboard))
+    }
+    func testGlideDecoderProducesChineseAndEnglishCandidates() throws {
+        let db=MobileLexicon(bundle:Bundle(for:Self.self))
+        var centers:[String:CGPoint]=[:]
+        for (r,row) in ["qwertyuiop","asdfghjkl","zxcvbnm"].enumerated() {
+            for (c,ch) in row.enumerated() { centers[String(ch)]=CGPoint(x:Double(c)*35+Double(r)*12,y:Double(r)*50) }
+        }
+        let chinese=GlideDecoder.decode(points:"nihao".map { centers[String($0)]! },centers:centers,lexicon:db,english:false)
+        XCTAssertEqual(chinese.first?.word,"你好")
+        let english=GlideDecoder.decode(points:"hello".map { centers[String($0)]! },centers:centers,lexicon:db,english:true)
+        XCTAssertEqual(english.first?.word,"hello")
+    }
+    func testStaleCandidateSelectionPreservesNewSuffix() throws {
+        let engine=MobileEngine()
+        let ready=expectation(description:"start"); engine.onUpdate={ _ in ready.fulfill() }
+        engine.start(bundle:Bundle(for:Self.self),mode:"pinyin"); wait(for:[ready],timeout:15)
+        let before=engineUpdate(engine,.feed("nihao"))
+        XCTAssertEqual(before.snapshot.candidates.first,"你好")
+        _=engineUpdate(engine,.feed("ma"))
+        let selected=engineUpdate(engine,.select(0,raw:"nihao",text:"你好"))
+        XCTAssertEqual(selected.committed,"你好"); XCTAssertEqual(selected.snapshot.raw,"ma")
+    }
+    func testImportedShortcutIsLocalAndCompletionKeepsExactRanking() throws {
+        let engine=MobileEngine()
+        let ready=expectation(description:"start"); engine.onUpdate={ _ in ready.fulfill() }
+        engine.start(bundle:Bundle(for:Self.self),mode:"pinyin"); wait(for:[ready],timeout:15)
+        let words=[MobileWord(word:"拟好",code:"ni hao",frequency:1,reading:"ni hao"),MobileWord(word:"松萝快捷测试",code:"lianatestshortcut",reading:"song luo kuai jie ce shi"),MobileWord(word:"你好世界测试",code:"ni hao shi jie ce shi",reading:"ni hao shi jie ce shi")]
+        _=engineUpdate(engine,.importWords(words))
+        XCTAssertEqual(engineUpdate(engine,.feed("lianatestshortcut")).snapshot.candidates.first,"松萝快捷测试")
+        XCTAssertEqual(engineUpdate(engine,.space).committed,"松萝快捷测试")
+        XCTAssertEqual(engineUpdate(engine,.feed("nihao")).snapshot.candidates.first,"你好")
+    }
+    func testToolsContainRealActionsAndKaomojiInserts() throws {
+        let keyboard=fixture()
+        try tap("tools.open",keyboard)
+        for id in ["tools.receive","tools.system","tools.clip.send","tools.clip.receive","face.0"] { XCTAssertNotNil(try button(id,keyboard)) }
+        try tap("face.0",keyboard)
+        XCTAssertFalse(keyboard.document.text.isEmpty)
+        try tap("tools.close",keyboard)
+        XCTAssertNotNil(try button("key.q",keyboard))
+    }
+
+    func testGlideCandidatesSurviveBackgroundSave() throws {
+        let engine=MobileEngine()
+        let ready=expectation(description:"start"); engine.onUpdate={ _ in ready.fulfill() }
+        engine.start(bundle:Bundle(for:Self.self),mode:"pinyin"); wait(for:[ready],timeout:15)
+        var centers:[String:CGPoint]=[:]
+        for (r,row) in ["qwertyuiop","asdfghjkl","zxcvbnm"].enumerated() {
+            for (c,ch) in row.enumerated() { centers[String(ch)]=CGPoint(x:Double(c)*35+Double(r)*12,y:Double(r)*50) }
+        }
+        let result=engineUpdate(engine,.glide("nihao".map { centers[String($0)]! },centers,false))
+        XCTAssertEqual(result.snapshot.candidates.first,"你好")
+        XCTAssertEqual(engineUpdate(engine,.save).snapshot.candidates.first,"你好")
+        XCTAssertEqual(engineUpdate(engine,.space).committed,"你好")
+        XCTAssertTrue(engineUpdate(engine,.save).snapshot.candidates.isEmpty)
+    }
+    func testDocumentSwitchDropsQueuedCommitAndClearsComposition() throws {
+        let keyboard=fixture()
+        try typePinyin("nihao",keyboard)
+        try button("key.空格",keyboard).sendActions(for:.touchUpInside)
+        keyboard.document.documentIdentifier=UUID()
+        try button("key.a",keyboard).sendActions(for:.touchUpInside)
+        drain(keyboard)
+        XCTAssertEqual(keyboard.document.text,"")
+        try tap("composition.clear",keyboard)
+        try tap("key.中",keyboard)
+        try tap("key.x",keyboard)
+        XCTAssertEqual(keyboard.document.text,"x")
+    }
+
 }

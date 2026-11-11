@@ -32,11 +32,17 @@ def validate(app):
     assert keyboard['NSBluetoothAlwaysUsageDescription']
     assert info['NSBluetoothAlwaysUsageDescription']
     assert info['NSCameraUsageDescription']
+    assert info['NSMicrophoneUsageDescription']
+    assert info['NSSpeechRecognitionUsageDescription']
+    assert keyboard['NSLocalNetworkUsageDescription']
     assert info['NSLocalNetworkUsageDescription']
     assert '_liana-pet._tcp' in info['NSBonjourServices']
     assert any('public.item' in item['LSItemContentTypes'] and item['CFBundleTypeRole'] == 'Viewer' for item in info['CFBundleDocumentTypes'])
     assert attributes['IsASCIICapable'] is True
     assert (extension / 'base.ifd').read_bytes().startswith(b'IFD1')
+    assert (extension / 'mobile.sqlite').read_bytes().startswith(b'SQLite format 3')
+    for resource in ['mmah.json', 'hanzilookup.min.js', 'LICENSE', 'LICENSE-APL', 'LICENSE-Wubi.txt']:
+        assert (extension / resource).is_file(), f'Missing offline resource / license: {resource}'
     for bundle, metadata in [(app, info), (extension, keyboard)]:
         executable = bundle / metadata['CFBundleExecutable']
         architectures = subprocess.check_output(['lipo', '-archs', str(executable)], text=True).strip().split()

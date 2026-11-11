@@ -58,6 +58,15 @@ final class ViewController: UIViewController {
         mac.accessibilityIdentifier = "mac.open"
         mac.addAction(UIAction { [weak self] _ in self?.showMacLink() }, for: .touchUpInside)
         stack.addArrangedSubview(mac)
+        var toolsConfig = UIButton.Configuration.tinted()
+        toolsConfig.title = "语音 · 词库 · GIF · 剪贴板"
+        toolsConfig.image = UIImage(systemName: "square.grid.2x2")
+        toolsConfig.imagePadding = 10
+        let tools = UIButton(configuration: toolsConfig)
+        tools.accessibilityIdentifier = "mobile.tools"
+        tools.heightAnchor.constraint(greaterThanOrEqualToConstant: 48).isActive = true
+        tools.addAction(UIAction { [weak self] _ in self?.present(UINavigationController(rootViewController: MobileToolsViewController()), animated: true) }, for: .touchUpInside)
+        stack.addArrangedSubview(tools)
         stack.addArrangedSubview(label("先调到顺手，再开始输入", style: .headline))
         stack.addArrangedSubview(label("键盘顶部四向箭头：上下拖动改变高度，左右拖动移动入口。滑块图标可调宽度、左右位置、候选字号与底部留白，也可一键恢复默认。主题只提供黑色、白色，默认跟随系统。", style: .body))
         stack.addArrangedSubview(label("外接语音／Vibe Code 设备", style: .headline))

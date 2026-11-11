@@ -15,6 +15,9 @@ python3 "$ROOT/tools/build_ios_dict.py" "$ROOT/crates/dict/data/base-large.tsv" 
 cargo run --quiet --manifest-path "$ROOT/Cargo.toml" -p xtask -- \
     dict build "$HERE/build/mobile.tsv" -o "$HERE/Resources/base.ifd" --no-packs
 
+python3 "$ROOT/tools/build_mobile_index.py" "$HERE/build/mobile.tsv" \
+    "$HERE/Vendor/Wubi86/wubi86.dict.yaml" "$ROOT/crates/en/data/words.txt" "$HERE/Resources/mobile.sqlite"
+
 if [[ "$MODE" == device || "$MODE" == all ]]; then
     echo '==> Building Rust for iPhone (arm64)'
     IPHONEOS_DEPLOYMENT_TARGET=15.0 cargo build --release --manifest-path "$ROOT/Cargo.toml" \

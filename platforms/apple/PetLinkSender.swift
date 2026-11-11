@@ -3,6 +3,9 @@ import Network
 
 final class PetLinkSender {
     var onStatus: ((String) -> Void)?
+    var onClipboard: ((String?) -> Void)?
+    private var clipboardID: String?
+    private var clipboardSupported = false
     var onReady: (() -> Void)?
     var onSaved: ((String) -> Void)?
     var onProgress: ((Double) -> Void)?
@@ -64,12 +67,12 @@ final class PetLinkSender {
         channel.onFrame = { [weak self] kind, data in self?.receive(kind, data) }
         channel.start()
     }
-    func disconnect() { PetLink.queue.async { [self] in disconnectNow(); status("已断开连接。") } }
+    func disconnect(silent: Bool = false) { PetLink.queue.async { [self] in disconnectNow(); if !silent { status("已断开连接。") } } }
     private func disconnectNow() {
         let wasActive = channel != nil || browser != nil || ready
         discoveryTimeout?.cancel(); browser?.cancel(); browser = nil
         let old = channel; channel = nil; old?.close("已断开连接。")
-        ready = false; clearFile()
+        ready = false; clipboardID = nil; clipboardSupported = false; clearFile()
         if wasActive { DispatchQueue.main.async { [weak self] in self?.onDisconnected?() } }
     }
     private func clearFile() {
@@ -79,7 +82,7 @@ final class PetLinkSender {
     }
     func send(_ url: URL) {
         PetLink.queue.async { [weak self] in
-            guard let self, self.ready, self.currentID == nil, let channel = self.channel else {
+            guard let self, self.ready, self.currentID == nil, self.clipboardID == nil, let channel = self.channel else {
                 self?.status("请先连接 Mac，或等待当前文件完成。")
                 DispatchQueue.main.async { [weak self] in self?.onFailure?() }
                 return
@@ -98,11 +101,44 @@ final class PetLinkSender {
             } catch { self.clearFile(); self.status(error.localizedDescription); DispatchQueue.main.async { [weak self] in self?.onFailure?() } }
         }
     }
+    /// A user-triggered foreground exchange; no background clipboard observation.
+    func clipboard(text: String? = nil) {
+        PetLink.queue.async { [weak self] in
+            guard let self else { return }
+            guard self.ready, self.clipboardSupported, self.currentID == nil, self.clipboardID == nil, let channel = self.channel else {
+                self.status("请连接支持剪贴板同步的新版 Mac 松萝，并等待当前传输完成。")
+                DispatchQueue.main.async { [weak self] in self?.onFailure?() }; return
+            }
+            let id = UUID().uuidString
+            var object: [String: Any] = ["kind": text == nil ? "clipboardPull" : "clipboardPush", "id": id]
+            if let text { object["text"] = text }
+            guard (text?.utf8.count ?? 0) <= 4000, let encoded = try? JSONSerialization.data(withJSONObject: object), encoded.count <= 8192 else {
+                self.status("剪贴板文字过长，单次最多 4KB，请改用文件传输。")
+                DispatchQueue.main.async { [weak self] in self?.onFailure?() }; return
+            }
+            self.clipboardID = id; channel.json(object)
+            PetLink.queue.asyncAfter(deadline: .now() + 15) { [weak self] in
+                guard let self, self.clipboardID == id else { return }
+                self.clipboardID = nil; self.status("剪贴板同步超时，请检查 Mac 权限与网络后重试。")
+                DispatchQueue.main.async { [weak self] in self?.onFailure?() }
+            }
+        }
+    }
     private func receive(_ kind: UInt8, _ data: Data) {
         guard kind == 1, data.count <= 8192, let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let message = object["kind"] as? String else { channel?.close("Mac 返回了无效消息。"); return }
         if message == "ready" {
+            clipboardSupported = object["clipboard"] as? Int == 1
             ready = true; status("已连接，可选择文件发送到 Mac 桌宠。")
             DispatchQueue.main.async { [weak self] in self?.onReady?() }
+        } else if message == "clipboardValue", let text = object["text"] as? String, text.utf8.count <= 4000, object["id"] as? String == clipboardID, clipboardID != nil {
+            clipboardID = nil; status("已接收 Mac 剪贴板文字。")
+            DispatchQueue.main.async { [weak self] in self?.onClipboard?(text) }
+        } else if message == "clipboardSaved", object["id"] as? String == clipboardID, clipboardID != nil {
+            clipboardID = nil; status("文字已发送到 Mac 剪贴板。")
+            DispatchQueue.main.async { [weak self] in self?.onClipboard?(nil) }
+        } else if message == "clipboardError", object["id"] as? String == clipboardID, clipboardID != nil {
+            clipboardID = nil; status(object["message"] as? String ?? "Mac 未允许剪贴板同步。")
+            DispatchQueue.main.async { [weak self] in self?.onFailure?() }
         } else if message == "accept", object["id"] as? String == currentID, currentID != nil { nextChunk() }
         else if message == "saved", object["id"] as? String == currentID, let name = object["name"] as? String {
             clearFile(); status("Mac 已校验并保存：\(name)")

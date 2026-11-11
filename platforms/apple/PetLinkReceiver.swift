@@ -7,6 +7,8 @@ final class PetLinkReceiver {
     let directory: URL
     var authorize: ((UUID, String, @escaping (Bool) -> Void) -> Void)?
     var onStatus: ((String) -> Void)?
+    var clipboardRead: (() throws -> String)?
+    var clipboardWrite: ((String) throws -> Void)?
     var onReceived: ((URL, String) -> Void)?
     private(set) var port: NWEndpoint.Port?
     private var listener: NWListener?
@@ -99,7 +101,7 @@ final class PetLinkReceiver {
                         self.trusted.insert(id.uuidString)
                         UserDefaults.standard.set(Array(self.trusted), forKey: self.trustedKey)
                         peer.approved = true; peer.awaitingApproval = false
-                        peer.channel.json(["kind": "ready"])
+                        peer.channel.json(["kind": "ready", "clipboard": 1])
                         self.status("已连接 \(name)，文件会进入松萝收件箱。")
                     } else {
                         peer.channel.json(["kind": "error", "message": "Mac 未允许此设备配对。请在 Mac 确认后重试。"] ) { peer.channel.close("Mac 未允许此设备。") }
@@ -112,6 +114,33 @@ final class PetLinkReceiver {
             return
         }
         guard peer.approved else { throw PetLink.Failure.message("请先在 Mac 确认设备配对。") }
+        if message == "clipboardPush" || message == "clipboardPull" {
+            guard peer.file == nil, let id = object["id"] as? String, UUID(uuidString: id) != nil else { throw PetLink.Failure.message("剪贴板请求无效。") }
+            let incoming = object["text"] as? String
+            if message == "clipboardPush", incoming == nil || incoming!.utf8.count > 4000 { throw PetLink.Failure.message("剪贴板内容超过 4KB。") }
+            DispatchQueue.main.async { [weak self, weak peer] in
+                guard let self, let peer else { return }
+                do {
+                    var reply: [String: Any] = ["kind": "clipboardSaved", "id": id]
+                    if message == "clipboardPush" {
+                        guard let write = self.clipboardWrite else { throw PetLink.Failure.message("Mac 未启用剪贴板同步。") }
+                        try write(incoming!)
+                    } else {
+                        guard let read = self.clipboardRead else { throw PetLink.Failure.message("Mac 未启用剪贴板同步。") }
+                        let text = try read()
+                        guard text.utf8.count <= 4000 else { throw PetLink.Failure.message("Mac 剪贴板超过 4KB，请改用文件传输。") }
+                        reply["kind"] = "clipboardValue"; reply["text"] = text
+                    }
+                    guard let encoded = try? JSONSerialization.data(withJSONObject: reply), encoded.count <= 8192 else { throw PetLink.Failure.message("剪贴板文字过长。") }
+                    let result = reply
+                    PetLink.queue.async { peer.channel.json(result) }
+                } catch {
+                    let message = error.localizedDescription
+                    PetLink.queue.async { peer.channel.json(["kind": "clipboardError", "id": id, "message": message]) }
+                }
+            }
+            return
+        }
         if message == "offer" {
             guard peer.file == nil, let id = (object["id"] as? String).flatMap(UUID.init(uuidString:)),
                   let name = object["name"] as? String, let size = object["size"] as? Int64,

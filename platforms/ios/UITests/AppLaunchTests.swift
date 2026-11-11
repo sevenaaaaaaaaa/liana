@@ -28,4 +28,15 @@ final class AppLaunchTests: XCTestCase {
         XCTAssertTrue(app.buttons["mac.paste"].exists)
         XCTAssertEqual(app.state, .runningForeground)
     }
+    func testMobileToolsOpenWithoutStartingMicrophone() {
+        let app = XCUIApplication()
+        app.launch()
+        let tools=app.buttons["mobile.tools"]
+        XCTAssertTrue(tools.waitForExistence(timeout:15)); tools.tap()
+        XCTAssertTrue(app.buttons["voice.start"].waitForExistence(timeout:10))
+        XCTAssertTrue(app.buttons["voice.copy"].exists)
+        let screenshot=XCTAttachment(screenshot:app.screenshot()); screenshot.name="iPhone-mobile-tools"; screenshot.lifetime = .keepAlways; add(screenshot)
+        XCTAssertEqual(app.state,.runningForeground)
+    }
+
 }

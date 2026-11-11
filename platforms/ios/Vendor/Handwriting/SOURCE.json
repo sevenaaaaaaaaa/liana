@@ -1,0 +1,25 @@
+{
+  "repository": "https://github.com/gugray/HanziLookupJS",
+  "revision": "b21124f771ddd91f131e62aa478bc188f6ec78d3",
+  "files": {
+    "hanzilookup.min.js": "03ea95367cab8fdc5dacc277f7f3a22317e12544011966e5c68e3f4631e25594",
+    "mmah.json": "287943446fe52cef43df1ba47619a3c040e5924b6031b90939e880711dbc70ae",
+    "LICENSE": "589ed823e9a84c56feb95ac58e7cf384626b9cbf4fda2a907bc36e103de1bad2",
+    "LICENSE-APL": "3a5e90c0957524a89e48203febcd4492ca4393678abaa7e5b4d70f3ff32b386d",
+    "Source/library/src/analyzedCharacter.js": "445b1d6ea4c9f9eece4974a0cc9d62374b821c23db26c496a80ec61d22d7cfb0",
+    "Source/library/src/analyzedStroke.js": "7fc5cdacfac6bb2491538b3bdd394635d1776c73b1108b17d8ffdf7ababee020",
+    "Source/library/src/characterMatch.js": "c45c6b3b65a3a02073a361213a6d07ed9bd4f056fa8e33cca75333ea1689ea83",
+    "Source/library/src/cubicCurve2D.js": "d4ac3871c9481f11091f39a3c7c81f09401c1f7434ddfe2667952383598ae07b",
+    "Source/library/src/decodeCompact.js": "1c54061c591ed7f499c6729b7ce003dff7514696d2cf6727e0ab1e68695e400b",
+    "Source/library/src/drawingBoard.js": "7876e3972cc5df4661566aae78b125f2b3a391d86cf10c05f42e0f85f3150d7c",
+    "Source/library/src/init.js": "c2ffc79a8ef0b16e41102a73382469695f49fdd795e6c09b92a47102a0dd0557",
+    "Source/library/src/matchCollector.js": "eb47eb2e8bf9d7960885998e9cd0218d150d91e025765594c102e1a3f360d02d",
+    "Source/library/src/matcher.js": "bc86d812e4f662037f07c1feaf6e3986d7ea0c63bb49e08a91d893d15666bf47",
+    "Source/library/src/strokeInputOverlay.js": "4b4a2045526c0cc41b2d76b539b8952b6b43d31d127d5298574d70f9a3c504be",
+    "Source/library/src/subStroke.js": "8a5a818bb763d53fe88c69634a6fbd15db93de65b69ac04ec2f93d87a8e79872",
+    "Source/library/src/testbed.js": "7a52d8ffa085b12a74f3a232ab6245cba95451ebf8643cb9e2bb7fcd8c83dd9d",
+    "Source/library/gulpfile.js": "5fe574ad1223b27c63fefa8f354dfec70ba39f7de9a7a521c9ff12e915f99aae",
+    "Source/library/package.json": "1e94e16445fe380c60a21d10f83982d035fdaebe558a91a68770585a8b979b3c",
+    "Source/README.md": "343cd69d200403ae655e837f57e66c8eaca18bb1688a90994a7b74df31a3c499"
+  }
+}
