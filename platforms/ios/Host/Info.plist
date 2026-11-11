@@ -47,6 +47,25 @@
 	<string>扫描你 Mac 桌宠显示的二维码，完成本地文件传输配对。</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>在同一局域网发现并连接你配对的 Mac，将你选择的文件发送给桌宠。</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneClassName</key>
+					<string>UIWindowScene</string>
+					<key>UISceneConfigurationName</key>
+					<string>Default Configuration</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 	<key>UILaunchScreen</key>
 	<dict/>
 </dict>

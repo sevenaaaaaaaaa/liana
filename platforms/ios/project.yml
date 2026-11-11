@@ -34,12 +34,19 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default Configuration
+                UISceneClassName: UIWindowScene
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.liana.ime.ios
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         MARKETING_VERSION: 0.8.0
-        CURRENT_PROJECT_VERSION: 4
+        CURRENT_PROJECT_VERSION: 5
         TARGETED_DEVICE_FAMILY: "1,2"
         SWIFT_VERSION: "5.0"
         CODE_SIGN_IDENTITY: "-"
@@ -71,7 +78,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.liana.ime.ios.keyboard
         MARKETING_VERSION: 0.8.0
-        CURRENT_PROJECT_VERSION: 4
+        CURRENT_PROJECT_VERSION: 5
         TARGETED_DEVICE_FAMILY: "1,2"
         SWIFT_VERSION: "5.0"
         APPLICATION_EXTENSION_API_ONLY: YES
@@ -108,7 +115,34 @@ targets:
         CODE_SIGNING_ALLOWED: NO
         GENERATE_INFOPLIST_FILE: YES
 
+  LianaAppLaunchTests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests/AppLaunchTests.swift
+    dependencies:
+      - target: LianaApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.liana.ime.ios.launchtests
+        SWIFT_VERSION: "5.0"
+        TEST_TARGET_NAME: LianaApp
+        CODE_SIGNING_ALLOWED: NO
+        GENERATE_INFOPLIST_FILE: YES
+
 schemes:
+  LianaApp:
+    build:
+      targets:
+        LianaApp: [run, test, profile, analyze, archive]
+  LianaAppLaunchTests:
+    build:
+      targets:
+        LianaApp: [run, test]
+        LianaAppLaunchTests: [test]
+    test:
+      targets:
+        - LianaAppLaunchTests
   LianaKeyboardTests:
     build:
       targets:

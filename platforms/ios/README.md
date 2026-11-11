@@ -10,12 +10,16 @@ iOS 15+，UIKit 宿主 App + 本地 Rust 键盘扩展。已通过 iPhone arm64 �
 ./platforms/ios/build.sh device       # 默认；dist/Liana-iOS-<版本>-build<构建号>-unsigned.ipa
 ./platforms/ios/build.sh simulator   # 仅当前主机架构的模拟器 App
 ./platforms/ios/build.sh all
-python3 platforms/ios/validate_ipa.py dist/Liana-iOS-0.8.0-build4-unsigned.ipa
+python3 platforms/ios/validate_ipa.py dist/Liana-iOS-0.8.0-build5-unsigned.ipa
 ```
 
 IPA 未签名。用自己的签名安装工具签名主 App 和 `PlugIns/LianaKeyboard.appex`，保留嵌入扩展，确保各自 Bundle ID 与描述文件一致。默认 ID 分别是 `dev.liana.ime.ios` 与 `dev.liana.ime.ios.keyboard`。
 
 安装后打开 App 查看引导，再到「设置 → 通用 → 键盘 → 键盘 → 添加新键盘」添加松萝，输入时长按地球键切换。候选与学习在键盘自己的沙盒中完成，不需要允许完全访问。
+
+### iOS 27 启动要求
+
+使用 iOS 27 SDK 构建的 UIKit App 必须采用 Scene 生命周期，否则 iOS 27 会拒绝启动。build 4 及更早版本缺少此声明；请使用 build 5 或更新版本。宿主通过 `UIApplicationSceneManifest`、`AppDelegate.configurationForConnecting` 与 `SceneDelegate` 创建窗口，文件打开也经场景路由。参见 [Apple 的生命周期迁移说明](https://developer.apple.com/documentation/uikit/transitioning-to-the-uikit-scene-based-life-cycle)。
 
 ## 比例与入口
 
@@ -67,6 +71,11 @@ swiftc platforms/ios/Keyboard/FoldLayout.swift platforms/ios/Tests/FoldLayoutTes
 # 先完成 simulator 构建，再替换设备名称运行真实键盘控制器的行为测试
 xcodebuild -project platforms/ios/Liana.xcodeproj -scheme LianaKeyboardTests \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -derivedDataPath platforms/ios/build CODE_SIGNING_ALLOWED=NO test
+
+# 验证实际 App 进程的冷启动、重启与页面入口，不能用控制器单测代替
+xcodebuild -project platforms/ios/Liana.xcodeproj -scheme LianaAppLaunchTests \
+  -configuration Release -destination 'platform=iOS Simulator,name=iPhone 14 Pro Max' \
   -derivedDataPath platforms/ios/build CODE_SIGNING_ALLOWED=NO test
 ```
 

@@ -13,6 +13,12 @@ def validate(app):
     assert info['CFBundleSupportedPlatforms'] == ['iPhoneOS'], 'This is not an iPhone device build.'
     assert info['CFBundleIdentifier'] == 'dev.liana.ime.ios'
     assert info['CFBundleShortVersionString'] and '$(' not in info['CFBundleShortVersionString']
+    manifest = info.get('UIApplicationSceneManifest', {})
+    configurations = manifest.get('UISceneConfigurations', {}).get('UIWindowSceneSessionRoleApplication', [])
+    assert configurations, 'Missing scene configuration: iOS 27 refuses to launch legacy UIKit apps.'
+    assert any(config.get('UISceneDelegateClassName', '').endswith('.SceneDelegate')
+               and '$(' not in config['UISceneDelegateClassName'] for config in configurations), 'Missing resolved scene delegate class.'
+    assert info.get('UILaunchScreen') is not None, 'Launch screen declaration missing.'
     plugins = list((app / 'PlugIns').glob('*.appex'))
     assert len(plugins) == 1, 'Expected one keyboard extension.'
     extension = plugins[0]
