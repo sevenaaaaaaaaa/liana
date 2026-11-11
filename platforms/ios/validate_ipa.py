@@ -70,7 +70,8 @@ def main():
                 for name in archive.namelist():
                     assert (root / name).resolve().is_relative_to(root), 'Unsafe ZIP path.'
                 archive.extractall(root)
-            apps = list((root / 'Payload').glob('*.app'))
+            # Ignore AppleDouble sidecars (._Foo.app) preserved by zip/ditto.
+            apps = [p for p in (root / 'Payload').glob('*.app') if not p.name.startswith('._')]
             assert len(apps) == 1
             validate(apps[0])
 

@@ -55,8 +55,11 @@ if [[ "$MODE" == device || "$MODE" == all ]]; then
     trap 'rm -rf "$STAGE"' EXIT
     mkdir -p "$STAGE/Payload"
     /usr/bin/ditto "$APP" "$STAGE/Payload/LianaApp.app"
+    # Xcode 26+ stamps com.apple.provenance on executables; ditto turns any xattr into
+    # AppleDouble (._*) entries, which pollute Payload and fail IPA validation.
+    /usr/bin/xattr -cr "$STAGE/Payload"
     python3 "$HERE/validate_ipa.py" --app "$STAGE/Payload/LianaApp.app"
-    /usr/bin/ditto -c -k --keepParent "$STAGE/Payload" "$IPA"
+    /usr/bin/ditto -c -k --norsrc --noextattr --keepParent "$STAGE/Payload" "$IPA"
     python3 "$HERE/validate_ipa.py" "$IPA"
     (cd "$(dirname "$IPA")" && shasum -a 256 "$(basename "$IPA")") > "$IPA.sha256"
     echo "IPA: $IPA"
