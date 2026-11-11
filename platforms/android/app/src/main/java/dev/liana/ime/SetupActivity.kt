@@ -50,7 +50,7 @@ class SetupActivity : Activity() {
             text = "① 启用：系统设置 → 系统 → 语言和输入法 → 屏幕键盘 → 启用「松萝输入法」\n" +
                 "② 设为当前：点下面的「选择输入法」→「松萝输入法」"
             textSize = 15f
-            lineSpacing(dp(4).toFloat(), 1f)
+            setLineSpacing(dp(4).toFloat(), 1f)
             setPadding(0, 0, 0, dp(20))
         })
 
