@@ -78,20 +78,25 @@ fi
 
 # ──────────────────── 3/6 Hardened Runtime 重签 ────────────────────
 
+# Only Developer ID distribution needs a trusted timestamp for notarization.
+# Development/ad-hoc previews cannot be notarized, so keep them buildable offline.
+TIMESTAMP_ARGS=(--timestamp)
+[[ "$TIER" == "devid" ]] || TIMESTAMP_ARGS=(--timestamp=none)
+
 # 公证的硬性前提。build.sh 的签名不带 runtime 标志，这里按发布口径统一重签
 # （内嵌所有框架/Helper 一并覆盖；deep 保持与 build.sh 的自包含承诺一致）。
 log "重签（Hardened Runtime + entitlements）：Liana.app"
 codesign --force --sign "$IDENTITY" --options runtime --entitlements "$ENTITLEMENTS" \
-    --deep --timestamp "$APP" || die "重签 Liana.app 失败"
+    --deep "${TIMESTAMP_ARGS[@]}" "$APP" || die "重签 Liana.app 失败"
 if [[ -d "$INSTALLER" ]]; then
     log "重签（Hardened Runtime + entitlements）：安装器"
     # --deep 不递归 Resources/ 下的内嵌 .app，先显式重签内嵌输入法再签外层
     if [[ -d "$INSTALLER/Contents/Resources/Liana.app" ]]; then
         codesign --force --sign "$IDENTITY" --options runtime --entitlements "$ENTITLEMENTS" \
-            --deep --timestamp "$INSTALLER/Contents/Resources/Liana.app" || die "重签内嵌输入法失败"
+            --deep "${TIMESTAMP_ARGS[@]}" "$INSTALLER/Contents/Resources/Liana.app" || die "重签内嵌输入法失败"
     fi
     codesign --force --sign "$IDENTITY" --options runtime --entitlements "$ENTITLEMENTS" \
-        --deep --timestamp "$INSTALLER" || die "重签安装器失败"
+        --deep "${TIMESTAMP_ARGS[@]}" "$INSTALLER" || die "重签安装器失败"
 fi
 codesign --verify --strict "$APP" || die "签名校验未通过"
 echo "   $(codesign -dv "$APP" 2>&1 | grep -E 'TeamIdentifier|Signature' | tr '\n' ' ')"
