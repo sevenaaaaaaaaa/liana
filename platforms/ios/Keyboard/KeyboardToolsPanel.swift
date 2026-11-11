@@ -23,8 +23,16 @@ final class KeyboardToolsPanel: UIView {
         message.font = .systemFont(ofSize: 12); message.numberOfLines = 0; message.textColor = .secondaryLabel
         message.text = "主 App 可录音转文字、导入词库与 GIF；复制后点「接收 App 内容」。长按中/EN 切换方案。"
         stack.addArrangedSubview(message)
-        let modes = UIButton(type: .system); modes.setTitle("输入方案：全拼／九宫格／双拼／五笔／手写", for: .normal); modes.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
-        modes.menu = UIMenu(children: MobileInputMethod.allCases.map { mode in UIAction(title: mode.title) { [weak self] _ in self?.onMethod?(mode) } }); modes.showsMenuAsPrimaryAction = true; stack.addArrangedSubview(modes)
+        // Inline choices remain inside the extension's bounds on every iOS host.
+        let schemes = MobileInputMethod.allCases
+        for index in stride(from: 0, to: schemes.count, by: 2) {
+            let row = UIStackView(); row.distribution = .fillEqually
+            for mode in schemes[index..<min(index+2,schemes.count)] {
+                row.addArrangedSubview(button(mode.title, id: "method." + mode.rawValue) { [weak self] in self?.onMethod?(mode) })
+            }
+            if row.arrangedSubviews.count == 1 { row.addArrangedSubview(UIView()) }
+            stack.addArrangedSubview(row)
+        }
         stack.addArrangedSubview(button("导入系统补充词库（联系人／文本替换）", id: "tools.system") { [weak self] in self?.onSystemLexicon?() })
         let clip = UIStackView(); clip.distribution = .fillEqually
         clip.addArrangedSubview(button("发送剪贴板到 Mac", id: "tools.clip.send") { [weak self] in self?.onClipboardSend?() })

@@ -435,6 +435,10 @@ final class KeyboardBehaviorTests: XCTestCase {
         XCTAssertFalse(keyboard.document.text.isEmpty)
         try tap("tools.close",keyboard)
         XCTAssertNotNil(try button("key.q",keyboard))
+        try tap("tools.open",keyboard)
+        try tap("method.wubi",keyboard)
+        try typePinyin("wqiy",keyboard)
+        XCTAssertEqual(try button("candidate.0",keyboard).title(for:.normal),"你")
     }
 
     func testGlideCandidatesSurviveBackgroundSave() throws {
