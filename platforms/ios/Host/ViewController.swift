@@ -1,123 +1,82 @@
 import UIKit
 
-/// 宿主负责原生启用引导与试打；输入引擎和学习数据留在键盘扩展自己的容器内。
-final class ViewController: UIViewController {
-    private let testInput = UITextView()
-
+final class ViewController: UIViewController, UITextViewDelegate {
+    private let testInput = LianaEditorView()
+    private let placeholder = LianaUI.label("点这里，试着输入 nihao…", size: 16, muted: true)
+    private weak var scroll: UIScrollView?
+    private weak var previewControl: UISegmentedControl?
+    private weak var previewKeyboard: KeyboardPreviewView?
+    private var didChoosePreviewTheme=false
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .systemGroupedBackground
-        let scroll = UIScrollView()
-        scroll.keyboardDismissMode = .interactive
-        scroll.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(scroll)
-        NSLayoutConstraint.activate([
-            scroll.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
-            scroll.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
-            scroll.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            scroll.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor),
-        ])
-        let stack = UIStackView()
-        stack.axis = .vertical
-        stack.spacing = 18
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        scroll.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 24),
-            stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -24),
-            stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 28),
-            stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -28),
-            stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -48),
-        ])
-        stack.addArrangedSubview(label("松萝输入法", style: .largeTitle, weight: .bold))
-        stack.addArrangedSubview(label("让中文输入，回到你的设备上。", style: .title3))
-        let privacy = label("离线拼音 · 本地学习 · 无需完全访问", style: .subheadline)
-        privacy.textColor = .systemGreen
-        stack.addArrangedSubview(privacy)
-        stack.addArrangedSubview(label("首次使用，添加一次键盘", style: .headline))
-        for text in [
-            "1   打开设置 → 通用 → 键盘 → 键盘。",
-            "2   添加新键盘，在第三方键盘中选择松萝输入法／松萝键盘。",
-            "3   回到输入框，长按地球键选择松萝键盘。",
-        ] { stack.addArrangedSubview(label(text, style: .body)) }
-        var configuration = UIButton.Configuration.filled()
-        configuration.title = "打开键盘设置"
-        configuration.image = UIImage(systemName: "keyboard")
-        configuration.imagePadding = 10
-        configuration.cornerStyle = .large
-        configuration.contentInsets = NSDirectionalEdgeInsets(top: 14, leading: 18, bottom: 14, trailing: 18)
-        let settings = UIButton(configuration: configuration)
-        settings.addTarget(self, action: #selector(openAppSettings), for: .touchUpInside)
-        stack.addArrangedSubview(settings)
-        var macConfig = UIButton.Configuration.tinted()
-        macConfig.title = "连接 Mac 桌宠 · 发送文件"
-        macConfig.image = UIImage(systemName: "desktopcomputer")
-        macConfig.imagePadding = 10
-        macConfig.contentInsets = NSDirectionalEdgeInsets(top: 14, leading: 12, bottom: 14, trailing: 12)
-        let mac = UIButton(configuration: macConfig)
-        mac.accessibilityIdentifier = "mac.open"
-        mac.addAction(UIAction { [weak self] _ in self?.showMacLink() }, for: .touchUpInside)
-        stack.addArrangedSubview(mac)
-        var toolsConfig = UIButton.Configuration.tinted()
-        toolsConfig.title = "语音 · 词库 · GIF · 剪贴板"
-        toolsConfig.image = UIImage(systemName: "square.grid.2x2")
-        toolsConfig.imagePadding = 10
-        let tools = UIButton(configuration: toolsConfig)
-        tools.accessibilityIdentifier = "mobile.tools"
-        tools.heightAnchor.constraint(greaterThanOrEqualToConstant: 48).isActive = true
-        tools.addAction(UIAction { [weak self] _ in self?.present(UINavigationController(rootViewController: MobileToolsViewController()), animated: true) }, for: .touchUpInside)
-        stack.addArrangedSubview(tools)
-        stack.addArrangedSubview(label("先调到顺手，再开始输入", style: .headline))
-        stack.addArrangedSubview(label("键盘顶部四向箭头：上下拖动改变高度，左右拖动移动入口。滑块图标可调宽度、左右位置、候选字号与底部留白，也可一键恢复默认。主题只提供黑色、白色，默认跟随系统。", style: .body))
-        stack.addArrangedSubview(label("外接语音／Vibe Code 设备", style: .headline))
-        stack.addArrangedSubview(label("HID 设备在 iOS 设置 → 蓝牙中配对，由系统直接输入。BLE 设备点键盘顶部波形图标连接：扫描、选择设备及文字通知通道，再预览插入。BLE 是实验接口，需要允许完全访问和蓝牙权限；普通拼音与布局调节不需要。", style: .body))
-        stack.addArrangedSubview(label("BLE 接收设备已识别的 UTF-8 行或 JSON Lines 文字，不处理原始音频。iOS 第三方键盘不能直接使用麦克风，硬件需自行完成语音识别。", style: .footnote))
-        stack.addArrangedSubview(label("添加后，在这里试打", style: .headline))
-        stack.addArrangedSubview(label("例如输入 nihao，选择「你好」；再试试数字、大写和标点。", style: .subheadline))
-        testInput.accessibilityIdentifier = "typing-test"
-        testInput.accessibilityLabel = "松萝试打输入框"
-        testInput.font = .preferredFont(forTextStyle: .body)
-        testInput.adjustsFontForContentSizeCategory = true
-        testInput.backgroundColor = .secondarySystemGroupedBackground
-        testInput.layer.cornerRadius = 14
-        testInput.textContainerInset = UIEdgeInsets(top: 14, left: 12, bottom: 14, right: 12)
-        testInput.autocorrectionType = .no
-        testInput.smartQuotesType = .no
-        testInput.heightAnchor.constraint(equalToConstant: 132).isActive = true
-        stack.addArrangedSubview(testInput)
-        let hint = label("输入和学习记录保存在键盘本机沙盒。密码框、电话键盘或不支持第三方键盘的应用会由系统接管。", style: .footnote)
-        hint.textColor = .secondaryLabel
-        stack.addArrangedSubview(hint)
+        let stack = LianaUI.scrollStack(in: self, spacing: 20); scroll = stack.superview as? UIScrollView
+        let heading = LianaUI.vertical([LianaUI.label("松萝输入法", size: 32, weight: .semibold),LianaUI.label("让输入回到顺手的节奏。", size: 14, muted: true)],spacing:8)
+        let help = LianaUI.button("", icon:"questionmark.circle", role:.plain,id:"home.guide") { [weak self] in self?.showGuide() }
+        help.accessibilityLabel = "启用与使用指南"; help.widthAnchor.constraint(equalToConstant:44).isActive = true
+        let header = UIStackView(arrangedSubviews:[heading,help]); header.alignment = .center; stack.addArrangedSubview(header)
+
+        let preview = KeyboardPreviewView(); previewKeyboard=preview; preview.heightAnchor.constraint(equalToConstant:176).isActive = true
+        let theme = LianaUI.segment(["雾白","石墨黑"]); previewControl=theme; theme.widthAnchor.constraint(equalToConstant:148).isActive = true
+        theme.selectedSegmentIndex = traitCollection.userInterfaceStyle == .dark ? 1 : 0
+        theme.accessibilityIdentifier = "home.preview.theme"; theme.accessibilityLabel = "预览键盘主题"
+        preview.overrideUserInterfaceStyle = theme.selectedSegmentIndex == 0 ? .light : .dark
+        theme.addAction(UIAction { [weak self, weak theme, weak preview] _ in
+            self?.didChoosePreviewTheme=true
+            guard let theme, let preview else { return }
+            let change = { preview.overrideUserInterfaceStyle = theme.selectedSegmentIndex == 0 ? .light : .dark }
+            if LianaMotion.enabled { UIView.transition(with:preview,duration:0.16,options:[.transitionCrossDissolve,.allowUserInteraction],animations:change) } else { change() }
+        },for:.valueChanged)
+        let caption = LianaUI.label("键盘预览",size:13,weight:.medium,muted:true)
+        let previewTop = UIStackView(arrangedSubviews:[caption,theme]); previewTop.alignment = .center; previewTop.spacing = 12
+        stack.addArrangedSubview(LianaUI.card([previewTop,preview],spacing:12))
+
+        let setup = LianaUI.vertical([LianaUI.label("添加一次，随时输入",size:16,weight:.semibold),LianaUI.label("设置 → 键盘 → 添加松萝",size:12,muted:true)],spacing:5)
+        let settings = LianaUI.button("去设置",role:.primary,id:"home.settings") { [weak self] in self?.openAppSettings() }
+        settings.widthAnchor.constraint(equalToConstant:98).isActive = true
+        let setupRow = UIStackView(arrangedSubviews:[setup,settings]); setupRow.spacing = 12; setupRow.alignment = .center
+        stack.addArrangedSubview(LianaUI.card([setupRow]))
+
+        let tools = LianaActionTile(title:"输入工具",subtitle:"语音 · 词库 · 表情",icon:"square.grid.2x2",primary:true,id:"mobile.tools") { [weak self] in self?.showTools() }
+        let mac = LianaActionTile(title:"连接 Mac",subtitle:"文件与文字，轻松互传",icon:"laptopcomputer",id:"mac.open") { [weak self] in self?.showMacLink() }
+        let actions = UIStackView(arrangedSubviews:[tools,mac]); actions.distribution = .fillEqually; actions.spacing = 12
+        stack.addArrangedSubview(actions)
+
+        testInput.delegate = self; testInput.accessibilityIdentifier = "typing-test"; testInput.accessibilityLabel = "松萝试打输入框"
+        testInput.font = LianaPalette.font(17); testInput.adjustsFontForContentSizeCategory = true
+        testInput.backgroundColor = LianaPalette.soft; testInput.textColor = LianaPalette.ink; testInput.tintColor = LianaPalette.ink
+        testInput.layer.cornerRadius = 12; testInput.textContainerInset = UIEdgeInsets(top:14,left:10,bottom:14,right:10)
+        testInput.autocorrectionType = .no; testInput.smartQuotesType = .no
+        placeholder.isUserInteractionEnabled = false; placeholder.translatesAutoresizingMaskIntoConstraints = false; testInput.addSubview(placeholder)
+        NSLayoutConstraint.activate([placeholder.leadingAnchor.constraint(equalTo:testInput.leadingAnchor,constant:14),placeholder.trailingAnchor.constraint(lessThanOrEqualTo:testInput.trailingAnchor,constant:-14),placeholder.topAnchor.constraint(equalTo:testInput.topAnchor,constant:14)])
+        stack.addArrangedSubview(LianaUI.card([LianaUI.label("试试真实输入",size:17,weight:.semibold),LianaUI.label("点输入框，长按地球键切换到松萝。",size:13,muted:true),testInput]))
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""
-        let footer = label("Liana \(version) (\(build)) · iOS", style: .caption1)
-        footer.textColor = .tertiaryLabel
-        stack.addArrangedSubview(footer)
+        let foot = LianaUI.label("本地输入，本地学习。\nLiana \(version) (\(build))",size:12,muted:true); foot.textAlignment = .center; stack.addArrangedSubview(foot)
     }
-
-    private func label(_ text: String, style: UIFont.TextStyle, weight: UIFont.Weight? = nil) -> UILabel {
-        let label = UILabel()
-        label.text = text
-        label.numberOfLines = 0
-        let base = UIFont.preferredFont(forTextStyle: style)
-        label.font = weight.map { UIFont.systemFont(ofSize: base.pointSize, weight: $0) } ?? base
-        label.adjustsFontForContentSizeCategory = true
-        return label
+    override func viewWillAppear(_ animated:Bool) { super.viewWillAppear(animated); updatePreviewForEnvironment() }
+    override func traitCollectionDidChange(_ previousTraitCollection:UITraitCollection?) { super.traitCollectionDidChange(previousTraitCollection); updatePreviewForEnvironment() }
+    private func updatePreviewForEnvironment() {
+        guard !didChoosePreviewTheme,let previewControl,let previewKeyboard else { return }
+        let dark=traitCollection.userInterfaceStyle == .dark
+        previewControl.selectedSegmentIndex=dark ? 1 : 0; previewKeyboard.overrideUserInterfaceStyle=dark ? .dark : .light
     }
-
-    @objc private func openAppSettings() {
-        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
-        UIApplication.shared.open(url)
+    func textViewDidChange(_ textView:UITextView) { placeholder.isHidden = !textView.text.isEmpty }
+    func textViewDidBeginEditing(_ textView:UITextView) { DispatchQueue.main.async { [weak self] in guard let self,let scroll=self.scroll else { return }; self.view.layoutIfNeeded(); scroll.scrollRectToVisible(self.testInput.convert(self.testInput.bounds,to:scroll).insetBy(dx:0,dy:-16),animated:LianaMotion.enabled) } }
+    private func openAppSettings() { UIApplication.shared.open(URL(string:UIApplication.openSettingsURLString)!) }
+    private func showGuide() { presentSheet(LianaGuideViewController()) }
+    private func showTools() { presentSheet(MobileToolsViewController()) }
+    private func presentSheet(_ controller:UIViewController) {
+        let navigation = UINavigationController(rootViewController:controller)
+        navigation.sheetPresentationController?.detents = [.large()]; navigation.sheetPresentationController?.prefersGrabberVisible = true
+        present(navigation,animated:true)
     }
-
     func showMacLink(file: URL? = nil) {
-        if let navigation = presentedViewController as? UINavigationController,
-           let existing = navigation.viewControllers.first as? PetLinkViewController {
-            if let file { existing.receiveFile(file) }
-            return
+        if let navigation=presentedViewController as? UINavigationController,let existing=navigation.viewControllers.first as? PetLinkViewController {
+            if let file { existing.receiveFile(file) }; return
         }
-        let link = PetLinkViewController()
-        if let file { link.receiveFile(file) }
-        present(UINavigationController(rootViewController: link), animated: true)
+        let show = { [weak self] in
+            guard let self else { return }; let link=PetLinkViewController(); if let file { link.receiveFile(file) }; self.presentSheet(link)
+        }
+        if presentedViewController != nil { dismiss(animated:false,completion:show) } else { show() }
     }
 }

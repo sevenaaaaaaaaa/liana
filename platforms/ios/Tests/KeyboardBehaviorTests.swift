@@ -3,15 +3,16 @@ import UIKit
 
 private final class MemoryDocument: NSObject, UITextDocumentProxy {
     var text = ""
+    var events: [String] = []
     var hasText: Bool { !text.isEmpty }
     var documentContextBeforeInput: String? { text }
     var documentContextAfterInput: String? { "" }
     var selectedText: String? { nil }
     var documentInputMode: UITextInputMode? { nil }
     var documentIdentifier = UUID()
-    func insertText(_ value: String) { text += value }
+    func insertText(_ value: String) { text += value; events.append("insert:" + value) }
     func deleteBackward() { if !text.isEmpty { text.removeLast() } }
-    func adjustTextPosition(byCharacterOffset offset: Int) {}
+    func adjustTextPosition(byCharacterOffset offset: Int) { events.append("cursor:\(offset)") }
     func setMarkedText(_ markedText: String, selectedRange: NSRange) {}
     func unmarkText() {}
 }
@@ -33,8 +34,11 @@ final class KeyboardBehaviorTests: XCTestCase {
     private var savedPreferences: Data?
     private var savedAppearance: Any?
     private var savedMethod: Any?
+    private var savedDraft: Any?
     override func setUp() {
         super.setUp()
+        savedDraft=UserDefaults.standard.object(forKey:MobileToolsViewController.draftKey)
+        UserDefaults.standard.removeObject(forKey:MobileToolsViewController.draftKey)
         savedMethod = UserDefaults.standard.object(forKey: "keyboard.method")
         UserDefaults.standard.removeObject(forKey: "keyboard.method")
         savedPreferences = UserDefaults.standard.data(forKey: "keyboard.layout.v1")
@@ -46,12 +50,13 @@ final class KeyboardBehaviorTests: XCTestCase {
         UserDefaults.standard.set(savedPreferences, forKey: "keyboard.layout.v1")
         UserDefaults.standard.set(savedAppearance, forKey: "keyboard.appearance")
         UserDefaults.standard.set(savedMethod, forKey: "keyboard.method")
+        UserDefaults.standard.set(savedDraft,forKey:MobileToolsViewController.draftKey)
         super.tearDown()
     }
     private func fixture() -> FixtureKeyboard {
         let keyboard = FixtureKeyboard()
         keyboard.loadViewIfNeeded()
-        keyboard.view.frame = CGRect(x: 0, y: 0, width: 375, height: 297)
+        keyboard.view.frame = CGRect(x: 0, y: 0, width: 375, height: 301)
         keyboard.view.setNeedsLayout()
         keyboard.view.layoutIfNeeded()
         drain(keyboard)
@@ -244,7 +249,7 @@ final class KeyboardBehaviorTests: XCTestCase {
         keyboard.perform(action, with: pan)
         keyboard.view.layoutIfNeeded()
         XCTAssertEqual(try button("key.q", keyboard).bounds.height, 56, accuracy: 0.1)
-        let grip = try button("layout.drag", keyboard)
+        let grip = try button("tools.open", keyboard)
         XCTAssertLessThan(grip.convert(grip.bounds, to: keyboard.view).minX, 150)
         XCTAssertEqual(try button("candidate.0", keyboard).title(for: .normal), "你好")
         keyboard.viewWillDisappear(false)
@@ -430,7 +435,13 @@ final class KeyboardBehaviorTests: XCTestCase {
     func testToolsContainRealActionsAndKaomojiInserts() throws {
         let keyboard=fixture()
         try tap("tools.open",keyboard)
-        for id in ["tools.receive","tools.system","tools.clip.send","tools.clip.receive","face.0"] { XCTAssertNotNil(try button(id,keyboard)) }
+        XCTAssertNotNil(try button("tools.receive",keyboard))
+        let tabs = try XCTUnwrap(allViews(keyboard.view).compactMap { $0 as? UISegmentedControl }.first { $0.accessibilityIdentifier == "tools.section" })
+        tabs.selectedSegmentIndex = 3; tabs.sendActions(for:.valueChanged)
+        XCTAssertNotNil(try button("tools.system",keyboard))
+        tabs.selectedSegmentIndex = 2; tabs.sendActions(for:.valueChanged)
+        XCTAssertNotNil(try button("tools.clip.send",keyboard)); XCTAssertNotNil(try button("tools.clip.receive",keyboard))
+        tabs.selectedSegmentIndex = 1; tabs.sendActions(for:.valueChanged)
         try tap("face.0",keyboard)
         XCTAssertFalse(keyboard.document.text.isEmpty)
         try tap("tools.close",keyboard)
@@ -467,6 +478,145 @@ final class KeyboardBehaviorTests: XCTestCase {
         try tap("key.中",keyboard)
         try tap("key.x",keyboard)
         XCTAssertEqual(keyboard.document.text,"x")
+    }
+
+    func testMonochromePalettesMeetTextContrast() {
+        func luminance(_ color:UIColor,_ traits:UITraitCollection)->Double {
+            var r:CGFloat=0,g:CGFloat=0,b:CGFloat=0,a:CGFloat=0
+            color.resolvedColor(with:traits).getRed(&r,green:&g,blue:&b,alpha:&a)
+            func linear(_ v:CGFloat)->Double { let n=Double(v); return n<=0.04045 ? n/12.92 : pow((n+0.055)/1.055,2.4) }
+            return 0.2126*linear(r)+0.7152*linear(g)+0.0722*linear(b)
+        }
+        for style:UIUserInterfaceStyle in [.light,.dark] {
+            let traits=UITraitCollection(userInterfaceStyle:style)
+            for (foreground,background) in [(LianaPalette.ink,LianaPalette.key),(LianaPalette.muted,LianaPalette.keyboard),(LianaPalette.muted,LianaPalette.card),(LianaPalette.onPrimary,LianaPalette.primary)] {
+                let a=luminance(foreground,traits),b=luminance(background,traits)
+                XCTAssertGreaterThanOrEqual((max(a,b)+0.05)/(min(a,b)+0.05),4.5)
+            }
+        }
+    }
+    func testPressFeedbackDoesNotMoveKeyAndPresetsKeepComposition() throws {
+        let keyboard=fixture()
+        let key=try button("key.q",keyboard); let frame=key.frame; let before=key.backgroundColor
+        key.isHighlighted=true
+        XCTAssertEqual(key.frame,frame); XCTAssertNotEqual(key.backgroundColor,before)
+        key.isHighlighted=false
+        try typePinyin("nihao",keyboard)
+        try tap("layout.settings",keyboard)
+        for index in [1,2,0] {
+            try tap("layout.preset.\(index)",keyboard)
+            XCTAssertEqual(try button("candidate.0",keyboard).title(for:.normal),"你好")
+        }
+        try tap("layout.done",keyboard)
+        try tap("candidate.0",keyboard)
+        XCTAssertEqual(keyboard.document.text,"你好")
+    }
+    func testCopyPayloadSupportsDirectPasteAndKeepsPairingPrivate() throws {
+        let item=try KeyboardPayload(kind:"text",text:"可以直接粘贴").pasteboardItem()
+        XCTAssertEqual(item["public.utf8-plain-text"] as? String,"可以直接粘贴")
+        let decoded=try JSONDecoder().decode(KeyboardPayload.self,from:try XCTUnwrap(item[KeyboardPayload.pasteboardType] as? Data))
+        XCTAssertEqual(decoded.text,"可以直接粘贴")
+        let gif=Data(base64Encoded:"R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")!
+        XCTAssertEqual(try KeyboardPayload(kind:"gif",gif:gif).pasteboardItem()["com.compuserve.gif"] as? Data,gif)
+        let pairing=try KeyboardPayload(kind:"pairing",text:"private-pairing-material").pasteboardItem()
+        XCTAssertNil(pairing["public.utf8-plain-text"])
+        XCTAssertNotNil(pairing[KeyboardPayload.pasteboardType])
+    }
+    func testHostVoiceCopyIsAvailableAfterEditingWithoutRecording() throws {
+        let tools=MobileToolsViewController(); tools.loadViewIfNeeded()
+        let text=try XCTUnwrap(allViews(tools.view).compactMap { $0 as? UITextView }.first)
+        let copy=try XCTUnwrap(allViews(tools.view).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier=="voice.copy" })
+        XCTAssertFalse(copy.isEnabled)
+        text.text="编辑好的文字"; tools.textViewDidChange(text)
+        XCTAssertTrue(copy.isEnabled)
+        XCTAssertEqual(text.text,"编辑好的文字")
+    }
+    func testKeyboardGalleryPhoneAndTabletInBothThemes() throws {
+        for style:UIUserInterfaceStyle in [.light,.dark] {
+            let keyboard=fixture()
+            let window=UIWindow(frame:keyboard.view.frame); window.overrideUserInterfaceStyle=style; window.rootViewController=keyboard; window.isHidden=false
+            keyboard.overrideUserInterfaceStyle=style; keyboard.view.layoutIfNeeded()
+            XCTAssertEqual(keyboard.view.traitCollection.userInterfaceStyle,style)
+            func fit(_ width:CGFloat) {
+                for _ in 0..<3 {
+                    let height=keyboard.view.intrinsicContentSize.height
+                    window.frame=CGRect(x:0,y:0,width:width,height:height)
+                    keyboard.view.frame=window.bounds; keyboard.view.setNeedsLayout(); keyboard.view.layoutIfNeeded()
+                }
+            }
+            func visibleKeys(_ width:CGFloat) throws {
+                let area=try XCTUnwrap(allViews(keyboard.view).first { $0.accessibilityIdentifier=="keyboard.keys" })
+                let viewport=area.convert(area.bounds,to:keyboard.view)
+                for key in allViews(keyboard.view).compactMap({ $0 as? UIButton }) where key.accessibilityIdentifier?.hasPrefix("key.")==true {
+                    let rect=key.convert(key.bounds,to:keyboard.view)
+                    XCTAssertGreaterThanOrEqual(rect.minX,-0.5); XCTAssertLessThanOrEqual(rect.maxX,width+0.5)
+                    XCTAssertGreaterThanOrEqual(rect.intersection(viewport).height,43.5,key.accessibilityIdentifier ?? "")
+                }
+            }
+            fit(375); try typePinyin("shuru",keyboard)
+            attachScreenshot("keyboard-\(style.rawValue)-phone",keyboard)
+            try tap("tools.open",keyboard); attachScreenshot("tools-\(style.rawValue)-phone",keyboard); try tap("tools.close",keyboard)
+            if #available(iOS 17.0,*) { keyboard.traitOverrides.horizontalSizeClass = .regular }
+            fit(1024); try visibleKeys(1024); attachScreenshot("keyboard-\(style.rawValue)-tablet",keyboard)
+            if #available(iOS 17.0,*) { keyboard.traitOverrides.verticalSizeClass = .compact }
+            fit(932); try visibleKeys(932)
+            let before=keyboard.view.intrinsicContentSize.height
+            XCTAssertLessThan(before,310)
+            attachScreenshot("keyboard-\(style.rawValue)-landscape",keyboard)
+            try tap("candidate.0",keyboard)
+            XCTAssertEqual(keyboard.document.text,"输入")
+            XCTAssertEqual(keyboard.view.intrinsicContentSize.height,before)
+            window.isHidden=true
+        }
+    }
+    func testCursorMoveCommitsBeforeAdjustingTheDocument() throws {
+        let keyboard=fixture()
+        if #available(iOS 17.0,*) { keyboard.traitOverrides.horizontalSizeClass = .regular }
+        keyboard.view.frame.size.width=1024; keyboard.view.setNeedsLayout(); keyboard.view.layoutIfNeeded()
+        try typePinyin("nihao",keyboard); try tap("key.←",keyboard)
+        XCTAssertEqual(keyboard.document.events,["insert:你好","cursor:-1"])
+    }
+    func testHostLargeTypeHasNoHorizontalOverflow() throws {
+        for style:UIUserInterfaceStyle in [.light,.dark] {
+            for width:CGFloat in [375,1024] {
+                let host=ViewController(); host.overrideUserInterfaceStyle=style
+                if #available(iOS 17.0,*) { host.traitOverrides.preferredContentSizeCategory = .accessibilityExtraExtraExtraLarge }
+                let window=UIWindow(frame:CGRect(x:0,y:0,width:width,height:width>600 ? 768:900)); window.rootViewController=host; window.isHidden=false
+                host.loadViewIfNeeded(); host.view.layoutIfNeeded()
+                let scroll=try XCTUnwrap(allViews(host.view).compactMap { $0 as? UIScrollView }.first { !($0 is UITextView) })
+                XCTAssertEqual(scroll.contentSize.width,scroll.bounds.width,accuracy:1)
+                XCTAssertFalse(scroll.subviews.compactMap { $0 as? UIStackView }.first?.hasAmbiguousLayout ?? true)
+                let attachment=XCTAttachment(image:UIGraphicsImageRenderer(bounds:host.view.bounds).image { context in host.view.layer.render(in:context.cgContext) }); attachment.name="home-large-type-\(style.rawValue)-\(Int(width))"; attachment.lifetime = .keepAlways; add(attachment)
+                window.isHidden=true
+            }
+        }
+    }
+
+    func testReducedMotionClosesPanelWithoutAHiddenDelay() throws {
+        guard UIAccessibility.isReduceMotionEnabled else { throw XCTSkip("Run this check with simulator Reduce Motion enabled") }
+        let parent=UIView(frame:CGRect(x:0,y:0,width:375,height:199))
+        let panel=UIView(frame:parent.bounds); parent.addSubview(panel)
+        LianaMotion.reveal(panel)
+        XCTAssertEqual(panel.alpha,1); XCTAssertEqual(panel.transform,.identity)
+        var completed=false
+        LianaMotion.dismiss(panel) { completed=true }
+        XCTAssertTrue(completed); XCTAssertNil(panel.superview)
+    }
+
+    func testVoiceDraftSurvivesClosingAndCanUndoClear() throws {
+        let tools=MobileToolsViewController(); tools.loadViewIfNeeded()
+        let editor=try XCTUnwrap(allViews(tools.view).compactMap { $0 as? UITextView }.first)
+        editor.text="保留这一段草稿"; tools.textViewDidChange(editor); tools.viewWillDisappear(false)
+        let restored=MobileToolsViewController(); restored.loadViewIfNeeded()
+        let restoredEditor=try XCTUnwrap(allViews(restored.view).compactMap { $0 as? UITextView }.first)
+        XCTAssertEqual(restoredEditor.text,"保留这一段草稿")
+        let clear=try XCTUnwrap(allViews(restored.view).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier=="voice.clear" })
+        clear.sendActions(for:.touchUpInside)
+        XCTAssertEqual(restoredEditor.text,"")
+        XCTAssertNil(UserDefaults.standard.object(forKey:MobileToolsViewController.draftKey))
+        let undo=try XCTUnwrap(allViews(restored.view).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier=="voice.undo" })
+        XCTAssertFalse(undo.isHidden); undo.sendActions(for:.touchUpInside)
+        XCTAssertEqual(restoredEditor.text,"保留这一段草稿")
     }
 
 }

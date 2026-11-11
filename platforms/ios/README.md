@@ -10,7 +10,7 @@ iOS 15+，UIKit 宿主 App + 本地 Rust 键盘扩展。已通过 iPhone arm64 �
 ./platforms/ios/build.sh device       # 默认；dist/Liana-iOS-<版本>-build<构建号>-unsigned.ipa
 ./platforms/ios/build.sh simulator   # 仅当前主机架构的模拟器 App
 ./platforms/ios/build.sh all
-python3 platforms/ios/validate_ipa.py dist/Liana-iOS-0.8.0-build6-unsigned.ipa
+python3 platforms/ios/validate_ipa.py dist/Liana-iOS-0.8.0-build7-unsigned.ipa
 ```
 
 IPA 未签名。用自己的签名安装工具签名主 App 和 `PlugIns/LianaKeyboard.appex`，保留嵌入扩展，确保各自 Bundle ID 与描述文件一致。默认 ID 分别是 `dev.liana.ime.ios` 与 `dev.liana.ime.ios.keyboard`。
@@ -21,11 +21,21 @@ IPA 未签名。用自己的签名安装工具签名主 App 和 `PlugIns/LianaKe
 
 使用 iOS 27 SDK 构建的 UIKit App 必须采用 Scene 生命周期，否则 iOS 27 会拒绝启动。build 4 及更早版本缺少此声明；请使用 build 5 或更新版本。宿主通过 `UIApplicationSceneManifest`、`AppDelegate.configurationForConnecting` 与 `SceneDelegate` 创建窗口，文件打开也经场景路由。参见 [Apple 的生命周期迁移说明](https://developer.apple.com/documentation/uikit/transitioning-to-the-uikit-scene-based-life-cycle)。
 
+## 体验重构（build 7）
+
+雾白与石墨黑采用统一文字、表面和反馈色，默认跟随系统。按下即时反馈、松开轻量恢复；工具面板开合与主题切换使用短过渡，尊重系统「减少动态效果」。字母输入的后台解码与候选复用保持。
+
+顶部工具按输入／表情／同步／词库分组，布局先提供标准、单手、宽松预设，再展开精细调节。空闲候选区提供常用标点；首候选突出显示。手机横屏将组合、候选和工具合到一行，保持输入前后的高度一致；平板中间候选复用按钮，光标控制先提交再移动。
+
+主 App 重做首页、工具分类、草稿编辑与 Mac 连接。分类固定在顶部。语音草稿保存在本机，可清空／撤销；停止录音会等待尾句完成，之后可编辑复制。新录音追加到已有草稿。文字与 GIF 可直接粘贴，也可回松萝接收；配对与词库仍只提供专用接收类型。
+
+详见 [iOS 体验规范](../../docs/design/IOS-EXPERIENCE.md)。
+
 ## 比例与入口
 
 - 主题只有黑色、白色，默认跟随系统；在比例设置顶部可手动选择。恢复默认也会恢复跟随系统。
-- 顶部四向箭头上下拖动调键高（44–64pt），左右拖动移动整组入口；VoiceOver 提供增高/降低动作。
-- 滑块图标打开设置：键高、目标宽度（78–100%，手机最小可用宽度 320pt）、左右位置、候选字号（14–24pt）、额外底部留白（0–24pt，另有固定 8pt 安全间距）、入口位置。
+- 拖动顶部工具组上下调键高（44–64pt），左右拖动移动整组入口；VoiceOver 提供增高/降低动作。
+- 滑块图标打开布局与手感，展开「精细调节」可调整：键高、目标宽度（78–100%，手机最小可用宽度 320pt）、左右位置、候选字号（14–24pt）、额外底部留白（0–24pt，另有固定 8pt 底部间距和 4pt 候选区间距）、入口位置。
 - 滑块之外提供加减按钮与恢复默认。调节不清除组合串；设置保存在键盘自己的沙盒，退出或重新调出键盘后保留。
 - 宽度与左右位置用于手机单手布局；iPad 分体继续使用屏幕两侧，高度与字号仍可调。
 

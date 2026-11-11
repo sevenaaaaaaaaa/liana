@@ -17,10 +17,17 @@ struct KeyboardPayload: Codable {
     var text: String? = nil
     var words: [MobileWord]? = nil
     var gif: Data? = nil
-    func copy() throws {
+    func pasteboardItem() throws -> [String: Any] {
         let data = try JSONEncoder().encode(self)
         guard data.count <= 12_000_000 else { throw MobileImportError.message("内容过大，请拆分导入。") }
-        UIPasteboard.general.setItems([[Self.pasteboardType: data]], options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(600)])
+        if kind == "text", (text?.count ?? 0) > 20_000 { throw MobileImportError.message("文字超过两万字，请分段复制。") }
+        var item: [String: Any] = [Self.pasteboardType: data]
+        if kind == "text", let text { item["public.utf8-plain-text"] = text }
+        if kind == "gif", let gif { item["com.compuserve.gif"] = gif }
+        return item
+    }
+    func copy() throws {
+        UIPasteboard.general.setItems([try pasteboardItem()], options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(600)])
     }
     static func read() throws -> Self? {
         guard let data = UIPasteboard.general.data(forPasteboardType: pasteboardType) else { return nil }

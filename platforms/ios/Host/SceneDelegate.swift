@@ -10,6 +10,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
                options connectionOptions: UIScene.ConnectionOptions) {
         guard session.role == .windowApplication, let windowScene = scene as? UIWindowScene else { return }
         let window = UIWindow(windowScene: windowScene)
+        window.tintColor = LianaPalette.ink
         window.rootViewController = ViewController()
         self.window = window
         pendingDocument = connectionOptions.urlContexts.first(where: { $0.url.isFileURL })?.url

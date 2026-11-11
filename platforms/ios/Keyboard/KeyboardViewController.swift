@@ -1,15 +1,15 @@
 import UIKit
 
-/// 全平台统一设计 Token（docs/design/UNIFIED-DESIGN.md 为单一事实源）。
+/// iOS 黑白体验：docs/design/IOS-EXPERIENCE.md。
 enum LianaTheme {
-    static let bg = UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0x1C/255, green: 0x1C/255, blue: 0x22/255, alpha: 1) : UIColor(red: 0.87, green: 0.89, blue: 0.92, alpha: 1) }
-    static let key = UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0x2A/255, green: 0x2A/255, blue: 0x33/255, alpha: 1) : .white }
-    static let keyPressed = UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0x33/255, green: 0x33/255, blue: 0x3E/255, alpha: 1) : UIColor(white: 0.94, alpha: 1) }
-    static let text = UIColor.label
-    static let secondary = UIColor.secondaryLabel
-    static let accent = UIColor(red: 0x33/255, green: 0x7B/255, blue: 0xFF/255, alpha: 1)
+    static let bg = LianaPalette.keyboard
+    static let key = LianaPalette.key
+    static let keyPressed = LianaPalette.pressed
+    static let text = LianaPalette.ink
+    static let secondary = LianaPalette.muted
+    static let accent = LianaPalette.ink
     static let fontCandidate: CGFloat = 17
-    static let fontKey: CGFloat = 16
+    static let fontKey: CGFloat = 20
     static let padSplitMinWidth: CGFloat = 600
 }
 
@@ -57,6 +57,9 @@ class KeyboardViewController: UIInputViewController {
     private var returnButtons: [UIButton] = []
     private var preferences = KeyboardPreferences.load()
     private var entryDock: UIStackView!
+    private var toolEntry: UIButton?
+    private var layoutEntry: UIButton?
+    private var deviceEntry: UIButton?
     private var entryLeading: NSLayoutConstraint!
     private var compositionLeading: NSLayoutConstraint!
     private var compositionWidth: NSLayoutConstraint!
@@ -79,6 +82,17 @@ class KeyboardViewController: UIInputViewController {
     // MARK: - 视图
 
     private var candidateStrip: UIStackView!
+    private var chromeRoot: UIStackView!
+    private var chromeHeader: UIView!
+    private var stripHeight: NSLayoutConstraint!
+    private var idleHeight: NSLayoutConstraint!
+    private var inlineConstraints: [NSLayoutConstraint] = []
+    private var inlineLeading: [NSLayoutConstraint] = []
+    private var inlineWidths: [NSLayoutConstraint] = []
+    private var stripsInline = false
+    private var candidateScroll: UIScrollView!
+    private var idleScroll: UIScrollView!
+    private var hapticsEnabled = UserDefaults.standard.object(forKey: "keyboard.haptics") as? Bool ?? true
     private var modeButton: UIButton!
     private var tradButton: UIButton!
     private var backspaceButtons: [UIButton] = []
@@ -88,6 +102,8 @@ class KeyboardViewController: UIInputViewController {
     private var wbComposing: UILabel?
     private var wbGrid: UIStackView?
     private var wbCursor: UIStackView?
+    private var wbButtons: [UIButton] = []
+    private var wbHint: UILabel?
 
     private var repeatTimer: Timer?
     private let hapticLight = UIImpactFeedbackGenerator(style: .light)
@@ -96,8 +112,8 @@ class KeyboardViewController: UIInputViewController {
     private static let rowSpacing: CGFloat = 5
     private static let stripHeight: CGFloat = 46
     private static let headerHeight: CGFloat = 44
-    private static let cursorRowHeight: CGFloat = 34
-    private static let wbCandidateRowHeight: CGFloat = 52
+    private static let cursorRowHeight: CGFloat = 44
+    private static let wbCandidateRowHeight: CGFloat = 44
     private var keyboardAreaHeight: CGFloat { 4 * CGFloat(preferences.keyHeight) + 3 * Self.rowSpacing }
 
     /// 当前几何签名；空串表示尚未构建。
@@ -124,11 +140,13 @@ class KeyboardViewController: UIInputViewController {
         hapticStrong.prepare()
     }
 
-    override func viewWillAppear(_ animated: Bool) { super.viewWillAppear(animated); visibleForInput = true }
+    override func viewWillAppear(_ animated: Bool) { super.viewWillAppear(animated); visibleForInput = true; syncToolbarState() }
 
     override func viewWillDisappear(_ animated: Bool) {
         saveWork?.cancel()
         visibleForInput = false
+        featurePanel?.removeFromSuperview(); featurePanel = nil
+        adjustmentPanel?.removeFromSuperview(); adjustmentPanel = nil
         rawInput = ""; candidateRaw = ""; candidates = []; composingText = ""
         handwritingPanel?.clear(); renderCandidates()
         clipboardSender?.disconnect(); clipboardSender = nil
@@ -177,6 +195,7 @@ class KeyboardViewController: UIInputViewController {
         candidates = update.snapshot.candidates
         rawInput = update.snapshot.raw
         candidateRaw = rawInput
+        if let message = update.snapshot.message { featurePanel?.status(message) }
         composingText = update.snapshot.message ?? update.snapshot.preedit
         renderCandidates()
     }
@@ -192,8 +211,10 @@ class KeyboardViewController: UIInputViewController {
 
     private func buildUI() {
         view.backgroundColor = LianaTheme.bg
+        view.tintColor = LianaPalette.ink
 
         let root = UIStackView()
+        chromeRoot = root
         root.axis = .vertical
         root.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(root)
@@ -206,9 +227,10 @@ class KeyboardViewController: UIInputViewController {
         rootBottom.isActive = true
 
         let header = UIView()
+        chromeHeader = header
         header.heightAnchor.constraint(equalToConstant: Self.headerHeight).isActive = true
         composingLabel = UILabel()
-        composingLabel.font = .systemFont(ofSize: 12)
+        composingLabel.font = .systemFont(ofSize: 13, weight: .medium)
         composingLabel.textColor = LianaTheme.secondary
         composingLabel.lineBreakMode = .byTruncatingMiddle
         composingLabel.accessibilityIdentifier = "composition"
@@ -223,54 +245,54 @@ class KeyboardViewController: UIInputViewController {
         entryDock.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(entryDock)
         entryLeading = entryDock.leadingAnchor.constraint(equalTo: header.leadingAnchor)
-        NSLayoutConstraint.activate([entryLeading, entryDock.widthAnchor.constraint(equalToConstant: 220), entryDock.heightAnchor.constraint(equalToConstant: 44), entryDock.centerYAnchor.constraint(equalTo: header.centerYAnchor)])
-        let grip = toolbarButton("arrow.up.and.down.and.arrow.left.and.right", label: "拖动调高度与入口位置", id: "layout.drag")
-        grip.menu = UIMenu(children: [UIAction(title: "输入工具：方案、词库、表情、语音、同步") { [weak self] _ in self?.toggleTools() }])
-        grip.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(dragLayout(_:))))
-        grip.accessibilityCustomActions = [
+        NSLayoutConstraint.activate([entryLeading, entryDock.widthAnchor.constraint(equalToConstant: 132), entryDock.heightAnchor.constraint(equalToConstant: 44), entryDock.centerYAnchor.constraint(equalTo: header.centerYAnchor)])
+        entryDock.accessibilityIdentifier = "layout.drag"
+        entryDock.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(dragLayout(_:))))
+        let tools = toolbarButton("square.grid.2x2", label: "输入工具", id: "tools.open")
+        toolEntry = tools
+        tools.accessibilityHint = "拖动此工具组可调整键盘高度与入口位置"
+        tools.accessibilityCustomActions = [
             UIAccessibilityCustomAction(name: "增高键盘", target: self, selector: #selector(increaseHeight)),
             UIAccessibilityCustomAction(name: "降低键盘", target: self, selector: #selector(decreaseHeight)),
         ]
-        entryDock.addArrangedSubview(grip)
-        let settings = toolbarButton("slider.horizontal.3", label: "调整键盘比例", id: "layout.settings")
-        settings.addAction(UIAction { [weak self] _ in self?.toggleAdjustments() }, for: .touchUpInside)
-        settings.menu = UIMenu(children: [UIAction(title: "输入工具 · 词库／表情／语音／剪贴板") { [weak self] _ in self?.toggleTools() }])
-        entryDock.addArrangedSubview(settings)
-        let devices = toolbarButton("waveform", label: "连接语音与编码设备", id: "devices.open")
-        devices.addAction(UIAction { [weak self] _ in self?.toggleDevices() }, for: .touchUpInside)
-        entryDock.addArrangedSubview(devices)
-        clearButton = UIButton(type: .system)
-        clearButton.setImage(UIImage(systemName: "xmark.circle"), for: .normal)
-        clearButton.accessibilityIdentifier = "composition.clear"
-        clearButton.accessibilityLabel = "取消当前拼音"
-        clearButton.addAction(UIAction { [weak self] _ in
-            guard let self else { return }
-            self.handwritingPanel?.clear()
-            self.send(.clear)
-        }, for: .touchUpInside)
-        entryDock.addArrangedSubview(clearButton)
-        let tools = toolbarButton("square.grid.2x2", label: "输入工具：词库、表情、语音与同步", id: "tools.open")
         tools.addAction(UIAction { [weak self] _ in self?.toggleTools() }, for: .touchUpInside)
         entryDock.addArrangedSubview(tools)
+        let devices = toolbarButton("waveform", label: "外接设备", id: "devices.open")
+        deviceEntry = devices
+        devices.addAction(UIAction { [weak self] _ in self?.toggleDevices() }, for: .touchUpInside)
+        entryDock.addArrangedSubview(devices)
+        let settings = toolbarButton("slider.horizontal.3", label: "布局与手感", id: "layout.settings")
+        layoutEntry = settings
+        settings.addAction(UIAction { [weak self] _ in self?.toggleAdjustments() }, for: .touchUpInside)
+        entryDock.addArrangedSubview(settings)
+        clearButton = toolbarButton("xmark", label: "取消当前输入", id: "composition.clear")
+        clearButton.translatesAutoresizingMaskIntoConstraints = false
+        header.addSubview(clearButton)
+        NSLayoutConstraint.activate([clearButton.leadingAnchor.constraint(equalTo: composingLabel.trailingAnchor), clearButton.centerYAnchor.constraint(equalTo: header.centerYAnchor), clearButton.widthAnchor.constraint(equalToConstant: 44), clearButton.heightAnchor.constraint(equalToConstant: 44)])
+        clearButton.addAction(UIAction { [weak self] _ in
+            self?.handwritingPanel?.clear(); self?.send(.clear)
+        }, for: .touchUpInside)
         tradButton = UIButton(type: .system)
         tradButton.setTitle("简", for: .normal)
         tradButton.accessibilityLabel = "切换简繁体"
         tradButton.addAction(UIAction { [weak self] _ in self?.onTraditionalToggle() }, for: .touchUpInside)
         root.addArrangedSubview(header)
-        heightConstraint = view.heightAnchor.constraint(equalToConstant: Self.headerHeight + Self.stripHeight + keyboardAreaHeight + 8 + CGFloat(preferences.bottomPadding))
+        heightConstraint = view.heightAnchor.constraint(equalToConstant: Self.headerHeight + Self.stripHeight + keyboardAreaHeight + 12 + CGFloat(preferences.bottomPadding))
         heightConstraint?.priority = .init(999)
         heightConstraint?.isActive = true
 
         // 候选栏（横向滚动）
         let scroll = UIScrollView()
+        candidateScroll = scroll
+        scroll.isHidden = true
         scroll.contentInsetAdjustmentBehavior = .never
         scroll.showsHorizontalScrollIndicator = false
         scroll.translatesAutoresizingMaskIntoConstraints = false
-        scroll.heightAnchor.constraint(equalToConstant: Self.stripHeight).isActive = true
+        stripHeight = scroll.heightAnchor.constraint(equalToConstant: Self.stripHeight); stripHeight.isActive = true
         candidateStrip = UIStackView()
         candidateStrip.translatesAutoresizingMaskIntoConstraints = false
         candidateStrip.axis = .horizontal
-        candidateStrip.spacing = 6
+        candidateStrip.spacing = 8
         candidateStrip.layoutMargins = UIEdgeInsets(top: 1, left: 8, bottom: 1, right: 8)
         candidateStrip.isLayoutMarginsRelativeArrangement = true
         candidateStrip.insetsLayoutMarginsFromSafeArea = false
@@ -283,12 +305,31 @@ class KeyboardViewController: UIInputViewController {
             candidateStrip.heightAnchor.constraint(equalTo: scroll.frameLayoutGuide.heightAnchor),
         ])
         root.addArrangedSubview(scroll)
+        root.setCustomSpacing(4, after: scroll)
+
+        let idle = UIScrollView(); idleScroll = idle
+        idle.contentInsetAdjustmentBehavior = .never; idle.showsHorizontalScrollIndicator = false
+        idleHeight = idle.heightAnchor.constraint(equalToConstant: Self.stripHeight); idleHeight.isActive = true
+        idle.translatesAutoresizingMaskIntoConstraints = false
+        let shortcuts = UIStackView(); shortcuts.spacing = 0; shortcuts.translatesAutoresizingMaskIntoConstraints = false
+        idle.addSubview(shortcuts)
+        NSLayoutConstraint.activate([shortcuts.leadingAnchor.constraint(equalTo: idle.contentLayoutGuide.leadingAnchor, constant: 8), shortcuts.trailingAnchor.constraint(equalTo: idle.contentLayoutGuide.trailingAnchor, constant: -8), shortcuts.topAnchor.constraint(equalTo: idle.contentLayoutGuide.topAnchor), shortcuts.bottomAnchor.constraint(equalTo: idle.contentLayoutGuide.bottomAnchor), shortcuts.heightAnchor.constraint(equalTo: idle.frameLayoutGuide.heightAnchor)])
+        for text in ["，", "。", "？", "！", "@", "#", "…", "／"] {
+            let key = LianaPressButton(frame: .zero); key.rounded = 8
+            key.setTitle(text, for: .normal); key.titleLabel?.font = .systemFont(ofSize: 17)
+            key.accessibilityIdentifier = "shortcut." + text; key.widthAnchor.constraint(equalToConstant: 44).isActive = true
+            key.addAction(UIAction { [weak self] _ in self?.insertText(text) }, for: .touchUpInside); shortcuts.addArrangedSubview(key)
+        }
+        root.addArrangedSubview(idle)
+        root.setCustomSpacing(4, after: idle)
 
         // 键盘区：几何随宽度变化整体重建（字母行 + 功能行 + 中缝工作台）
         let area = UIView()
         area.translatesAutoresizingMaskIntoConstraints = false
         areaHeight = area.heightAnchor.constraint(equalToConstant: keyboardAreaHeight)
         areaHeight.isActive = true
+        area.accessibilityIdentifier = "keyboard.keys"
+        area.clipsToBounds = true
         keyboardArea = area
         let glide = GlidePan(target: self, action: #selector(onGlide(_:)))
         glide.allow = { [weak self] point in
@@ -542,6 +583,18 @@ class KeyboardViewController: UIInputViewController {
             grid.widthAnchor.constraint(equalTo: gridScroll.frameLayoutGuide.widthAnchor),
         ])
         wbGrid = grid
+        let hint = LianaUI.label("输入后，在这里选词", size: 12, muted: true); hint.textAlignment = .center
+        hint.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true; wbHint = hint; grid.addArrangedSubview(hint)
+        wbButtons = []
+        for rowIndex in 0..<5 {
+            let row = UIStackView(); row.axis = .horizontal; row.spacing = 4; row.distribution = .fillEqually
+            for column in 0..<2 {
+                let index = rowIndex*2+column
+                if index < 9 { let button = workbenchCandidate("", index: index); wbButtons.append(button); row.addArrangedSubview(button) }
+                else { row.addArrangedSubview(UIView()) }
+            }
+            row.heightAnchor.constraint(equalToConstant: Self.wbCandidateRowHeight).isActive = true; grid.addArrangedSubview(row)
+        }
         box.addArrangedSubview(gridScroll)
 
         let cursor = UIStackView()
@@ -566,62 +619,39 @@ class KeyboardViewController: UIInputViewController {
 
     private func renderWorkbench() {
         guard let grid = wbGrid, let composing = wbComposing else { return }
-        composing.text = composingText.isEmpty ? "中缝 · 候选与光标" : composingText
-        grid.arrangedSubviews.forEach { $0.removeFromSuperview() }
-
-        let shown = Array(candidates.prefix(9))
-        guard !shown.isEmpty else {
-            let hint = UILabel()
-            hint.text = "候选随输入出现在这里"
-            hint.font = .systemFont(ofSize: 11)
-            hint.textColor = LianaTheme.secondary
-            hint.textAlignment = .center
-            hint.numberOfLines = 2
-            let wrapper = UIStackView(arrangedSubviews: [hint])
-            wrapper.isLayoutMarginsRelativeArrangement = true
-            wrapper.layoutMargins = UIEdgeInsets(top: 6, left: 6, bottom: 6, right: 6)
-            wrapper.heightAnchor.constraint(equalToConstant: Self.wbCandidateRowHeight).isActive = true
-            grid.addArrangedSubview(wrapper)
-            return
-        }
-
-        var index = 0
-        while index < shown.count {
-            let row = UIStackView()
-            row.axis = .horizontal
-            row.spacing = 4
-            row.distribution = .fillEqually
-            for offset in 0..<2 {
-                let i = index + offset
-                if i < shown.count {
-                    row.addArrangedSubview(workbenchCandidate(shown[i], index: i))
-                } else {
-                    row.addArrangedSubview(UIView())
-                }
+        composing.text = composingText.isEmpty ? "候选 · 光标" : composingText
+        wbHint?.isHidden = !candidates.isEmpty
+        for (offset, row) in grid.arrangedSubviews.dropFirst().enumerated() { row.isHidden = offset*2 >= candidates.count }
+        for (index, button) in wbButtons.enumerated() {
+            button.isHidden = index >= candidates.count
+            if index < candidates.count {
+                if button.title(for: .normal) != candidates[index] { UIView.performWithoutAnimation { button.setTitle(candidates[index], for: .normal) } }
+                button.titleLabel?.font = .systemFont(ofSize: CGFloat(preferences.candidateFont), weight: index == 0 ? .semibold : .regular)
             }
-            row.heightAnchor.constraint(equalToConstant: Self.wbCandidateRowHeight).isActive = true
-            grid.addArrangedSubview(row)
-            index += 2
         }
     }
 
     private func workbenchCandidate(_ text: String, index: Int) -> UIButton {
-        let b = UIButton(type: .system)
+        let b = LianaPressButton(frame: .zero)
+        b.surface = index == 0 ? .primary : .utility; b.rounded = 9
         b.setTitle(text, for: .normal)
-        b.setTitleColor(LianaTheme.text, for: .normal)
-        b.titleLabel?.font = .systemFont(ofSize: CGFloat(preferences.candidateFont), weight: .bold)
+        b.titleLabel?.font = .systemFont(ofSize: CGFloat(preferences.candidateFont), weight: index == 0 ? .semibold : .regular)
         b.titleLabel?.lineBreakMode = .byTruncatingTail
-        b.backgroundColor = LianaTheme.keyPressed
         b.layer.cornerRadius = 6
         b.addAction(UIAction { [weak self] _ in
-            self?.hapticStrong.impactOccurred()
+            if self?.hapticsEnabled == true { self?.hapticStrong.impactOccurred(intensity: 0.6) }
             self?.selectCandidate(index)
         }, for: .touchUpInside)
         return b
     }
 
     private func moveCursor(_ delta: Int) {
-        textDocumentProxy.adjustTextPosition(byCharacterOffset: delta)
+        let document = textDocumentProxy.documentIdentifier
+        commitPending()
+        engine.whenIdle { [weak self] in
+            guard let self, self.visibleForInput, self.textDocumentProxy.documentIdentifier == document else { return }
+            self.textDocumentProxy.adjustTextPosition(byCharacterOffset: delta)
+        }
     }
 
     private func resetKeyboardArea() {
@@ -632,41 +662,94 @@ class KeyboardViewController: UIInputViewController {
         wbComposing = nil
         wbGrid = nil
         wbCursor = nil
+        wbButtons = []; wbHint = nil
     }
 
     // MARK: - 视图工厂
 
+    private func syncToolbarState() {
+        for (button, active) in [(toolEntry, featurePanel != nil), (layoutEntry, adjustmentPanel != nil), (deviceEntry, devicePanel != nil)] {
+            guard let button, button.isSelected != active else { continue }
+            button.isSelected = active; button.accessibilityValue = active ? "已打开" : nil
+            if active { button.accessibilityTraits.insert(.selected) } else { button.accessibilityTraits.remove(.selected) }
+            if button === toolEntry { button.setImage(UIImage(systemName: active ? "keyboard" : "square.grid.2x2"), for: .normal) }
+        }
+    }
+
     private func toolbarButton(_ symbol: String, label: String, id: String) -> UIButton {
-        let button = UIButton(type: .system)
+        let button = LianaPressButton(frame: .zero)
+        button.rounded = 10
+        button.setPreferredSymbolConfiguration(UIImage.SymbolConfiguration(pointSize: 18, weight: .regular), forImageIn: .normal)
         button.setImage(UIImage(systemName: symbol), for: .normal)
         button.accessibilityLabel = label
         button.accessibilityIdentifier = id
         return button
     }
 
-    private func applyAppearance() {
+    private func applyAppearance(animated: Bool = false) {
+        let apply = { [self] in
         switch UserDefaults.standard.integer(forKey: "keyboard.appearance") {
         case 1: overrideUserInterfaceStyle = .light
         case 2: overrideUserInterfaceStyle = .dark
         default: overrideUserInterfaceStyle = .unspecified
         }
+            }
+        if animated && isViewLoaded && LianaMotion.enabled { UIView.transition(with: view, duration: 0.16, options: [.transitionCrossDissolve, .allowUserInteraction], animations: apply) } else { apply() }
+    }
+
+    /// Phone landscape shares one line for composition, candidates and tools.
+    /// Height stays stable while composing; key targets keep their normal size.
+    private func updateStripPlacement() {
+        guard chromeRoot != nil, candidateScroll != nil, idleScroll != nil else { return }
+        let compact = traitCollection.verticalSizeClass == .compact && view.bounds.width >= 600
+        guard compact != stripsInline else { return }
+        NSLayoutConstraint.deactivate(inlineConstraints)
+        inlineConstraints = []; inlineLeading = []; inlineWidths = []
+        for strip in [candidateScroll!, idleScroll!] { chromeRoot.removeArrangedSubview(strip); strip.removeFromSuperview() }
+        stripsInline = compact
+        stripHeight.constant = compact ? Self.headerHeight : Self.stripHeight
+        idleHeight.constant = compact ? Self.headerHeight : Self.stripHeight
+        chromeRoot.setCustomSpacing(compact ? 4 : 0, after: chromeHeader)
+        if compact {
+            candidateStrip.layoutMargins.top = 0; candidateStrip.layoutMargins.bottom = 0
+            for strip in [candidateScroll!, idleScroll!] {
+                chromeHeader.addSubview(strip)
+                let leading = strip.leadingAnchor.constraint(equalTo: chromeHeader.leadingAnchor)
+                let width = strip.widthAnchor.constraint(equalToConstant: 0)
+                inlineLeading.append(leading); inlineWidths.append(width)
+                inlineConstraints += [leading, width, strip.centerYAnchor.constraint(equalTo: chromeHeader.centerYAnchor)]
+            }
+            NSLayoutConstraint.activate(inlineConstraints)
+        } else {
+            candidateStrip.layoutMargins.top = 1; candidateStrip.layoutMargins.bottom = 1
+            chromeRoot.insertArrangedSubview(candidateScroll, at: 1); chromeRoot.insertArrangedSubview(idleScroll, at: 2)
+            chromeRoot.setCustomSpacing(4, after: candidateScroll); chromeRoot.setCustomSpacing(4, after: idleScroll)
+        }
     }
 
     private func updateGeometry() {
-        let requested = Self.headerHeight + Self.stripHeight + keyboardAreaHeight + view.safeAreaInsets.bottom + 8 + CGFloat(preferences.bottomPadding)
+        updateStripPlacement()
+        let requested = Self.headerHeight + (stripsInline ? 0 : Self.stripHeight) + keyboardAreaHeight + view.safeAreaInsets.bottom + 12 + CGFloat(preferences.bottomPadding)
         heightConstraint?.constant = requested
         (inputView as? KeyboardInputView)?.requestedHeight = requested
         preferredContentSize = CGSize(width: view.bounds.width, height: requested)
         areaHeight?.constant = keyboardAreaHeight
         rootBottom?.constant = -8 - CGFloat(preferences.bottomPadding)
         guard entryDock != nil else { return }
-        let travel = max(0, view.bounds.width - 220 - 8)
-        let x = 4 + travel * CGFloat(preferences.entryPosition)
+        let travel = max(0, view.bounds.width - 132 - 16)
+        let x = 8 + travel * CGFloat(preferences.entryPosition)
         entryLeading.constant = x
         let leftSpace = x - 12
-        let rightSpace = view.bounds.width - x - 220 - 12
-        compositionLeading.constant = leftSpace >= rightSpace ? 8 : x + 228
-        compositionWidth.constant = max(0, max(leftSpace, rightSpace))
+        let rightSpace = view.bounds.width - x - 132 - 12
+        compositionLeading.constant = leftSpace >= rightSpace ? 8 : x + 140
+        let available = max(0, max(leftSpace, rightSpace))
+        let clearWidth: CGFloat = rawInput.isEmpty ? 0 : 44
+        compositionWidth.constant = stripsInline ? min(112, max(52, available*0.22)) : max(0, available-clearWidth)
+        if stripsInline {
+            let start = compositionLeading.constant + compositionWidth.constant + clearWidth + 8
+            inlineLeading.forEach { $0.constant = start }
+            inlineWidths.forEach { $0.constant = max(0, available-compositionWidth.constant-clearWidth-8) }
+        }
         if let adjustmentPanel { keyboardArea.bringSubviewToFront(adjustmentPanel) }
         if let devicePanel { keyboardArea.bringSubviewToFront(devicePanel) }
         if let featurePanel { keyboardArea.bringSubviewToFront(featurePanel) }
@@ -696,7 +779,7 @@ class KeyboardViewController: UIInputViewController {
         let delta = gesture.translation(in: nil)
         if gesture.state == .changed || gesture.state == .ended {
             preferences.keyHeight = dragStart.keyHeight - Double(delta.y) / 4
-            let travel = max(1, view.bounds.width - 184)
+            let travel = max(1, view.bounds.width - 148)
             preferences.entryPosition = dragStart.entryPosition + Double(delta.x / travel)
             applyPreferences(persist: gesture.state == .ended)
         } else if gesture.state == .cancelled || gesture.state == .failed {
@@ -714,128 +797,101 @@ class KeyboardViewController: UIInputViewController {
             panel.topAnchor.constraint(equalTo: keyboardArea.topAnchor),
             panel.bottomAnchor.constraint(equalTo: keyboardArea.bottomAnchor),
         ])
+        syncToolbarState()
+        LianaMotion.reveal(panel)
     }
 
     private func toggleAdjustments() {
-
-        if let adjustmentPanel { adjustmentPanel.removeFromSuperview(); self.adjustmentPanel = nil; return }
+        if let panel = adjustmentPanel { adjustmentPanel = nil; syncToolbarState(); LianaMotion.dismiss(panel); return }
         featurePanel?.removeFromSuperview(); featurePanel = nil
-        devicePanel?.stop()
-        devicePanel?.removeFromSuperview()
-        devicePanel = nil
-        let panel = UIView()
-        panel.backgroundColor = LianaTheme.bg
-        adjustmentPanel = panel
-        installPanel(panel)
-        let scroll = UIScrollView()
-        scroll.contentInsetAdjustmentBehavior = .never
-        scroll.translatesAutoresizingMaskIntoConstraints = false
-        panel.addSubview(scroll)
-        NSLayoutConstraint.activate([
-            scroll.leadingAnchor.constraint(equalTo: panel.leadingAnchor), scroll.trailingAnchor.constraint(equalTo: panel.trailingAnchor),
-            scroll.topAnchor.constraint(equalTo: panel.topAnchor), scroll.bottomAnchor.constraint(equalTo: panel.bottomAnchor),
-        ])
-        let stack = UIStackView()
-        stack.axis = .vertical
-        stack.spacing = 8
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        scroll.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 12),
-            stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -12),
-            stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 8),
-            stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -8),
-            stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -24),
-        ])
-        let actions = UIStackView()
-        actions.distribution = .fillEqually
-        let reset = UIButton(type: .system)
-        reset.setTitle("恢复默认", for: .normal)
-        reset.accessibilityIdentifier = "layout.reset"
-        reset.addAction(UIAction { [weak self] _ in
+        devicePanel?.stop(); devicePanel?.removeFromSuperview(); devicePanel = nil
+        let panel = UIView(); panel.backgroundColor = LianaTheme.bg; adjustmentPanel = panel; installPanel(panel)
+        let title = LianaUI.label("布局与手感", size: 15, weight: .semibold)
+        let reset = LianaUI.button("重置", role: .plain, id: "layout.reset") { [weak self] in
             guard let self else { return }
-            self.preferences = KeyboardPreferences()
+            self.preferences = KeyboardPreferences(); self.hapticsEnabled = true
+            UserDefaults.standard.set(true, forKey: "keyboard.haptics")
             UserDefaults.standard.set(0, forKey: "keyboard.appearance")
-            self.applyAppearance()
-            self.applyPreferences()
-            self.adjustmentPanel?.removeFromSuperview()
-            self.adjustmentPanel = nil
-            self.toggleAdjustments()
-        }, for: .touchUpInside)
-        actions.addArrangedSubview(reset)
-        actions.addArrangedSubview(tradButton)
-        let done = UIButton(type: .system)
-        done.setTitle("完成", for: .normal)
+            self.applyAppearance(animated: true); self.applyPreferences()
+            self.adjustmentPanel?.removeFromSuperview(); self.adjustmentPanel = nil; self.toggleAdjustments()
+        }
+        reset.widthAnchor.constraint(equalToConstant: 64).isActive = true
+        let done = toolbarButton("xmark", label: "返回键盘", id: "layout.done")
+        done.widthAnchor.constraint(equalToConstant: 44).isActive = true
         done.addAction(UIAction { [weak self] _ in self?.toggleAdjustments() }, for: .touchUpInside)
-        actions.addArrangedSubview(done)
-        actions.heightAnchor.constraint(equalToConstant: 44).isActive = true
-        stack.addArrangedSubview(actions)
-        let theme = UISegmentedControl(items: ["跟随系统", "白色", "黑色"])
+        let head = UIStackView(arrangedSubviews: [title, reset, done]); head.alignment = .center; head.translatesAutoresizingMaskIntoConstraints = false; panel.addSubview(head)
+        NSLayoutConstraint.activate([head.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 12),head.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -6),head.topAnchor.constraint(equalTo: panel.topAnchor),head.heightAnchor.constraint(equalToConstant: 48)])
+        let scroll = UIScrollView(); scroll.contentInsetAdjustmentBehavior = .never; scroll.translatesAutoresizingMaskIntoConstraints = false; panel.addSubview(scroll)
+        NSLayoutConstraint.activate([scroll.leadingAnchor.constraint(equalTo: panel.leadingAnchor),scroll.trailingAnchor.constraint(equalTo: panel.trailingAnchor),scroll.topAnchor.constraint(equalTo: head.bottomAnchor),scroll.bottomAnchor.constraint(equalTo: panel.bottomAnchor)])
+        let stack = LianaUI.vertical(spacing: 12); stack.translatesAutoresizingMaskIntoConstraints = false; scroll.addSubview(stack)
+        NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 12),stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -12),stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 4),stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -16),stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -24)])
+        let theme = LianaUI.segment(["跟随系统", "雾白", "石墨黑"])
         theme.selectedSegmentIndex = min(2, max(0, UserDefaults.standard.integer(forKey: "keyboard.appearance")))
-        theme.accessibilityLabel = "键盘黑白主题"
-        theme.accessibilityIdentifier = "layout.appearance"
-        theme.heightAnchor.constraint(equalToConstant: 44).isActive = true
+        theme.accessibilityLabel = "键盘主题"; theme.accessibilityIdentifier = "layout.appearance"
         theme.addAction(UIAction { [weak self, weak theme] _ in
             guard let self, let theme else { return }
-            UserDefaults.standard.set(theme.selectedSegmentIndex, forKey: "keyboard.appearance")
-            self.applyAppearance()
-        }, for: .valueChanged)
-        stack.addArrangedSubview(theme)
-        let hint = UILabel()
-        hint.text = "上下拖动顶部四向箭头调高度，左右拖动移动入口。也可用下方滑块或加减按钮。窄屏保留最小可用宽度。"
-        hint.numberOfLines = 0
-        hint.font = .preferredFont(forTextStyle: .caption1)
-        hint.textColor = .secondaryLabel
-        stack.addArrangedSubview(hint)
-        let fields: [(String, String, WritableKeyPath<KeyboardPreferences, Double>, ClosedRange<Float>, Float)] = [
-            ("按键高度 pt", "height", \.keyHeight, 44...64, 2),
-            ("目标宽度 %", "width", \.width, 0.78...1, 0.02),
-            ("左右位置 %", "alignment", \.alignment, 0...1, 0.1),
-            ("候选字号 pt", "font", \.candidateFont, 14...24, 1),
-            ("底部留白 pt", "padding", \.bottomPadding, 0...24, 2),
-            ("入口位置 %", "entry", \.entryPosition, 0...1, 0.1),
-        ]
-        for (title, id, path, range, step) in fields {
-            let label = UILabel()
-            label.font = .preferredFont(forTextStyle: .subheadline)
-            let slider = UISlider()
-            slider.minimumValue = range.lowerBound
-            slider.maximumValue = range.upperBound
-            slider.value = Float(preferences[keyPath: path])
-            slider.accessibilityLabel = title
-            slider.accessibilityIdentifier = "layout." + id
-            let update: () -> Void = { [weak self, weak slider, weak label] in
-                guard let self, let slider else { return }
-                self.preferences[keyPath: path] = Double(slider.value)
+            UserDefaults.standard.set(theme.selectedSegmentIndex, forKey: "keyboard.appearance"); self.applyAppearance(animated: true)
+        }, for: .valueChanged); stack.addArrangedSubview(theme)
+        let presets = UIStackView(); presets.spacing = 8; presets.distribution = .fillEqually
+        for (index, name) in ["标准", "单手", "宽松"].enumerated() {
+            let preset = LianaUI.button(name, role: .utility, id: "layout.preset.\(index)") { [weak self] in
+                guard let self else { return }
+                self.preferences.width = index == 1 ? 0.86 : 1
+                self.preferences.alignment = index == 1 ? 1 : 0.5
+                self.preferences.keyHeight = index == 2 ? 54 : 46
+                self.preferences.candidateFont = index == 2 ? 18 : 17
                 self.applyPreferences()
-                let value = slider.value * (range.upperBound <= 1 ? 100 : 1)
-                label?.text = title + "  " + String(Int(value.rounded()))
+            }; presets.addArrangedSubview(preset)
+        }
+        stack.addArrangedSubview(presets)
+        let feedback = UISwitch(); feedback.isOn = hapticsEnabled; feedback.onTintColor = LianaPalette.primary
+        feedback.accessibilityIdentifier = "layout.haptics"; feedback.accessibilityLabel = "按键触感反馈"
+        feedback.addAction(UIAction { [weak self, weak feedback] _ in
+            guard let self, let feedback else { return }
+            self.hapticsEnabled = feedback.isOn; UserDefaults.standard.set(feedback.isOn, forKey: "keyboard.haptics")
+        }, for: .valueChanged)
+        let feedbackRow = UIStackView(arrangedSubviews: [LianaUI.label("按键触感", size: 14),feedback]); feedbackRow.alignment = .center; feedbackRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true; stack.addArrangedSubview(feedbackRow)
+        let advanced = LianaUI.vertical(spacing: 12); advanced.isHidden = true
+        let advancedButton = LianaUI.button("精细调节", icon: "slider.horizontal.3", role: .plain, id: "layout.advanced") { [weak advanced] in
+            advanced?.isHidden.toggle()
+        }; stack.addArrangedSubview(advancedButton); stack.addArrangedSubview(advanced)
+        let script = LianaUI.segment(["简体", "繁体"]); script.selectedSegmentIndex = traditional ? 1 : 0; script.accessibilityLabel = "输出字形"
+        script.addAction(UIAction { [weak self, weak script] _ in
+            guard let self, let script else { return }; if (script.selectedSegmentIndex == 1) != self.traditional { self.onTraditionalToggle() }
+        }, for: .valueChanged); advanced.addArrangedSubview(script)
+        advanced.addArrangedSubview(LianaUI.label("拖动顶部工具组，也可调整高度与位置。", size: 12, muted: true))
+        let fields: [(String, String, WritableKeyPath<KeyboardPreferences, Double>, ClosedRange<Float>, Float)] = [
+            ("按键高度", "height", \.keyHeight, 44...64, 2),
+            ("键盘宽度", "width", \.width, 0.78...1, 0.02),
+            ("左右位置", "alignment", \.alignment, 0...1, 0.1),
+            ("候选字号", "font", \.candidateFont, 14...24, 1),
+            ("底部留白", "padding", \.bottomPadding, 0...24, 2),
+            ("工具位置", "entry", \.entryPosition, 0...1, 0.1),
+        ]
+        for (name, id, path, range, step) in fields {
+            let value = LianaUI.label("", size: 13, weight: .medium)
+            let slider = UISlider(); slider.tintColor = LianaPalette.ink
+            slider.minimumValue = range.lowerBound; slider.maximumValue = range.upperBound; slider.value = Float(preferences[keyPath: path])
+            slider.accessibilityLabel = name; slider.accessibilityIdentifier = "layout." + id
+            let update: () -> Void = { [weak self, weak slider, weak value] in
+                guard let self, let slider else { return }
+                self.preferences[keyPath: path] = Double(slider.value); self.applyPreferences()
+                value?.text = name + "  " + String(Int((slider.value * (range.upperBound <= 1 ? 100 : 1)).rounded())) + (range.upperBound <= 1 ? "%" : " pt")
             }
-            label.text = title + "  " + String(Int((slider.value * (range.upperBound <= 1 ? 100 : 1)).rounded()))
-            slider.addAction(UIAction { _ in update() }, for: .valueChanged)
-            stack.addArrangedSubview(label)
-            let row = UIStackView()
-            row.spacing = 8
+            value.text = name + "  " + String(Int((slider.value * (range.upperBound <= 1 ? 100 : 1)).rounded())) + (range.upperBound <= 1 ? "%" : " pt")
+            slider.addAction(UIAction { _ in update() }, for: .valueChanged); advanced.addArrangedSubview(value)
+            let row = UIStackView(); row.spacing = 8; row.alignment = .center
             for direction in [-1, 1] {
-                let button = UIButton(type: .system)
-                button.setImage(UIImage(systemName: direction < 0 ? "minus.circle" : "plus.circle"), for: .normal)
-                button.accessibilityLabel = (direction < 0 ? "减少" : "增加") + title
-                button.widthAnchor.constraint(equalToConstant: 44).isActive = true
-                button.addAction(UIAction { [weak slider] _ in
-                    guard let slider else { return }
-                    slider.value += Float(direction) * step
-                    update()
-                }, for: .touchUpInside)
-                row.addArrangedSubview(button)
-                if direction < 0 { row.addArrangedSubview(slider) }
-            }
-            row.heightAnchor.constraint(equalToConstant: 44).isActive = true
-            stack.addArrangedSubview(row)
+                let button = toolbarButton(direction < 0 ? "minus" : "plus", label: (direction < 0 ? "减少" : "增加") + name, id: "layout." + id + (direction < 0 ? ".minus" : ".plus"))
+                button.widthAnchor.constraint(equalToConstant: 44).isActive = true; button.heightAnchor.constraint(equalToConstant: 44).isActive = true
+                button.addAction(UIAction { [weak slider] _ in guard let slider else { return }; slider.value += Float(direction) * step; update() }, for: .touchUpInside)
+                row.addArrangedSubview(button); if direction < 0 { row.addArrangedSubview(slider) }
+            }; advanced.addArrangedSubview(row)
         }
     }
 
     private func toggleDevices() {
-        if let devicePanel { devicePanel.stop(); devicePanel.removeFromSuperview(); self.devicePanel = nil; return }
+        if let devicePanel { devicePanel.stop(); devicePanel.removeFromSuperview(); self.devicePanel = nil; syncToolbarState(); return }
         featurePanel?.removeFromSuperview(); featurePanel = nil
         adjustmentPanel?.removeFromSuperview()
         adjustmentPanel = nil
@@ -862,13 +918,18 @@ class KeyboardViewController: UIInputViewController {
     }
 
     private func keyButton(_ title: String, action: @escaping () -> Void) -> UIButton {
-        let b = UIButton(type: .system)
+        let b = LianaPressButton(frame: .zero)
+        b.surface = .key; b.rounded = 8
         b.setTitle(title, for: .normal)
         b.setTitleColor(LianaTheme.text, for: .normal)
-        b.titleLabel?.font = .systemFont(ofSize: LianaTheme.fontKey, weight: .semibold)
-        b.backgroundColor = LianaTheme.key
+        let letter = title.count == 1 && title.first?.isASCII == true && title.first?.isLetter == true
+        b.titleLabel?.font = LianaPalette.font(letter ? 20 : 15, weight: letter ? .regular : .medium, maximum: letter ? 25 : 20)
+        if ["123", "ABC", "#+=", "中", "⌫", "⇧", "⇪", "🌐", "←", "→"].contains(title) { b.surface = .utility }
+        if title == "⏎" { b.surface = .primary }
+        if title == "空格" { b.titleLabel?.font = LianaPalette.font(15, maximum: 21) }
         b.layer.cornerRadius = 8
         b.accessibilityIdentifier = "key." + title
+        b.accessibilityTraits.insert(.keyboardKey)
         if title == "🌐" {
             b.setTitle(nil, for: .normal)
             b.setImage(UIImage(systemName: "globe"), for: .normal)
@@ -877,16 +938,25 @@ class KeyboardViewController: UIInputViewController {
             b.addTarget(self, action: #selector(handleInputModeList(from:with:)), for: .allTouchEvents)
         } else {
             b.addAction(UIAction { [weak self] _ in
-                self?.hapticLight.impactOccurred()
+                if self?.hapticsEnabled == true { self?.hapticLight.impactOccurred(intensity: 0.35) }
                 action()
             }, for: .touchUpInside)
         }
         if title == "⏎" {
             b.setTitle(nil, for: .normal)
             b.setImage(UIImage(systemName: "return"), for: .normal)
-            b.tintColor = LianaTheme.text
+            b.tintColor = LianaPalette.onPrimary
             b.accessibilityLabel = "换行"
             returnButtons.append(b)
+        }
+        if title == "←" || title == "→" {
+            b.setTitle(nil, for: .normal); b.setImage(UIImage(systemName: title == "←" ? "arrow.left" : "arrow.right"), for: .normal)
+            b.accessibilityLabel = title == "←" ? "向左移动光标" : "向右移动光标"
+        }
+        if title == "⌫" || (page == .letters && ["⇧", "⇪"].contains(title)) {
+            let symbol = title == "⌫" ? "delete.left" : (title == "⇪" ? "capslock.fill" : "shift")
+            b.setTitle(nil, for: .normal); b.setImage(UIImage(systemName: symbol), for: .normal)
+            if title == "⌫" { b.accessibilityLabel = "删除，长按连续删除" }
         }
         if title == shiftTitle { b.accessibilityLabel = page == .letters ? "切换大写，连点锁定" : "切换符号" }
         return b
@@ -896,7 +966,7 @@ class KeyboardViewController: UIInputViewController {
 
     private func attachBackspace(in row: UIStackView) {
         for v in row.arrangedSubviews {
-            guard let b = v as? UIButton, b.title(for: .normal) == "⌫" else { continue }
+            guard let b = v as? UIButton, b.accessibilityIdentifier == "key.⌫" else { continue }
             attachBackspaceGestures(to: b)
         }
     }
@@ -911,7 +981,7 @@ class KeyboardViewController: UIInputViewController {
     @objc private func onBackspaceLongPress(_ g: UILongPressGestureRecognizer) {
         switch g.state {
         case .began:
-            hapticStrong.impactOccurred()
+            if hapticsEnabled { hapticStrong.impactOccurred(intensity: 0.6) }
             onBackspace()
             startRepeat()
         case .ended, .cancelled:
@@ -1022,7 +1092,7 @@ class KeyboardViewController: UIInputViewController {
         guard candidates.indices.contains(index) else { return }
         send(.select(index, raw: candidateRaw, text: candidates[index]))
         // 上屏加强触觉：形成"上屏了"的身体确认（§3.1）
-        hapticStrong.impactOccurred()
+        if hapticsEnabled { hapticStrong.impactOccurred(intensity: 0.6) }
         // 引擎可能仍留剩余缓冲，候选要立刻跟着变（L2 而不是等下一次按键）
     }
 
@@ -1038,8 +1108,13 @@ class KeyboardViewController: UIInputViewController {
 
     private func renderCandidates() {
         renderWorkbench()
+        syncToolbarState()
         guard candidateStrip != nil else { return }
-        composingLabel?.text = composingText.isEmpty ? (english ? "松萝 · English" : "松萝 · " + method.title) : composingText
+        composingLabel?.text = composingText.isEmpty ? (english ? "松萝  /  EN" : "松萝  /  " + method.title) : composingText
+        composingLabel?.textColor = rawInput.isEmpty ? LianaPalette.muted : LianaPalette.ink
+        let hasComposition = !rawInput.isEmpty || !candidates.isEmpty
+        candidateScroll?.isHidden = !hasComposition; idleScroll?.isHidden = hasComposition
+        updateGeometry()
         clearButton?.isHidden = rawInput.isEmpty
         for button in returnButtons { button.accessibilityLabel = rawInput.isEmpty ? "换行" : "确认候选" }
         guard renderedCandidates != candidates || renderedCandidateFont != preferences.candidateFont else { return }
@@ -1052,23 +1127,23 @@ class KeyboardViewController: UIInputViewController {
             button.isHidden = i >= candidates.count
             if i < candidates.count {
                 UIView.performWithoutAnimation { button.setTitle(candidates[i], for: .normal) }
-                button.titleLabel?.font = .systemFont(ofSize: CGFloat(preferences.candidateFont), weight: .bold)
+                button.titleLabel?.font = .systemFont(ofSize: CGFloat(preferences.candidateFont), weight: i == 0 ? .semibold : .regular)
             }
         }
     }
 
     /// 候选条目：点击选中；上滑 ≥ 24pt 直接着该候选上屏（§3.2）。
     private func candidateButton(_ text: String, index: Int) -> UIButton {
-        let b = UIButton(type: .system)
+        let b = LianaPressButton(frame: .zero)
+        b.surface = index == 0 ? .primary : .plain
         b.setTitle(text, for: .normal)
-        b.setTitleColor(LianaTheme.text, for: .normal)
-        b.titleLabel?.font = .systemFont(ofSize: CGFloat(preferences.candidateFont), weight: .bold)
-        b.backgroundColor = LianaTheme.keyPressed
-        b.layer.cornerRadius = 6
+        b.titleLabel?.font = .systemFont(ofSize: CGFloat(preferences.candidateFont), weight: index == 0 ? .semibold : .regular)
+        b.rounded = 8
         b.contentEdgeInsets = UIEdgeInsets(top: 4, left: 12, bottom: 4, right: 12)
         b.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
         b.tag = index
         b.accessibilityIdentifier = "candidate.\(index)"
+        if index == 0 { b.accessibilityValue = "首选词" }
         b.addAction(UIAction { [weak self] _ in self?.selectCandidate(index) }, for: .touchUpInside)
         let swipeUp = UISwipeGestureRecognizer(target: self, action: #selector(onCandidateSwipeUp(_:)))
         swipeUp.direction = .up
@@ -1079,7 +1154,7 @@ class KeyboardViewController: UIInputViewController {
 
     @objc private func onCandidateSwipeUp(_ g: UISwipeGestureRecognizer) {
         guard let b = g.view as? UIButton, candidates.indices.contains(b.tag) else { return }
-        hapticStrong.impactOccurred()
+        if hapticsEnabled { hapticStrong.impactOccurred(intensity: 0.6) }
         selectCandidate(b.tag)
     }
 }
@@ -1156,11 +1231,13 @@ extension KeyboardViewController {
         }
     }
     private func toggleTools() {
-        if let panel = featurePanel { panel.removeFromSuperview(); featurePanel = nil; return }
+        if let panel = featurePanel { featurePanel = nil; syncToolbarState(); LianaMotion.dismiss(panel); return }
         adjustmentPanel?.removeFromSuperview(); adjustmentPanel = nil
         devicePanel?.stop(); devicePanel?.removeFromSuperview(); devicePanel = nil
-        let panel = KeyboardToolsPanel(); featurePanel = panel; installPanel(panel)
+        let panel = KeyboardToolsPanel(method: method); featurePanel = panel; installPanel(panel)
         panel.onClose = { [weak self] in self?.toggleTools() }
+        panel.onDevices = { [weak self] in self?.toggleDevices() }
+        panel.onLayout = { [weak self] in self?.toggleAdjustments() }
         panel.onMethod = { [weak self] in self?.chooseMethod($0) }
         panel.onInsert = { [weak self] in self?.insertText($0) }
         panel.onReceive = { [weak self] in self?.receiveHostContent() }

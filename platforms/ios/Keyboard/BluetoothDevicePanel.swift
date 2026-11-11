@@ -7,9 +7,9 @@ final class BluetoothDevicePanel: UIView {
     private let status = UILabel()
     private let preview = UILabel()
     private let results = UIStackView()
-    private let insertButton = UIButton(type: .system)
-    private let scanButton = UIButton(type: .system)
-    private let reconnectButton = UIButton(type: .system)
+    private let insertButton = LianaPressButton(frame: .zero)
+    private let scanButton = LianaPressButton(frame: .zero)
+    private let reconnectButton = LianaPressButton(frame: .zero)
     private let decisions = UIStackView()
     private var finalText = ""
     private var partialText = ""
@@ -40,24 +40,26 @@ final class BluetoothDevicePanel: UIView {
             stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -12),
             stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -24),
         ])
-        stack.addArrangedSubview(label("外接语音／Vibe Code 设备", style: .headline))
+        stack.addArrangedSubview(label("外接设备", style: .headline))
         status.numberOfLines = 0
-        status.font = .preferredFont(forTextStyle: .subheadline)
+        status.font = LianaPalette.font(13); status.textColor = LianaPalette.muted
         status.accessibilityIdentifier = "devices.status"
         let controls = UIStackView()
         controls.distribution = .fillEqually
+        controls.spacing = 6
         configure(scanButton, title: "扫描 BLE", id: "devices.scan") { [weak self] in self?.connectAction { self?.bridge.scan() } }
         configure(reconnectButton, title: "连接上次", id: "devices.reconnect") { [weak self] in self?.connectAction { self?.bridge.connectLast() } }
-        let disconnect = UIButton(type: .system)
+        let disconnect = LianaPressButton(frame: .zero)
         configure(disconnect, title: "断开", id: "devices.disconnect") { [weak self] in self?.stop() }
         [scanButton, reconnectButton, disconnect].forEach { controls.addArrangedSubview($0) }
         stack.addArrangedSubview(controls)
         stack.addArrangedSubview(status)
-        preview.font = .preferredFont(forTextStyle: .body)
+        preview.font = LianaPalette.font(16); preview.textColor = LianaPalette.ink
         preview.numberOfLines = 4
         preview.accessibilityIdentifier = "devices.preview"
         stack.addArrangedSubview(preview)
         decisions.distribution = .fillEqually
+        decisions.spacing = 6
         configure(insertButton, title: "插入文字", id: "devices.insert") { [weak self] in
             guard let self, !self.finalText.isEmpty else { return }
             let text = self.finalText
@@ -65,7 +67,7 @@ final class BluetoothDevicePanel: UIView {
             self.updatePreview()
             self.insert(text)
         }
-        let clear = UIButton(type: .system)
+        let clear = LianaPressButton(frame: .zero)
         configure(clear, title: "清空预览", id: "devices.clear") { [weak self] in self?.clearPreview() }
         decisions.addArrangedSubview(insertButton)
         decisions.addArrangedSubview(clear)
@@ -77,7 +79,7 @@ final class BluetoothDevicePanel: UIView {
         details.axis = .vertical
         details.spacing = 10
         details.isHidden = true
-        let detailsButton = UIButton(type: .system)
+        let detailsButton = LianaPressButton(frame: .zero)
         configure(detailsButton, title: "HID 配对说明与 BLE 协议", id: "devices.details") { [weak details] in details?.isHidden.toggle() }
         stack.addArrangedSubview(detailsButton)
         stack.addArrangedSubview(details)
@@ -108,9 +110,10 @@ final class BluetoothDevicePanel: UIView {
     func stop() { bridge.stop(); clearPreview() }
 
     private func configure(_ button: UIButton, title: String, id: String, action: @escaping () -> Void) {
+        if let themed = button as? LianaPressButton { themed.surface = id == "devices.insert" ? .primary : .utility; themed.rounded = 9; themed.contentEdgeInsets = UIEdgeInsets(top: 6, left: 6, bottom: 6, right: 6) }
         button.setTitle(title, for: .normal)
         button.accessibilityIdentifier = id
-        button.titleLabel?.font = .preferredFont(forTextStyle: .subheadline)
+        button.titleLabel?.font = LianaPalette.font(13, weight: .medium, maximum: 19)
         button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
         button.addAction(UIAction { _ in action() }, for: .touchUpInside)
     }
@@ -139,7 +142,7 @@ final class BluetoothDevicePanel: UIView {
         if bridge.subscribed == nil, !bridge.characteristics.isEmpty {
             results.addArrangedSubview(label("选择文字通知通道（按设备文档确认）", style: .subheadline))
             for characteristic in bridge.characteristics {
-                let button = UIButton(type: .system)
+                let button = LianaPressButton(frame: .zero)
                 let title = "服务 \(characteristic.service?.uuid.uuidString ?? "")\n通知 \(characteristic.uuid.uuidString)"
                 configure(button, title: title, id: "devices.channel." + characteristic.uuid.uuidString) { [weak self] in self?.bridge.subscribe(characteristic) }
                 button.titleLabel?.numberOfLines = 0
@@ -148,7 +151,7 @@ final class BluetoothDevicePanel: UIView {
             }
         } else if bridge.characteristics.isEmpty {
             for device in bridge.devices {
-                let button = UIButton(type: .system)
+                let button = LianaPressButton(frame: .zero)
                 configure(button, title: "\(device.name) · \(device.rssi) dBm · \(device.peripheral.identifier.uuidString.prefix(8))", id: "devices.peer." + device.peripheral.identifier.uuidString) { [weak self] in
                     self?.clearPreview()
                     self?.bridge.connect(device.peripheral)

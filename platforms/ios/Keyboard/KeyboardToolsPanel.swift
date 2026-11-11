@@ -8,48 +8,89 @@ final class KeyboardToolsPanel: UIView {
     var onMethod: ((MobileInputMethod) -> Void)?
     var onClipboardSend: (() -> Void)?
     var onClipboardReceive: (() -> Void)?
+    var onDevices: (() -> Void)?
+    var onLayout: (() -> Void)?
     var onClose: (() -> Void)?
-    private let stack = UIStackView()
-    private let message = UILabel()
-    init() {
+    private let content = LianaUI.vertical(spacing: 6)
+    private let message = LianaUI.label("", size: 12, muted: true)
+    private let tabs = LianaUI.segment(["输入", "表情", "同步", "词库"])
+    private let method: MobileInputMethod
+
+    init(method: MobileInputMethod = .pinyin) {
+        self.method = method
         super.init(frame: .zero)
-        backgroundColor = .secondarySystemBackground; layer.cornerRadius = 12
-        let scroll = UIScrollView(); scroll.translatesAutoresizingMaskIntoConstraints = false; addSubview(scroll)
-        stack.axis = .vertical; stack.spacing = 5; stack.translatesAutoresizingMaskIntoConstraints = false; scroll.addSubview(stack)
-        NSLayoutConstraint.activate([scroll.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),scroll.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),scroll.topAnchor.constraint(equalTo: topAnchor),scroll.bottomAnchor.constraint(equalTo: bottomAnchor),stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor),stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor),stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor),stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor),stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor)])
-        let top = UIStackView(); top.distribution = .fillEqually
-        top.addArrangedSubview(button("接收 App 内容", id: "tools.receive") { [weak self] in self?.onReceive?() })
-        top.addArrangedSubview(button("关闭", id: "tools.close") { [weak self] in self?.onClose?() }); stack.addArrangedSubview(top)
-        message.font = .systemFont(ofSize: 12); message.numberOfLines = 0; message.textColor = .secondaryLabel
-        message.text = "主 App 可录音转文字、导入词库与 GIF；复制后点「接收 App 内容」。长按中/EN 切换方案。"
-        stack.addArrangedSubview(message)
-        // Inline choices remain inside the extension's bounds on every iOS host.
-        let schemes = MobileInputMethod.allCases
-        for index in stride(from: 0, to: schemes.count, by: 2) {
-            let row = UIStackView(); row.distribution = .fillEqually
-            for mode in schemes[index..<min(index+2,schemes.count)] {
-                row.addArrangedSubview(button(mode.title, id: "method." + mode.rawValue) { [weak self] in self?.onMethod?(mode) })
-            }
-            if row.arrangedSubviews.count == 1 { row.addArrangedSubview(UIView()) }
-            stack.addArrangedSubview(row)
-        }
-        stack.addArrangedSubview(button("导入系统补充词库（联系人／文本替换）", id: "tools.system") { [weak self] in self?.onSystemLexicon?() })
-        let clip = UIStackView(); clip.distribution = .fillEqually
-        clip.addArrangedSubview(button("发送剪贴板到 Mac", id: "tools.clip.send") { [weak self] in self?.onClipboardSend?() })
-        clip.addArrangedSubview(button("接收 Mac 剪贴板", id: "tools.clip.receive") { [weak self] in self?.onClipboardReceive?() }); stack.addArrangedSubview(clip)
-        let faces = ["(๑•̀ㅂ•́)و✧","(｡･ω･｡)","(≧▽≦)","(つД`)ノ","¯\\_(ツ)_/¯","(╯°□°）╯︵ ┻━┻","(´･_･`)","(づ｡◕‿‿◕｡)づ"]
-        for i in stride(from: 0, to: faces.count, by: 2) {
-            let row = UIStackView(); row.distribution = .fillEqually
-            for text in faces[i..<min(i+2, faces.count)] { row.addArrangedSubview(button(text, id: "face.\(i)") { [weak self] in self?.onInsert?(text) }) }; stack.addArrangedSubview(row)
-        }
-        reloadGIFs()
+        backgroundColor = LianaPalette.keyboard
+        let back = LianaPressButton(frame: .zero)
+        back.setImage(UIImage(systemName: "chevron.left"), for: .normal)
+        back.accessibilityIdentifier = "tools.close"; back.accessibilityLabel = "返回键盘"
+        back.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        back.addAction(UIAction { [weak self] _ in self?.onClose?() }, for: .touchUpInside)
+        tabs.selectedSegmentIndex = 0; tabs.accessibilityIdentifier = "tools.section"; tabs.accessibilityLabel = "输入工具分类"
+        tabs.addAction(UIAction { [weak self] _ in self?.render(); if let self { LianaMotion.reveal(self.content) } }, for: .valueChanged)
+        let header = UIStackView(arrangedSubviews: [back, tabs]); header.spacing = 4
+        header.heightAnchor.constraint(equalToConstant: 44).isActive = true
+        let scroll = UIScrollView(); scroll.contentInsetAdjustmentBehavior = .never; scroll.showsVerticalScrollIndicator = false
+        content.translatesAutoresizingMaskIntoConstraints = false; scroll.addSubview(content)
+        NSLayoutConstraint.activate([content.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 8),content.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -8),content.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor),content.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -4),content.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -16)])
+        message.isHidden = true; message.numberOfLines = 3; message.accessibilityIdentifier = "tools.status"
+        let footer = UIStackView(arrangedSubviews: [message]); footer.isLayoutMarginsRelativeArrangement = true; footer.layoutMargins = UIEdgeInsets(top: 0, left: 12, bottom: 0, right: 12)
+        let root = LianaUI.vertical([header, scroll, footer], spacing: 4); root.translatesAutoresizingMaskIntoConstraints = false; addSubview(root)
+        NSLayoutConstraint.activate([root.leadingAnchor.constraint(equalTo: leadingAnchor),root.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),root.topAnchor.constraint(equalTo: topAnchor),root.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4)])
+        render()
     }
-    required init?(coder: NSCoder) { fatalError() }
-    func status(_ text: String) { message.text = text }
-    private func button(_ title: String, id: String, action: @escaping () -> Void) -> UIButton {
-        let b = UIButton(type: .system); b.setTitle(title, for: .normal); b.titleLabel?.font = .systemFont(ofSize: 14); b.accessibilityIdentifier = id
-        b.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
-        b.addAction(UIAction { _ in action() }, for: .touchUpInside); return b
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    func status(_ text: String) { message.text = text; message.isHidden = false; UIAccessibility.post(notification: .announcement, argument: text) }
+    private func button(_ title: String, icon: String? = nil, id: String, action: @escaping () -> Void) -> LianaPressButton {
+        let button = LianaPressButton(frame: .zero); button.surface = .utility; button.rounded = 9
+        button.setTitle(title, for: .normal); button.titleLabel?.font = LianaPalette.font(13, weight: .medium, maximum: 19)
+        button.titleLabel?.numberOfLines = 2
+        button.contentEdgeInsets = UIEdgeInsets(top: 7, left: 5, bottom: 7, right: 5)
+        if let icon { button.setImage(UIImage(systemName: icon), for: .normal); button.setPreferredSymbolConfiguration(UIImage.SymbolConfiguration(pointSize: 13, weight: .medium), forImageIn: .normal); button.imageEdgeInsets = UIEdgeInsets(top: 0, left: -3, bottom: 0, right: 3) }
+        button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true; button.accessibilityIdentifier = id
+        button.addAction(UIAction { _ in action() }, for: .touchUpInside); return button
+    }
+    private func row(_ views: [UIView]) -> UIStackView { let row = UIStackView(arrangedSubviews: views); row.distribution = .fillEqually; row.spacing = 6; return row }
+    private func render() {
+        content.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        message.isHidden = true
+        switch tabs.selectedSegmentIndex {
+        case 0:
+            let order: [MobileInputMethod] = [.pinyin,.t9,.handwriting,.flypy,.mspy,.zrm,.wubi]
+            var items: [UIView] = order.map { mode in
+                let key = button(mode.title, id: "method." + mode.rawValue) { [weak self] in self?.onMethod?(mode) }
+                key.isSelected = mode == method; key.accessibilityTraits.formUnion(mode == method ? .selected : [])
+                return key
+            }
+            items.append(button("接收内容", icon: "tray.and.arrow.down", id: "tools.receive") { [weak self] in self?.onReceive?() })
+            items.append(button("布局手感", icon: "slider.horizontal.3", id: "tools.layout") { [weak self] in self?.onLayout?() })
+            content.spacing = 4
+            for i in stride(from: 0, to: items.count, by: 3) { content.addArrangedSubview(row(Array(items[i..<min(i+3,items.count)]))) }
+        case 1:
+            content.spacing = 6
+            let faces = ["(๑•̀ㅂ•́)و✧","(｡･ω･｡)","(≧▽≦)","(つД`)ノ","¯\\_(ツ)_/¯","(╯°□°）╯︵ ┻━┻","(´･_･`)","(づ｡◕‿‿◕｡)づ"]
+            for i in stride(from: 0, to: faces.count, by: 2) {
+                let cells = (i..<min(i+2,faces.count)).map { index in button(faces[index], id: "face.\(index)") { [weak self] in self?.onInsert?(faces[index]) } }
+                content.addArrangedSubview(row(cells))
+            }
+            content.addArrangedSubview(button("接收 App 中的 GIF", icon: "tray.and.arrow.down", id: "tools.receive") { [weak self] in self?.onReceive?() })
+            reloadGIFs()
+        case 2:
+            content.spacing = 8
+            content.addArrangedSubview(row([
+                button("发到 Mac", icon: "arrow.up.right", id: "tools.clip.send") { [weak self] in self?.onClipboardSend?() },
+                button("从 Mac 接收", icon: "arrow.down.left", id: "tools.clip.receive") { [weak self] in self?.onClipboardReceive?() },
+            ]))
+            content.addArrangedSubview(row([
+                button("接收配对", icon: "link", id: "tools.receive") { [weak self] in self?.onReceive?() },
+                button("外接设备", icon: "waveform", id: "tools.devices") { [weak self] in self?.onDevices?() },
+            ]))
+            content.addArrangedSubview(LianaUI.label("同一局域网内，按需同步文字。首次先在 App 配对 Mac。", size: 12, muted: true))
+        default:
+            content.spacing = 8
+            content.addArrangedSubview(button("接收已导入的词库", icon: "tray.and.arrow.down", id: "tools.receive") { [weak self] in self?.onReceive?() })
+            content.addArrangedSubview(button("添加系统补充词库", icon: "text.badge.plus", id: "tools.system") { [weak self] in self?.onSystemLexicon?() })
+            content.addArrangedSubview(LianaUI.label("本地与 GitHub 词库在 App 导入；系统补充包括姓名、文本替换等。", size: 12, muted: true))
+        }
     }
     static let gifFolder = MobileLexicon.directory.appendingPathComponent("GIF", isDirectory: true)
     static func saveGIF(_ data: Data) throws {
@@ -60,16 +101,21 @@ final class KeyboardToolsPanel: UIView {
         try data.write(to: gifFolder.appendingPathComponent(UUID().uuidString + ".gif"), options: .atomic)
     }
     private func reloadGIFs() {
-        let files = (try? FileManager.default.contentsOfDirectory(at: Self.gifFolder, includingPropertiesForKeys: nil)) ?? []
-        guard !files.isEmpty else { return }
-        for url in files.prefix(12) {
-            let b = button("GIF · 复制后在聊天框粘贴", id: "gif.copy") { [weak self] in
-                guard let data = try? Data(contentsOf: url) else { return }
-                UIPasteboard.general.setData(data, forPasteboardType: "com.compuserve.gif"); self?.status("GIF 已复制，请在支持图片粘贴的聊天框粘贴。")
-            }
-            if let source = CGImageSourceCreateWithURL(url as CFURL, nil), let image = CGImageSourceCreateThumbnailAtIndex(source,0,[kCGImageSourceCreateThumbnailFromImageAlways:true,kCGImageSourceThumbnailMaxPixelSize:64] as CFDictionary) { b.setImage(UIImage(cgImage:image),for:.normal); b.imageView?.contentMode = .scaleAspectFit }
-            stack.addArrangedSubview(b)
+        let files = ((try? FileManager.default.contentsOfDirectory(at: Self.gifFolder, includingPropertiesForKeys: nil)) ?? []).sorted { $0.lastPathComponent < $1.lastPathComponent }
+        if files.isEmpty {
+            content.addArrangedSubview(LianaUI.label("GIF 可在 App 中导入，接收后会出现在这里。", size: 12, muted: true)); return
         }
-        stack.addArrangedSubview(button("清空本地 GIF", id:"gif.clear") { [weak self] in try? FileManager.default.removeItem(at: Self.gifFolder); self?.status("已清空，关闭面板后重新打开。") })
+        for offset in stride(from: 0, to: min(files.count,12), by: 2) {
+            let cells = files[offset..<min(offset+2,files.count)].map { url -> UIView in
+                let key = button("复制 GIF", id: "gif.copy") { [weak self] in
+                    guard let data = try? Data(contentsOf: url) else { return }
+                    UIPasteboard.general.setData(data, forPasteboardType: "com.compuserve.gif"); self?.status("GIF 已复制，在支持图片的聊天框粘贴即可。")
+                }
+                if let source = CGImageSourceCreateWithURL(url as CFURL,nil),let image = CGImageSourceCreateThumbnailAtIndex(source,0,[kCGImageSourceCreateThumbnailFromImageAlways:true,kCGImageSourceThumbnailMaxPixelSize:48] as CFDictionary) { key.setImage(UIImage(cgImage:image),for:.normal) }
+                return key
+            }
+            content.addArrangedSubview(row(cells))
+        }
+        content.addArrangedSubview(button("清空 GIF", icon: "trash", id:"gif.clear") { [weak self] in try? FileManager.default.removeItem(at:Self.gifFolder); self?.render(); self?.status("本地 GIF 已清空。") })
     }
 }

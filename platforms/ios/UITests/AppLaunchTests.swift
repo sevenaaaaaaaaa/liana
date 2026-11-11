@@ -39,4 +39,30 @@ final class AppLaunchTests: XCTestCase {
         XCTAssertEqual(app.state,.runningForeground)
     }
 
+    func testVisualJourneyAcrossToolSections() {
+        let app=XCUIApplication(); app.launch()
+        XCTAssertTrue(app.staticTexts["松萝输入法"].waitForExistence(timeout:15))
+        func shot(_ name:String) { let a=XCTAttachment(screenshot:app.screenshot()); a.name=name; a.lifetime = .keepAlways; add(a) }
+        shot("home-refined")
+        app.buttons["mobile.tools"].tap()
+        XCTAssertTrue(app.buttons["voice.start"].waitForExistence(timeout:10))
+        shot("voice-refined")
+        let tabs=app.segmentedControls["mobile.section"]
+        tabs.buttons.element(boundBy:1).tap()
+        XCTAssertTrue(app.buttons["dict.local"].exists); XCTAssertFalse(app.buttons["dict.copy"].isEnabled)
+        shot("dictionary-refined")
+        tabs.buttons.element(boundBy:2).tap()
+        XCTAssertTrue(app.buttons["gif.import"].exists)
+        app.buttons["mobile.face.0"].tap()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format:"label CONTAINS %@","文字已复制")).firstMatch.waitForExistence(timeout:5))
+        shot("expressions-refined")
+        tabs.buttons.element(boundBy:3).tap()
+        XCTAssertTrue(app.buttons["mobile.mac"].exists)
+        shot("sync-refined")
+        app.buttons["mobile.done"].tap()
+        app.buttons["mac.open"].tap()
+        XCTAssertTrue(app.buttons["mac.scan"].waitForExistence(timeout:10))
+        shot("mac-refined")
+    }
+
 }
