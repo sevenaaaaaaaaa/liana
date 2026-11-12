@@ -249,8 +249,9 @@ final class KeyboardBehaviorTests: XCTestCase {
         keyboard.perform(action, with: pan)
         keyboard.view.layoutIfNeeded()
         XCTAssertEqual(try button("key.q", keyboard).bounds.height, 56, accuracy: 0.1)
-        let grip = try button("tools.open", keyboard)
-        XCTAssertLessThan(grip.convert(grip.bounds, to: keyboard.view).minX, 150)
+        // 入口组整体左移（6 个入口后，「工具」不再是第一个，按整组位置断言）。
+        let dock = try XCTUnwrap(allViews(keyboard.view).first { $0.accessibilityIdentifier == "layout.drag" })
+        XCTAssertLessThan(dock.convert(dock.bounds, to: keyboard.view).minX, 60)
         XCTAssertEqual(try button("candidate.0", keyboard).title(for: .normal), "你好")
         keyboard.viewWillDisappear(false)
         XCTAssertEqual(KeyboardPreferences.load().keyHeight, 56)
@@ -617,6 +618,293 @@ final class KeyboardBehaviorTests: XCTestCase {
         let undo=try XCTUnwrap(allViews(restored.view).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier=="voice.undo" })
         XCTAssertFalse(undo.isHidden); undo.sendActions(for:.touchUpInside)
         XCTAssertEqual(restoredEditor.text,"保留这一段草稿")
+    }
+
+    // MARK: - 词库覆盖与分段回退（问题 1：候选空白）
+
+    private func nineKeyTitle(_ digit: Character) -> String {
+        let titles: [Character: String] = ["1": "1 · 符号", "2": "2 ABC", "3": "3 DEF", "4": "4 GHI", "5": "5 JKL", "6": "6 MNO", "7": "7 PQRS", "8": "8 TUV", "9": "9 WXYZ"]
+        return titles[digit] ?? String(digit)
+    }
+
+    private func typeNineKey(_ digits: String, _ keyboard: FixtureKeyboard) throws {
+        for digit in digits { try tap("key." + nineKeyTitle(digit), keyboard) }
+    }
+
+    private func candidateTitles(_ keyboard: FixtureKeyboard) -> [String] {
+        allViews(keyboard.view).compactMap { $0 as? UIButton }
+            .filter { $0.accessibilityIdentifier?.hasPrefix("candidate.") == true && !$0.isHidden }
+            .sorted {
+                let left = Int(($0.accessibilityIdentifier ?? "").dropFirst("candidate.".count)) ?? 0
+                let right = Int(($1.accessibilityIdentifier ?? "").dropFirst("candidate.".count)) ?? 0
+                return left < right
+            }
+            .map { $0.title(for: .normal) ?? "" }
+    }
+
+    /// 全拼整句：多音节输入必须立刻给出非空候选，且首候选是常用词。
+    func testPinyinPhrasesProduceCandidates() throws {
+        let keyboard = fixture()
+        let cases: [(String, String)] = [
+            ("jintiantianqi", "今天天气"),
+            ("mingtianqugongsi", "明天去公司"),
+            ("zhegeshouji", "这个手机"),
+            ("wanshangyiqichifan", "晚上一起吃饭"),
+            ("gongzuoshunli", "工作顺利"),
+            ("nizaiganma", "你在干嘛"),
+            ("xiexienile", "谢谢你了"),
+            ("woxiangchi", "我想吃"),
+            ("wobuyaole", "我不要了"),
+            ("kuaiyidian", "快一点"),
+            ("zheshishayisi", "这是啥意思"),
+            ("zhongguorenmin", "中国人民"),
+            ("dajiahao", "大家好"),
+            ("kandianying", "看电影"),
+        ]
+        for (raw, expected) in cases {
+            try typePinyin(raw, keyboard)
+            let titles = candidateTitles(keyboard)
+            XCTAssertFalse(titles.isEmpty, "\(raw) 没有候选")
+            XCTAssertEqual(titles.first, expected, "\(raw) 首候选")
+            XCTAssertEqual(try button("candidate.0", keyboard).title(for: .normal), expected)
+            try tap("composition.clear", keyboard)
+        }
+        attachScreenshot("iPhone-pinyin-phrases", keyboard)
+    }
+
+    /// Rust 会话拿不到（设备上随包词典加载失败）时，全拼仍要能给出整句候选。
+    func testPhraseComposerFallbackWhenSessionIsUnavailable() throws {
+        let engine = MobileEngine()
+        engine.sessionFactory = { _, _ in nil }
+        let ready = expectation(description: "start")
+        engine.onUpdate = { _ in ready.fulfill() }
+        engine.start(bundle: Bundle(for: Self.self), mode: "pinyin")
+        wait(for: [ready], timeout: 15)
+        let cases: [(String, String)] = [
+            ("jintiantianqi", "今天天气"),
+            ("mingtianqugongsi", "明天去公司"),
+            ("zhegeshouji", "这个手机"),
+            ("wanshangyiqichifan", "晚上一起吃饭"),
+            ("gongzuoshunli", "工作顺利"),
+            ("kuaiyidian", "快一点"),
+            ("zheshishayisi", "这是啥意思"),
+            ("zhongguorenmin", "中国人民"),
+        ]
+        for (raw, expected) in cases {
+            let update = engineUpdate(engine, .feed(raw))
+            XCTAssertFalse(update.snapshot.candidates.isEmpty, "\(raw) 回退后没有候选")
+            XCTAssertEqual(update.snapshot.candidates.first, expected, "\(raw) 回退首候选")
+            XCTAssertEqual(update.snapshot.raw, raw)
+            _ = engineUpdate(engine, .clear)
+        }
+        _ = engineUpdate(engine, .feed("jintiantianqi"))
+        XCTAssertEqual(engineUpdate(engine, .space).committed, "今天天气")
+    }
+
+    /// 九键长数字串：真实整句输入此前完全没有候选（候选栏空白）。
+    func testNineKeyPhrasesProduceCandidates() throws {
+        UserDefaults.standard.set("t9", forKey: "keyboard.method")
+        let keyboard = fixture()
+        let cases: [(String, String)] = [
+            ("5468426842674", "今天天气"),
+            ("6464842678466474", "明天去公司"),
+            ("94343746854", "这个手机"),
+            ("926742649474244326", "晚上一起吃饭"),
+            ("4664986748654", "工作顺利"),
+            ("6492442662", "你在干嘛"),
+            ("9439436453", "谢谢你了"),
+            ("9694264244", "我想吃"),
+            ("5824943426", "快一点"),
+            ("6442662", "你好吗"),
+            ("962892653", "我不要了"),
+        ]
+        for (digits, expected) in cases {
+            try typeNineKey(digits, keyboard)
+            let titles = candidateTitles(keyboard)
+            XCTAssertFalse(titles.isEmpty, "\(digits) 没有候选")
+            XCTAssertEqual(titles.first, expected, "\(digits) 首候选")
+            try tap("composition.clear", keyboard)
+        }
+        // 多音字/同码歧义也要给出真实词条，不能回退成拉丁字母。
+        try typeNineKey("74683269426", keyboard)
+        let ambiguous = candidateTitles(keyboard)
+        XCTAssertFalse(ambiguous.isEmpty, "74683269426 没有候选")
+        XCTAssertTrue(ambiguous.allSatisfy { $0.allSatisfy { !$0.isASCII } }, "\(ambiguous)")
+        try tap("composition.clear", keyboard)
+        try typeNineKey("5468426842674", keyboard)
+        XCTAssertEqual(try button("candidate.0", keyboard).title(for: .normal), "今天天气")
+        attachScreenshot("iPhone-nine-key-phrases", keyboard)
+        try tap("composition.clear", keyboard)
+    }
+
+    /// 九键 · 侧栏：中心 3x3、左右窄列放符号与功能键，整组在键盘宽度内且热区够大。
+    func testNineKeySidebarLayoutIsContainedAndComplete() throws {
+        UserDefaults.standard.set("t9", forKey: "keyboard.method")
+        XCTAssertEqual(KeyboardPreferences.load().nineKeyLayout, .sidebar)
+        let keyboard = fixture()
+        for width: CGFloat in [320, 375, 430] {
+            keyboard.view.frame = CGRect(x: 0, y: 0, width: width, height: keyboard.view.intrinsicContentSize.height)
+            keyboard.view.setNeedsLayout(); keyboard.view.layoutIfNeeded()
+            let height = keyboard.view.bounds.height
+            for title in ["1 · 符号", "2 ABC", "5 JKL", "9 WXYZ", "，", "。", "？！", "⌫", "⏎", "清空", "中", "123", "🌐", "空格", "工具"] {
+                let key = try button("key." + title, keyboard)
+                let rect = key.convert(key.bounds, to: keyboard.view)
+                XCTAssertGreaterThanOrEqual(rect.minX, -0.5, "key.\(title) 左越界")
+                XCTAssertLessThanOrEqual(rect.maxX, width + 0.5, "key.\(title) 右越界")
+                XCTAssertGreaterThanOrEqual(rect.height, 44, "key.\(title) 热区高度")
+                XCTAssertGreaterThanOrEqual(rect.width, 44, "key.\(title) 热区宽度")
+                XCTAssertGreaterThanOrEqual(rect.minY, -0.5)
+                XCTAssertLessThanOrEqual(rect.maxY, height + 0.5)
+            }
+            let punctuation = try button("key.，", keyboard)
+            let side = punctuation.convert(punctuation.bounds, to: keyboard.view).width
+            let middle = try button("key.5 JKL", keyboard)
+            let main = middle.convert(middle.bounds, to: keyboard.view).width
+            XCTAssertLessThan(side, main, "侧栏必须窄于主键")
+            attachScreenshot("iPhone-nine-key-sidebar-\(Int(width))", keyboard)
+        }
+        // 中间仍是标准 3x3，点 5 进入九宫格组合。
+        try tap("key.5 JKL", keyboard)
+        XCTAssertFalse(candidateTitles(keyboard).isEmpty, "九键单键没有候选")
+        try tap("composition.clear", keyboard)
+        // 左列符号与长按更多符号。
+        try tap("key.，", keyboard)
+        XCTAssertEqual(keyboard.document.text, "，")
+        try tap("key.⌫", keyboard)
+        XCTAssertEqual(keyboard.document.text, "")
+        let more = try button("key.？！", keyboard)
+        XCTAssertEqual(more.menu?.children.count, 5)
+        try tap("key.？！", keyboard)
+        XCTAssertEqual(keyboard.document.text, "？")
+        attachScreenshot("iPhone-nine-key-sidebar", keyboard)
+    }
+
+    /// 九键组合态顶栏不能显示原始数字串（用户反馈「顶栏莫名其妙多出来数字」）。
+    func testNineKeyCompositionShowsPinyinNotDigits() throws {
+        UserDefaults.standard.set("t9", forKey: "keyboard.method")
+        let keyboard = fixture()
+        let label = try XCTUnwrap(allViews(keyboard.view).compactMap { $0 as? UILabel }.first { $0.accessibilityIdentifier == "composition" })
+        try typeNineKey("5468426842674", keyboard)
+        XCTAssertEqual(try button("candidate.0", keyboard).title(for: .normal), "今天天气")
+        let reading = try XCTUnwrap(label.text)
+        XCTAssertFalse(reading.isEmpty)
+        XCTAssertFalse(reading.contains { "0123456789".contains($0) }, reading)
+        XCTAssertTrue(reading.contains("jin"), reading)
+        XCTAssertTrue(reading.contains("tian"), reading)
+        attachScreenshot("iPhone-nine-key-reading", keyboard)
+        // 退格后仍然是可读拼音，不能回退成数字串。
+        try tap("key.⌫", keyboard)
+        let afterBackspace = try XCTUnwrap(label.text)
+        XCTAssertFalse(afterBackspace.contains { "0123456789".contains($0) }, afterBackspace)
+        // 词库切不出来时也不能露出数字。
+        try tap("composition.clear", keyboard)
+        try typeNineKey("999999999999999", keyboard)
+        let fallback = try XCTUnwrap(label.text)
+        XCTAssertFalse(fallback.contains { "0123456789".contains($0) }, fallback)
+        XCTAssertFalse(fallback.isEmpty)
+        attachScreenshot("iPhone-nine-key-reading-fallback", keyboard)
+        try tap("composition.clear", keyboard)
+    }
+
+    /// 顶栏六个同级入口：语音设备／剪贴板／文件／表情／工具／布局。
+    func testEntryDockSharesSixQuickEntries() throws {
+        let keyboard = fixture()
+        let ids = ["devices.open", "clip.open", "file.open", "faces.open", "tools.open", "layout.settings"]
+        var rects: [CGRect] = []
+        for id in ids {
+            let entry = try button(id, keyboard)
+            XCTAssertFalse(entry.accessibilityLabel?.isEmpty ?? true, "\(id) 缺少 accessibilityLabel")
+            let rect = entry.convert(entry.bounds, to: keyboard.view)
+            XCTAssertGreaterThanOrEqual(rect.width, 44, id)
+            XCTAssertGreaterThanOrEqual(rect.height, 44, id)
+            rects.append(rect)
+        }
+        let first = try XCTUnwrap(rects.first)
+        for rect in rects {
+            XCTAssertEqual(rect.minY, first.minY, accuracy: 0.5, "入口不在同一排")
+            XCTAssertGreaterThanOrEqual(rect.minX, -0.5)
+            XCTAssertLessThanOrEqual(rect.maxX, 375.5)
+        }
+        for (left, right) in zip(rects, rects.dropFirst()) { XCTAssertLessThanOrEqual(left.maxX, right.minX + 0.5) }
+        // 组合串与入口组不能重叠；手机三档宽度与 iPad 都不溢出。
+        try typePinyin("nihao", keyboard)
+        let label = try XCTUnwrap(allViews(keyboard.view).compactMap { $0 as? UILabel }.first { $0.accessibilityIdentifier == "composition" })
+        let dock = try XCTUnwrap(allViews(keyboard.view).first { $0.accessibilityIdentifier == "layout.drag" })
+        for width: CGFloat in [320, 375, 430, 1024] {
+            keyboard.view.frame = CGRect(x: 0, y: 0, width: width, height: keyboard.view.intrinsicContentSize.height)
+            keyboard.view.setNeedsLayout(); keyboard.view.layoutIfNeeded()
+            let labelFrame = label.convert(label.bounds, to: keyboard.view)
+            let dockFrame = dock.convert(dock.bounds, to: keyboard.view)
+            XCTAssertLessThanOrEqual(labelFrame.maxX, dockFrame.minX + 0.5, "宽度 \(Int(width)) 组合串与入口重叠")
+            XCTAssertGreaterThanOrEqual(dockFrame.minX, -0.5, "宽度 \(Int(width)) 入口左越界")
+            XCTAssertLessThanOrEqual(dockFrame.maxX, width + 0.5, "宽度 \(Int(width)) 入口右越界")
+            for (index, rect) in rects.enumerated() {
+                XCTAssertLessThanOrEqual(rect.width * 6, width + 0.5, "入口 \(index) 在 \(Int(width)) 下溢出")
+            }
+        }
+        keyboard.view.frame = CGRect(x: 0, y: 0, width: 375, height: keyboard.view.intrinsicContentSize.height)
+        keyboard.view.setNeedsLayout(); keyboard.view.layoutIfNeeded()
+        // 横屏一行式：入口组仍在顶栏内，不越界。
+        if #available(iOS 17.0, *) { keyboard.traitOverrides.verticalSizeClass = .compact }
+        keyboard.view.frame = CGRect(x: 0, y: 0, width: 932, height: keyboard.view.intrinsicContentSize.height)
+        keyboard.view.setNeedsLayout(); keyboard.view.layoutIfNeeded()
+        let landscapeDock = dock.convert(dock.bounds, to: keyboard.view)
+        XCTAssertGreaterThanOrEqual(landscapeDock.minX, -0.5)
+        XCTAssertLessThanOrEqual(landscapeDock.maxX, 932.5)
+        if #available(iOS 17.0, *) { keyboard.traitOverrides.verticalSizeClass = .regular }
+        // 表情入口 → 表情分类；剪贴板入口 → 同步分类。
+        try tap("faces.open", keyboard)
+        let tabs = try XCTUnwrap(allViews(keyboard.view).compactMap { $0 as? UISegmentedControl }.first { $0.accessibilityIdentifier == "tools.section" })
+        XCTAssertEqual(tabs.selectedSegmentIndex, 1)
+        XCTAssertNotNil(try button("face.0", keyboard))
+        try tap("clip.open", keyboard)
+        XCTAssertEqual(tabs.selectedSegmentIndex, 2)
+        XCTAssertNotNil(try button("tools.clip.send", keyboard))
+        // 文件入口在没有 App 内容时要给出明确状态。
+        try tap("file.open", keyboard)
+        let status = try XCTUnwrap(allViews(keyboard.view).compactMap { $0 as? UILabel }.first { $0.accessibilityIdentifier == "tools.status" })
+        XCTAssertFalse(status.isHidden)
+        XCTAssertFalse(status.text?.isEmpty ?? true)
+        attachScreenshot("iPhone-entry-dock", keyboard)
+    }
+
+    /// 旧九键布局必须仍可选用，且候选行为不回归。
+    func testNineKeyClassicLayoutRemainsAvailable() throws {
+        UserDefaults.standard.set("t9", forKey: "keyboard.method")
+        var preferences = KeyboardPreferences()
+        preferences.nineKeyLayout = .classic
+        preferences.save()
+        let keyboard = fixture()
+        XCTAssertTrue(allViews(keyboard.view).compactMap { $0 as? UIButton }.contains { $0.accessibilityIdentifier == "key.清空" })
+        XCTAssertFalse(allViews(keyboard.view).compactMap { $0 as? UIButton }.contains { $0.accessibilityIdentifier == "key.，" })
+        try typeNineKey("64426", keyboard)
+        XCTAssertEqual(try button("candidate.0", keyboard).title(for: .normal), "你好")
+        try tap("candidate.0", keyboard)
+        XCTAssertEqual(keyboard.document.text, "你好")
+        // 布局面板里切回新布局。
+        try tap("layout.settings", keyboard)
+        let control = try XCTUnwrap(allViews(keyboard.view).compactMap { $0 as? UISegmentedControl }.first { $0.accessibilityIdentifier == "layout.ninekey" })
+        XCTAssertEqual(control.numberOfSegments, 2)
+        control.selectedSegmentIndex = 0
+        control.sendActions(for: .valueChanged)
+        try tap("layout.done", keyboard)
+        XCTAssertEqual(KeyboardPreferences.load().nineKeyLayout, .sidebar)
+        XCTAssertTrue(allViews(keyboard.view).compactMap { $0 as? UIButton }.contains { $0.accessibilityIdentifier == "key.，" })
+    }
+
+    /// 新布局是默认值；旧版本保存的手感快照（没有该字段）仍能解码。
+    func testNineKeyLayoutPreferenceDefaultsAndRoundTrips() throws {
+        XCTAssertEqual(KeyboardPreferences().nineKeyLayout, .sidebar)
+        var preferences = KeyboardPreferences()
+        preferences.nineKeyLayout = .classic
+        preferences.save()
+        XCTAssertEqual(KeyboardPreferences.load().nineKeyLayout, .classic)
+        let legacy = Data(#"{"keyHeight":52,"width":0.9,"alignment":0.4,"candidateFont":19,"bottomPadding":2,"entryPosition":0.3}"#.utf8)
+        UserDefaults.standard.set(legacy, forKey: "keyboard.layout.v1")
+        let restored = KeyboardPreferences.load()
+        XCTAssertEqual(restored.keyHeight, 52)
+        XCTAssertEqual(restored.width, 0.9, accuracy: 0.001)
+        XCTAssertEqual(restored.nineKeyLayout, .sidebar)
     }
 
 }

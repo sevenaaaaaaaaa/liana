@@ -5,6 +5,8 @@ import SQLite3
 /// memory budget. All access is serialized by MobileEngine.
 final class MobileLexicon {
     private var database: OpaquePointer?
+    /// 随包只读词库是否挂上。挂不上时仍可用用户词库，不能让查询整条失效。
+    private(set) var hasBase = false
     private let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
     static let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Keyboard", isDirectory: true)
 
@@ -19,7 +21,7 @@ final class MobileLexicon {
             var statement: OpaquePointer?
             if sqlite3_prepare_v2(database, "ATTACH DATABASE ? AS base", -1, &statement, nil) == SQLITE_OK {
                 sqlite3_bind_text(statement, 1, base.path, -1, transient)
-                sqlite3_step(statement)
+                hasBase = sqlite3_step(statement) == SQLITE_DONE
             }
             sqlite3_finalize(statement)
         }
@@ -55,13 +57,13 @@ final class MobileLexicon {
         guard !raw.isEmpty, raw.count <= 64 else { return [] }
         let column = kind == "t9" ? "digits" : "code"
         let realKind = kind == "t9" ? "pinyin" : kind
-        let base = customOnly ? "" : " UNION ALL SELECT word,code,freq,kind,\(column) AS matchKey FROM base.words WHERE kind=? AND \(column)>=? AND \(column)<?"
+        let base = customOnly || !hasBase ? "" : " UNION ALL SELECT word,code,freq,kind,\(column) AS matchKey FROM base.words WHERE kind=? AND \(column)>=? AND \(column)<?"
         let sql = "SELECT w.word,w.code,MAX(w.freq),w.kind FROM (SELECT word,code,freq,kind,\(column) AS matchKey FROM words WHERE kind=? AND \(column)>=? AND \(column)<?\(base)) w LEFT JOIN learned l ON l.word=w.word AND l.code=? GROUP BY w.word ORDER BY MAX(w.matchKey=?) DESC,MAX(IFNULL(l.n,0)) DESC,MAX(w.freq) DESC LIMIT ?"
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else { return [] }
         defer { sqlite3_finalize(statement) }
         var args = [realKind, raw, raw + "~"]
-        if !customOnly { args += [realKind, raw, raw + "~"] }
+        if !customOnly && hasBase { args += [realKind, raw, raw + "~"] }
         args.append(raw)
         args.append(raw)
         for (i, value) in args.enumerated() { sqlite3_bind_text(statement, Int32(i + 1), value, -1, transient) }
@@ -72,6 +74,51 @@ final class MobileLexicon {
         }
         return output
     }
+    /// 单字读音集合（拼音音节），用于把整词 code 拆成「jin tian」这样的可读拼音。
+    /// 从词库里的单字条目派生，不另存音节表。
+    private var cachedSyllables: [String]?
+    func syllables() -> [String] {
+        if let cachedSyllables { return cachedSyllables }
+        let sql = hasBase
+            ? "SELECT DISTINCT code FROM words WHERE kind='pinyin' AND LENGTH(word)=1 UNION SELECT DISTINCT code FROM base.words WHERE kind='pinyin' AND LENGTH(word)=1"
+            : "SELECT DISTINCT code FROM words WHERE kind='pinyin' AND LENGTH(word)=1"
+        var statement: OpaquePointer?
+        var values: Set<String> = []
+        if sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK {
+            defer { sqlite3_finalize(statement) }
+            while sqlite3_step(statement) == SQLITE_ROW {
+                let code = text(statement, 0)
+                if !code.isEmpty, code.count <= 6, code.allSatisfy({ $0.isASCII && $0.isLetter }) { values.insert(code) }
+            }
+        }
+        let sorted = values.sorted { $0.count > $1.count }
+        cachedSyllables = sorted
+        return sorted
+    }
+
+    /// 分段组合用的精确匹配：本地词库与随包词库中 code（或九宫格 digits）完全相同的词条。
+    /// 命中按「学过的次数 → 词频」排序，供整句分段时挑选每个音节的代表词。
+    func exact(_ key: String, kind: String, limit: Int = 6) -> [MobileWord] {
+        guard !key.isEmpty, key.count <= 64 else { return [] }
+        let column = kind == "t9" ? "digits" : "code"
+        let realKind = kind == "t9" ? "pinyin" : kind
+        let layer = hasBase ? " UNION ALL SELECT word,code,freq,kind FROM base.words WHERE kind=? AND \(column)=?" : ""
+        let sql = "SELECT w.word,w.code,w.freq,w.kind FROM (SELECT word,code,freq,kind FROM words WHERE kind=? AND \(column)=?\(layer)) w LEFT JOIN learned l ON l.word=w.word AND l.code=? GROUP BY w.word ORDER BY MAX(IFNULL(l.n,0)) DESC, MAX(w.freq) DESC LIMIT ?"
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(statement) }
+        var args = [realKind, key]
+        if hasBase { args += [realKind, key] }
+        args.append(key)
+        for (i, value) in args.enumerated() { sqlite3_bind_text(statement, Int32(i + 1), value, -1, transient) }
+        sqlite3_bind_int(statement, Int32(args.count + 1), Int32(limit))
+        var output: [MobileWord] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            output.append(MobileWord(word: text(statement, 0), code: text(statement, 1), frequency: Int(sqlite3_column_int64(statement, 2)), kind: text(statement, 3)))
+        }
+        return output
+    }
+
     func learn(_ word: String, raw: String) {
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(database, "INSERT INTO learned VALUES(?,?,1) ON CONFLICT(word,code) DO UPDATE SET n=MIN(n+1,1000)", -1, &statement, nil) == SQLITE_OK else { return }

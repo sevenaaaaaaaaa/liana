@@ -40,6 +40,9 @@ final class MobileEngine {
         let deletes: Int
     }
     var onUpdate: ((Update) -> Void)?
+    /// 会话工厂。测试注入空实现即可模拟「设备上随包词典加载失败」的受限环境，
+    /// 用来验证本地词库回退路径；生产环境保持为 nil，走 Rust 会话。
+    var sessionFactory: ((String, String?) -> OpaquePointer?)?
     private let queue = DispatchQueue(label: "dev.liana.ios.decode", qos: .userInteractive)
     private var sequence = 0
     private var session: OpaquePointer?
@@ -53,6 +56,7 @@ final class MobileEngine {
     private var decoded = Snapshot()
     private var handwriting: HandwritingRecognizer?
     private var layers: URL?
+    private var composerCache: MobilePhraseComposer?
 
     func start(bundle: Bundle, mode: String) -> Int {
         self.bundle = bundle
@@ -81,6 +85,10 @@ final class MobileEngine {
                         raw += text.lowercased()
                     } else if let session {
                         for character in text { _ = liana_feed(session, String(character)) }
+                    } else {
+                        // 会话没建起来（设备上随包词典加载失败）时也要留得住输入，
+                        // 交给本地词库的回退路径组合候选，不能整串丢掉。
+                        raw += text.lowercased()
                     }
                 case .backspace:
                     if externalComposition { raw = ""; choices = []; externalComposition = false }
@@ -154,19 +162,25 @@ final class MobileEngine {
     }
     private func createSession() {
         let base = bundle.url(forResource: "base", withExtension: "ifd")?.path
-        let folder = layers ?? MobileLexicon.directory.appendingPathComponent("dicts")
-        session = liana_new_with_layers(mode, base, folder.path)
+        if let sessionFactory {
+            session = sessionFactory(mode, base)
+        } else {
+            let folder = layers ?? MobileLexicon.directory.appendingPathComponent("dicts")
+            session = liana_new_with_layers(mode, base, folder.path)
+        }
         if let saved = UserDefaults.standard.string(forKey: "user_dict_tsv"), let session { _ = liana_user_import(session, saved) }
         if let session { _ = liana_set_traditional(session, traditional ? 1 : 0) }
     }
     private func refresh() {
         if externalComposition { decoded = Snapshot(raw: raw, preedit: raw, candidates: choices.map(\.text)); return }
         choices = []
+        var preedit = raw
         if let session, let pointer = liana_composition_json(session) {
             let data = Data(String(cString: pointer).utf8)
             liana_free_string(pointer)
             if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 raw = object["raw"] as? String ?? ""
+                preedit = object["preedit"] as? String ?? raw
                 let candidates = object["candidates"] as? [[String: Any]] ?? []
                 choices = candidates.prefix(9).enumerated().compactMap { index, item in (item["text"] as? String).map { ($0, index) } }
                 if mode == "pinyin", !raw.isEmpty {
@@ -174,12 +188,27 @@ final class MobileEngine {
                     let seen = Set(custom.map(\.word))
                     choices = Array((custom.map { ($0.word, nil as Int?) } + choices.filter { !seen.contains($0.text) }).prefix(9))
                 }
-                decoded = Snapshot(raw: raw, preedit: object["preedit"] as? String ?? raw, candidates: choices.map(\.text))
             }
-        } else {
-            choices = database().lookup(raw, kind: mode).map { ($0.word, nil) }
-            decoded = Snapshot(raw: raw, preedit: raw, candidates: choices.map(\.text))
         }
+        // 会话没有给出候选（九宫格没有整词条目、或设备上随包词典加载失败）时，
+        // 回退到本地词库：先按整词/前缀取词，再按音节分段组合成整句。
+        if choices.isEmpty, !raw.isEmpty, mode != "en" || session == nil {
+            let direct = database().lookup(raw, kind: mode).map { ($0.word, nil as Int?) }
+            let segmented = direct.isEmpty && ["pinyin", "t9"].contains(mode)
+                ? composer().candidates(raw, kind: mode).map { ($0, nil as Int?) }
+                : []
+            choices = Array((direct + segmented).prefix(9))
+        }
+        if mode == "t9" {
+            // 九宫格内部缓冲是数字串，顶栏只展示可读拼音，避免「顶栏莫名多出数字」。
+            preedit = raw.isEmpty ? "" : (composer().reading(raw, kind: mode) ?? "九宫格")
+        }
+        decoded = Snapshot(raw: raw, preedit: preedit, candidates: choices.map(\.text))
+    }
+
+    private func composer() -> MobilePhraseComposer {
+        if let composerCache { return composerCache }
+        let value = MobilePhraseComposer(lexicon: database()); composerCache = value; return value
     }
     private func select(_ index: Int) -> String {
         guard choices.indices.contains(index) else { return "" }

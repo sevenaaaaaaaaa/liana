@@ -16,7 +16,16 @@ final class KeyboardToolsPanel: UIView {
     private let tabs = LianaUI.segment(["输入", "表情", "同步", "词库"])
     private let method: MobileInputMethod
 
-    init(method: MobileInputMethod = .pinyin) {
+    var section: Int { tabs.selectedSegmentIndex }
+    func select(section: Int) {
+        let index = min(tabs.numberOfSegments - 1, max(0, section))
+        guard index != tabs.selectedSegmentIndex else { return }
+        tabs.selectedSegmentIndex = index
+        render()
+        LianaMotion.reveal(content)
+    }
+
+    init(method: MobileInputMethod = .pinyin, section: Int = 0) {
         self.method = method
         super.init(frame: .zero)
         backgroundColor = LianaPalette.keyboard
@@ -25,7 +34,7 @@ final class KeyboardToolsPanel: UIView {
         back.accessibilityIdentifier = "tools.close"; back.accessibilityLabel = "返回键盘"
         back.widthAnchor.constraint(equalToConstant: 44).isActive = true
         back.addAction(UIAction { [weak self] _ in self?.onClose?() }, for: .touchUpInside)
-        tabs.selectedSegmentIndex = 0; tabs.accessibilityIdentifier = "tools.section"; tabs.accessibilityLabel = "输入工具分类"
+        tabs.selectedSegmentIndex = min(3, max(0, section)); tabs.accessibilityIdentifier = "tools.section"; tabs.accessibilityLabel = "输入工具分类"
         tabs.addAction(UIAction { [weak self] _ in self?.render(); if let self { LianaMotion.reveal(self.content) } }, for: .valueChanged)
         let header = UIStackView(arrangedSubviews: [back, tabs]); header.spacing = 4
         header.heightAnchor.constraint(equalToConstant: 44).isActive = true

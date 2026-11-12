@@ -1,5 +1,20 @@
 import Foundation
 
+/// 九键（九宫格）布局形态。
+/// - sidebar：中间标准 3x3，左右窄列放符号与功能键（默认，拇指移动距离更短）。
+/// - classic：中间 3x3，每行右侧一个附加键（⌫/清空/工具）。
+enum NineKeyLayout: String, Codable, CaseIterable {
+    case sidebar
+    case classic
+
+    var title: String {
+        switch self {
+        case .sidebar: return "九键 · 侧栏"
+        case .classic: return "九键 · 经典"
+        }
+    }
+}
+
 /// Values stay in the keyboard's own sandbox; ordinary typing needs no shared group.
 struct KeyboardPreferences: Codable, Equatable {
     var keyHeight: Double = 46
@@ -8,6 +23,26 @@ struct KeyboardPreferences: Codable, Equatable {
     var candidateFont: Double = 17
     var bottomPadding: Double = 0
     var entryPosition: Double = 1
+    /// 九键布局形态。旧版本保存的数据里没有这个字段，解码时回落为新默认（侧栏）。
+    var nineKeyLayout: NineKeyLayout = .sidebar
+
+    init() {}
+
+    private enum CodingKeys: String, CodingKey {
+        case keyHeight, width, alignment, candidateFont, bottomPadding, entryPosition, nineKeyLayout
+    }
+
+    // 手写 init(from:)：新增字段只做 decodeIfPresent，旧快照仍能恢复其余手感设置。
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        keyHeight = try values.decodeIfPresent(Double.self, forKey: .keyHeight) ?? 46
+        width = try values.decodeIfPresent(Double.self, forKey: .width) ?? 1
+        alignment = try values.decodeIfPresent(Double.self, forKey: .alignment) ?? 0.5
+        candidateFont = try values.decodeIfPresent(Double.self, forKey: .candidateFont) ?? 17
+        bottomPadding = try values.decodeIfPresent(Double.self, forKey: .bottomPadding) ?? 0
+        entryPosition = try values.decodeIfPresent(Double.self, forKey: .entryPosition) ?? 1
+        nineKeyLayout = try values.decodeIfPresent(NineKeyLayout.self, forKey: .nineKeyLayout) ?? .sidebar
+    }
 
     mutating func normalize() {
         keyHeight = Self.clamp(keyHeight, 44...64, fallback: 46)

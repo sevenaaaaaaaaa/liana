@@ -70,6 +70,7 @@ class KeyboardViewController: UIInputViewController {
     private var dragStart = KeyboardPreferences()
     private var geometrySave: DispatchWorkItem?
     private var isAdjusting = false
+    private var clearSuppressed = false
     private var rows: [String] {
         switch page {
         case .letters: return ["qwertyuiop", "asdfghjkl", "zxcvbnm"]
@@ -110,6 +111,10 @@ class KeyboardViewController: UIInputViewController {
     private let hapticStrong = UIImpactFeedbackGenerator(style: .medium)
 
     private static let rowSpacing: CGFloat = 5
+    /// 顶栏快捷入口：6 个同尺寸图标，与语音设备入口同一排。
+    private static let dockEntryWidth: CGFloat = 44
+    private static let dockCount: CGFloat = 6
+    private static var dockWidth: CGFloat { dockCount * dockEntryWidth }
     private static let stripHeight: CGFloat = 46
     private static let headerHeight: CGFloat = 44
     private static let cursorRowHeight: CGFloat = 44
@@ -245,9 +250,22 @@ class KeyboardViewController: UIInputViewController {
         entryDock.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(entryDock)
         entryLeading = entryDock.leadingAnchor.constraint(equalTo: header.leadingAnchor)
-        NSLayoutConstraint.activate([entryLeading, entryDock.widthAnchor.constraint(equalToConstant: 132), entryDock.heightAnchor.constraint(equalToConstant: 44), entryDock.centerYAnchor.constraint(equalTo: header.centerYAnchor)])
+        NSLayoutConstraint.activate([entryLeading, entryDock.widthAnchor.constraint(equalToConstant: Self.dockWidth), entryDock.heightAnchor.constraint(equalToConstant: 44), entryDock.centerYAnchor.constraint(equalTo: header.centerYAnchor)])
         entryDock.accessibilityIdentifier = "layout.drag"
         entryDock.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(dragLayout(_:))))
+        let devices = toolbarButton("waveform", label: "语音设备", id: "devices.open")
+        deviceEntry = devices
+        devices.addAction(UIAction { [weak self] _ in self?.toggleDevices() }, for: .touchUpInside)
+        entryDock.addArrangedSubview(devices)
+        let clipboard = toolbarButton("doc.on.clipboard", label: "剪贴板", id: "clip.open")
+        clipboard.addAction(UIAction { [weak self] _ in self?.openTools(section: 2) }, for: .touchUpInside)
+        entryDock.addArrangedSubview(clipboard)
+        let files = toolbarButton("tray.and.arrow.down", label: "发送文件", id: "file.open")
+        files.addAction(UIAction { [weak self] _ in self?.receiveFromDock() }, for: .touchUpInside)
+        entryDock.addArrangedSubview(files)
+        let faces = toolbarButton("face.smiling", label: "表情", id: "faces.open")
+        faces.addAction(UIAction { [weak self] _ in self?.openTools(section: 1) }, for: .touchUpInside)
+        entryDock.addArrangedSubview(faces)
         let tools = toolbarButton("square.grid.2x2", label: "输入工具", id: "tools.open")
         toolEntry = tools
         tools.accessibilityHint = "拖动此工具组可调整键盘高度与入口位置"
@@ -257,10 +275,6 @@ class KeyboardViewController: UIInputViewController {
         ]
         tools.addAction(UIAction { [weak self] _ in self?.toggleTools() }, for: .touchUpInside)
         entryDock.addArrangedSubview(tools)
-        let devices = toolbarButton("waveform", label: "外接设备", id: "devices.open")
-        deviceEntry = devices
-        devices.addAction(UIAction { [weak self] _ in self?.toggleDevices() }, for: .touchUpInside)
-        entryDock.addArrangedSubview(devices)
         let settings = toolbarButton("slider.horizontal.3", label: "布局与手感", id: "layout.settings")
         layoutEntry = settings
         settings.addAction(UIAction { [weak self] _ in self?.toggleAdjustments() }, for: .touchUpInside)
@@ -360,7 +374,7 @@ class KeyboardViewController: UIInputViewController {
             rememberedSoloPitch: FoldLayoutMemory.rememberedSoloPitch,
             keyHeight: CGFloat(preferences.keyHeight)
         )
-        let signature = layout.signature + "-\(width)-\(preferences.alignment)-\(page)-\(shifted)-\(capsLocked)-\(currentMode())"
+        let signature = layout.signature + "-\(width)-\(preferences.alignment)-\(page)-\(shifted)-\(capsLocked)-\(currentMode())-\(preferences.nineKeyLayout.rawValue)"
         guard signature != layoutSignature else { return }
 
         layoutSignature = signature
@@ -736,19 +750,25 @@ class KeyboardViewController: UIInputViewController {
         areaHeight?.constant = keyboardAreaHeight
         rootBottom?.constant = -8 - CGFloat(preferences.bottomPadding)
         guard entryDock != nil else { return }
-        let travel = max(0, view.bounds.width - 132 - 16)
+        let travel = max(0, view.bounds.width - Self.dockWidth - 16)
         let x = 8 + travel * CGFloat(preferences.entryPosition)
         entryLeading.constant = x
         let leftSpace = x - 12
-        let rightSpace = view.bounds.width - x - 132 - 12
-        compositionLeading.constant = leftSpace >= rightSpace ? 8 : x + 140
+        let rightSpace = view.bounds.width - x - Self.dockWidth - 12
+        compositionLeading.constant = leftSpace >= rightSpace ? 8 : x + Self.dockWidth + 8
         let available = max(0, max(leftSpace, rightSpace))
-        let clearWidth: CGFloat = rawInput.isEmpty ? 0 : 44
+        // 顶栏被 6 个入口占掉后，窄屏要优先保证组合串可见：空间不足时先收起清空按钮。
+        clearSuppressed = !rawInput.isEmpty && available < 64
+        if rawInput.isEmpty || clearSuppressed { clearButton?.isHidden = true }
+        let clearWidth: CGFloat = rawInput.isEmpty || clearSuppressed ? 0 : 44
         compositionWidth.constant = stripsInline ? min(112, max(52, available*0.22)) : max(0, available-clearWidth)
         if stripsInline {
+            // 横屏一行式：候选条紧接组合串，但不能压到右侧 6 个入口上。
             let start = compositionLeading.constant + compositionWidth.constant + clearWidth + 8
-            inlineLeading.forEach { $0.constant = start }
-            inlineWidths.forEach { $0.constant = max(0, available-compositionWidth.constant-clearWidth-8) }
+            let dockStart = max(0, entryLeading.constant - 4)
+            let boundedStart = min(start, dockStart)
+            inlineLeading.forEach { $0.constant = boundedStart }
+            inlineWidths.forEach { $0.constant = max(0, dockStart - boundedStart) }
         }
         if let adjustmentPanel { keyboardArea.bringSubviewToFront(adjustmentPanel) }
         if let devicePanel { keyboardArea.bringSubviewToFront(devicePanel) }
@@ -779,7 +799,7 @@ class KeyboardViewController: UIInputViewController {
         let delta = gesture.translation(in: nil)
         if gesture.state == .changed || gesture.state == .ended {
             preferences.keyHeight = dragStart.keyHeight - Double(delta.y) / 4
-            let travel = max(1, view.bounds.width - 148)
+            let travel = max(1, view.bounds.width - Self.dockWidth - 16)
             preferences.entryPosition = dragStart.entryPosition + Double(delta.x / travel)
             applyPreferences(persist: gesture.state == .ended)
         } else if gesture.state == .cancelled || gesture.state == .failed {
@@ -844,6 +864,19 @@ class KeyboardViewController: UIInputViewController {
             }; presets.addArrangedSubview(preset)
         }
         stack.addArrangedSubview(presets)
+        let nineKey = LianaUI.segment(NineKeyLayout.allCases.map(\.title))
+        nineKey.selectedSegmentIndex = max(0, NineKeyLayout.allCases.firstIndex(of: preferences.nineKeyLayout) ?? 0)
+        nineKey.accessibilityLabel = "九键布局"; nineKey.accessibilityIdentifier = "layout.ninekey"
+        nineKey.addAction(UIAction { [weak self, weak nineKey] _ in
+            guard let self, let nineKey else { return }
+            let layouts = NineKeyLayout.allCases
+            let index = min(layouts.count - 1, max(0, nineKey.selectedSegmentIndex))
+            guard layouts[index] != self.preferences.nineKeyLayout else { return }
+            self.preferences.nineKeyLayout = layouts[index]
+            self.preferences.save()
+            self.applyPreferences(persist: false)
+        }, for: .valueChanged)
+        stack.addArrangedSubview(nineKey)
         let feedback = UISwitch(); feedback.isOn = hapticsEnabled; feedback.onTintColor = LianaPalette.primary
         feedback.accessibilityIdentifier = "layout.haptics"; feedback.accessibilityLabel = "按键触感反馈"
         feedback.addAction(UIAction { [weak self, weak feedback] _ in
@@ -1048,7 +1081,11 @@ class KeyboardViewController: UIInputViewController {
 
     private func onBackspace() {
         if method == .handwriting, !english, !rawInput.isEmpty { handwritingPanel?.undo(); return }
-        if !rawInput.isEmpty { rawInput.removeLast(); composingLabel?.text = rawInput }
+        if !rawInput.isEmpty {
+            rawInput.removeLast()
+            // 九宫格的 raw 是数字串，不能回填到顶栏；等引擎的拼音 preedit。
+            if method != .t9 { composingLabel?.text = rawInput }
+        }
         send(.backspace)
     }
 
@@ -1115,7 +1152,7 @@ class KeyboardViewController: UIInputViewController {
         let hasComposition = !rawInput.isEmpty || !candidates.isEmpty
         candidateScroll?.isHidden = !hasComposition; idleScroll?.isHidden = hasComposition
         updateGeometry()
-        clearButton?.isHidden = rawInput.isEmpty
+        clearButton?.isHidden = rawInput.isEmpty || clearSuppressed
         for button in returnButtons { button.accessibilityLabel = rawInput.isEmpty ? "换行" : "确认候选" }
         guard renderedCandidates != candidates || renderedCandidateFont != preferences.candidateFont else { return }
         renderedCandidates = candidates; renderedCandidateFont = preferences.candidateFont
@@ -1185,6 +1222,10 @@ extension KeyboardViewController {
         configureModeMenu(); return row
     }
     private func assembleNineKey(_ layout: FoldLayout) {
+        guard preferences.nineKeyLayout == .classic else {
+            assembleNineKeySidebar()
+            return
+        }
         resetKeyboardArea()
         let column = UIStackView(); column.axis = .vertical; column.spacing = 5; column.distribution = .fillEqually
         let values = [["1 · 符号", "2 ABC", "3 DEF"],["4 GHI", "5 JKL", "6 MNO"],["7 PQRS", "8 TUV", "9 WXYZ"]]
@@ -1200,6 +1241,75 @@ extension KeyboardViewController {
         }
         column.addArrangedSubview(basicFunctions()); pinKeyboard(column)
     }
+    /// 九键 · 侧栏（默认）：中间标准 3x3，左右两列更窄。
+    /// 左列放符号（，。？！），右列放功能（⌫、⏎、清空），底行放切换（中／123／地球）、
+    /// 空格与工具。两列窄于主键，整组不超出键盘区，所有键高≥44pt。
+    private func assembleNineKeySidebar() {
+        resetKeyboardArea()
+        let gap = Self.rowSpacing
+        let inner = max(0, view.bounds.width - 10)   // pinKeyboard 左右各 5pt
+        let sideWidth = min(52, max(44, (inner * 0.13).rounded()))
+        let column = UIStackView()
+        column.axis = .vertical; column.spacing = gap; column.distribution = .fillEqually; column.alignment = .fill
+        let values = [["1 · 符号", "2 ABC", "3 DEF"], ["4 GHI", "5 JKL", "6 MNO"], ["7 PQRS", "8 TUV", "9 WXYZ"]]
+        for (index, titles) in values.enumerated() {
+            let row = UIStackView(); row.spacing = gap; row.alignment = .fill
+            let left = index == 0 ? symbolKey("，") : (index == 1 ? symbolKey("。") : moreSymbolsKey())
+            left.widthAnchor.constraint(equalToConstant: sideWidth).isActive = true
+            row.addArrangedSubview(left)
+            var mains: [UIButton] = []
+            for title in titles {
+                let key = keyButton(title) { [weak self] in
+                    guard let self else { return }
+                    if title.hasPrefix("1") { self.insertText("，") } else { self.send(.feed(String(title.prefix(1)))) }
+                }
+                mains.append(key); row.addArrangedSubview(key)
+            }
+            for key in mains.dropFirst() { key.widthAnchor.constraint(equalTo: mains[0].widthAnchor).isActive = true }
+            let right: UIButton
+            switch index {
+            case 0:
+                right = keyButton("⌫") { [weak self] in self?.onBackspace() }
+                attachBackspaceGestures(to: right)
+            case 1:
+                right = keyButton("⏎") { [weak self] in self?.onEnter() }
+            default:
+                right = keyButton("清空") { [weak self] in self?.send(.clear) }
+            }
+            right.widthAnchor.constraint(equalToConstant: sideWidth).isActive = true
+            row.addArrangedSubview(right)
+            column.addArrangedSubview(row)
+        }
+        let functions = UIStackView(); functions.spacing = gap; functions.alignment = .fill
+        let mode = keyButton("中") { [weak self] in self?.onModeToggle() }
+        modeButton = mode
+        configureModeMenu()
+        let digits = keyButton("123") { [weak self] in self?.togglePage() }
+        let globe = keyButton("🌐") {}
+        let space = keyButton("空格") { [weak self] in self?.onSpace() }
+        let tools = keyButton("工具") { [weak self] in self?.toggleTools() }
+        for key in [mode, digits, globe, space, tools] { functions.addArrangedSubview(key) }
+        for key in [digits, globe, tools] { key.widthAnchor.constraint(equalTo: mode.widthAnchor).isActive = true }
+        space.widthAnchor.constraint(equalTo: mode.widthAnchor, multiplier: 2).isActive = true
+        column.addArrangedSubview(functions)
+        pinKeyboard(column)
+    }
+
+    private func symbolKey(_ symbol: String) -> UIButton {
+        keyButton(symbol) { [weak self] in self?.insertText(symbol) }
+    }
+
+    /// 「？！」键：点按输入问号，长按选择常用符号（！、@、# 等）。
+    private func moreSymbolsKey() -> UIButton {
+        let key = keyButton("？！") { [weak self] in self?.insertText("？") }
+        key.accessibilityLabel = "问号，长按选择更多符号"
+        key.menu = UIMenu(children: ["？", "！", "、", "@", "#"].map { symbol in
+            UIAction(title: symbol) { [weak self] _ in self?.insertText(symbol) }
+        })
+        key.showsMenuAsPrimaryAction = false
+        return key
+    }
+
     private func assembleHandwriting() {
         resetKeyboardArea()
         let column = UIStackView(); column.axis = .vertical; column.spacing = 5
@@ -1230,11 +1340,14 @@ extension KeyboardViewController {
         default: glidePoints = []
         }
     }
-    private func toggleTools() {
-        if let panel = featurePanel { featurePanel = nil; syncToolbarState(); LianaMotion.dismiss(panel); return }
+    private func toggleTools(section: Int? = nil) {
+        if let panel = featurePanel {
+            if let section, section != panel.section { panel.select(section: section); return }
+            featurePanel = nil; syncToolbarState(); LianaMotion.dismiss(panel); return
+        }
         adjustmentPanel?.removeFromSuperview(); adjustmentPanel = nil
         devicePanel?.stop(); devicePanel?.removeFromSuperview(); devicePanel = nil
-        let panel = KeyboardToolsPanel(method: method); featurePanel = panel; installPanel(panel)
+        let panel = KeyboardToolsPanel(method: method, section: section ?? 0); featurePanel = panel; installPanel(panel)
         panel.onClose = { [weak self] in self?.toggleTools() }
         panel.onDevices = { [weak self] in self?.toggleDevices() }
         panel.onLayout = { [weak self] in self?.toggleAdjustments() }
@@ -1244,6 +1357,16 @@ extension KeyboardViewController {
         panel.onSystemLexicon = { [weak self] in self?.importSystemLexicon() }
         panel.onClipboardSend = { [weak self] in self?.clipboardToMac(pull: false) }
         panel.onClipboardReceive = { [weak self] in self?.clipboardToMac(pull: true) }
+    }
+    /// 顶栏快捷入口：打开输入工具面板并选中分类；面板已打开时只切分类。
+    private func openTools(section: Int) {
+        if let panel = featurePanel { panel.select(section: section); return }
+        toggleTools(section: section)
+    }
+    /// 顶栏「发送文件」：直接走既有接收流程；没有面板时先打开，保证状态提示可见。
+    private func receiveFromDock() {
+        if featurePanel == nil { toggleTools() }
+        receiveHostContent()
     }
     private func receiveHostContent() {
         guard hasFullAccess else { featurePanel?.status("请先在系统键盘设置中允许完全访问，才能接收剪贴板内容。"); return }
