@@ -23,8 +23,8 @@ targets:
       properties:
         CFBundleDisplayName: 松萝输入法
         NSBluetoothAlwaysUsageDescription: 连接你选择的 BLE 语音或编码设备，接收设备识别的文字。
-        NSMicrophoneUsageDescription: 仅在主 App 中点击开始语音识别时录音，离线转换为文字。
-        NSSpeechRecognitionUsageDescription: 在本机识别你录制的中文语音，编辑后复制回键盘。
+        NSMicrophoneUsageDescription: 仅在你于松萝主 App 点击开始语音识别时录音；音频只在本机转换为文字，不上传。
+        NSSpeechRecognitionUsageDescription: 在本机识别中文、英语、日语、韩语、俄语、法语、西班牙语语音，并把原文或本机译文复制回键盘；不使用云端识别。
         NSCameraUsageDescription: 扫描你 Mac 桌宠显示的二维码，完成本地文件传输配对。
         NSLocalNetworkUsageDescription: 在同一局域网发现并连接你配对的 Mac，将你选择的文件发送给桌宠。
         NSBonjourServices: ["_liana-pet._tcp"]
@@ -117,6 +117,10 @@ targets:
       - path: Host/MobileToolsViewController.swift
       - path: Host/VoiceMeterView.swift
       - path: Host/LocalVoiceSession.swift
+      - path: Host/VoiceLanguage.swift
+      - path: Host/VoiceTranscript.swift
+      - path: Host/VoiceTranslation.swift
+      - path: Host/VoiceLogicTests.swift
       - path: Host/ViewController.swift
       - path: Host/PetLinkViewController.swift
       - path: Host/PairingScannerViewController.swift

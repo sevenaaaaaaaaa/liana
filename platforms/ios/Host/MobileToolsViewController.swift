@@ -1,6 +1,7 @@
 import UIKit
 import UniformTypeIdentifiers
 import ImageIO
+import Speech
 
 final class MobileToolsViewController:UIViewController,UIDocumentPickerDelegate,UITextViewDelegate {
     private enum Section:Int { case voice,dictionary,media,sync }
@@ -13,6 +14,27 @@ final class MobileToolsViewController:UIViewController,UIDocumentPickerDelegate,
     private let format=LianaUI.segment(["拼音词库","五笔 86"])
     private let meter=VoiceMeterView()
     private let voice=LocalVoiceSession()
+    private let translation=VoiceTranslationController()
+    private let languageButton=LianaPressButton(frame:.zero)
+    private let targetButton=LianaPressButton(frame:.zero)
+    private let translateSwitch=UISwitch()
+    private let editorCaption=LianaUI.label("",size:12,weight:.medium,muted:true)
+    private let translationCaption=LianaUI.label("",size:12,weight:.medium,muted:true)
+    private let translationText=LianaUI.label("",size:16)
+    private let translationHint=LianaUI.label("",size:12,muted:true)
+    private let voiceHint=LianaUI.label("",size:12,muted:true)
+    private lazy var settingsButton=LianaUI.button("打开设置",icon:"gearshape",role:.utility,id:"voice.settings") { [weak self] in self?.openSettings() }
+    private var recognitionLanguage=VoiceLanguageSettings.recognition()
+    private var translationTarget=VoiceLanguageSettings.translationTarget(source:VoiceLanguageSettings.recognition())
+    private var translateOn=VoiceLanguageSettings.translationEnabled() && VoiceTranslationController.isSupported
+    private var translationEpoch=0
+    private var translationThrottle=VoiceTranslationThrottle()
+    private var translationWork:DispatchWorkItem?
+    private var latestTranslation:String?
+    private var latestTranslationSource:String?
+    private var translationStatus:String?
+    private var lastRecognizedText=""
+    private var translationHost:UIViewController?
     private var importingGIF=false
     private var fetcher:BoundedDictionaryDownload?
     private var words:[MobileWord]=[]
@@ -26,14 +48,15 @@ final class MobileToolsViewController:UIViewController,UIDocumentPickerDelegate,
     private var statuses:[Section:String]=[:]
     private lazy var recordButton=LianaUI.button("开始录音",icon:"mic.fill",role:.primary,id:"voice.start") { [weak self] in
         guard let self else { return }; self.editor.resignFirstResponder()
-        if self.voice.state == .recording { self.voice.finish() } else { self.voicePrefix=self.editor.text; self.lastClearedDraft=nil; self.voice.start() }
+        if self.voice.state == .recording { self.voice.finish(); self.flushTranslation() }
+        else { self.voicePrefix=self.editor.text; self.lastClearedDraft=nil; self.beginVoiceSession(); self.voice.start() }
     }
     private lazy var voiceCopy=LianaUI.button("复制文字",icon:"doc.on.doc",role:.utility,id:"voice.copy") { [weak self] in
-        guard let self else { return }; self.copy(KeyboardPayload(kind:"text",text:self.editor.text),in:.voice)
+        guard let self else { return }; self.copy(KeyboardPayload(kind:"text",text:self.copyText),in:.voice)
     }
     private lazy var clearDraft=LianaUI.button("清空",role:.plain,id:"voice.clear") { [weak self] in
         guard let self,self.voice.state == .idle else { return }
-        self.editor.resignFirstResponder(); self.lastClearedDraft=self.editor.text; self.editor.text=""; self.saveDraft(); self.updateVoiceControls()
+        self.editor.resignFirstResponder(); self.lastClearedDraft=self.editor.text; self.editor.text=""; self.clearTranslation(); self.saveDraft(); self.updateVoiceControls()
         self.setStatus("草稿已清空，可以撤销。",in:.voice)
     }
     private lazy var undoClear=LianaUI.button("撤销清空",icon:"arrow.uturn.backward",role:.plain,id:"voice.undo") { [weak self] in
@@ -66,22 +89,29 @@ final class MobileToolsViewController:UIViewController,UIDocumentPickerDelegate,
         format.selectedSegmentIndex=0; format.accessibilityIdentifier="dict.format"; format.accessibilityLabel="词库类型"
         voice.onText={ [weak self] text in
             guard let self else { return }
+            self.lastRecognizedText=text
             self.editor.text=self.voicePrefix + (self.voicePrefix.isEmpty || self.voicePrefix.hasSuffix("\n") ? "" : "\n") + text
-            self.updateVoiceControls(); self.scheduleDraftSave()
+            self.updateVoiceControls(); self.scheduleDraftSave(); self.scheduleTranslation(for:text)
         }
         voice.onStatus={ [weak self] in self?.setStatus($0,in:.voice); self?.updateVoiceControls() }
         voice.onState={ [weak self] _ in self?.updateVoiceControls() }
         voice.onLevel={ [weak self] in self?.meter.setLevel($0) }
+        voice.onComplete={ [weak self] in self?.flushTranslation() }
+        voice.onIssue={ [weak self] issue in self?.handleVoiceIssue(issue) }
+        voice.language=recognitionLanguage
+        configureVoiceControls()
+        configureTranslationCallbacks()
+        if translateOn { attachTranslationHost(); checkTranslationAvailability() }
         NotificationCenter.default.addObserver(self,selector:#selector(stopVoice),name:UIApplication.didEnterBackgroundNotification,object:nil)
         render(); updateVoiceControls()
     }
     override func viewWillAppear(_ animated:Bool) { super.viewWillAppear(animated); if isViewLoaded && section == .sync { render() } }
-    deinit { NotificationCenter.default.removeObserver(self); draftWrite?.cancel(); fetcher?.cancel(); voice.stop() }
-    @objc private func stopVoice() { voice.stop(); saveDraft() }
-    @objc private func done() { voice.stop(); saveDraft(); importGeneration += 1; fetcher?.cancel(); dismiss(animated:true) }
+    deinit { NotificationCenter.default.removeObserver(self); draftWrite?.cancel(); fetcher?.cancel(); translationWork?.cancel(); voice.stop() }
+    @objc private func stopVoice() { voice.stop(); endTranslationSession(); saveDraft() }
+    @objc private func done() { voice.stop(); endTranslationSession(); saveDraft(); importGeneration += 1; fetcher?.cancel(); dismiss(animated:true) }
     override func viewWillDisappear(_ animated:Bool) {
         super.viewWillDisappear(animated)
-        if isBeingDismissed || navigationController?.isBeingDismissed == true { voice.stop() }
+        if isBeingDismissed || navigationController?.isBeingDismissed == true { voice.stop(); endTranslationSession() }
         saveDraft()
     }
     private func scheduleDraftSave() {
@@ -104,10 +134,9 @@ final class MobileToolsViewController:UIViewController,UIDocumentPickerDelegate,
         switch section {
         case .voice:
             content.addArrangedSubview(LianaUI.label("把想说的，变成文字。",size:24,weight:.semibold))
-            let caption=LianaUI.label("中文 · 本机识别",size:12,weight:.medium,muted:true)
-            let editorHeader=UIStackView(arrangedSubviews:[caption,clearDraft]); editorHeader.alignment = .center
-            content.addArrangedSubview(LianaUI.card([editorHeader,meter,undoClear,editor,recordButton,voiceCopy],spacing:12))
-            content.addArrangedSubview(LianaUI.label("草稿留在本机。复制后直接粘贴，也可回松萝接收。",size:13,muted:true))
+            content.addArrangedSubview(LianaUI.card([languageRow(),editorHeaderRow(),meter,undoClear,editor,voiceHint,settingsButton,translationRow(),translationCaption,translationText,translationHint,recordButton,voiceCopy],spacing:12))
+            content.addArrangedSubview(LianaUI.label("识别与译文都留在本机。复制后直接粘贴，也可回松萝接收。",size:13,muted:true))
+            refreshOnDeviceStatus(); updateTranslationViews(); updateVoiceControls()
         case .dictionary:
             content.addArrangedSubview(LianaUI.label("添加你的常用词。",size:24,weight:.semibold))
             content.addArrangedSubview(format)
@@ -148,9 +177,14 @@ final class MobileToolsViewController:UIViewController,UIDocumentPickerDelegate,
         editor.isEditable=voice.state == .idle; editor.isSelectable=voice.state == .idle
         clearDraft.isEnabled=voice.state == .idle && !editor.text.isEmpty
         undoClear.isHidden=lastClearedDraft == nil || voice.state != .idle
+        languageButton.isEnabled=voice.state == .idle
         meter.setRunning(recording)
+        updateTranslationViews()
     }
-    func textViewDidChange(_ textView:UITextView) { updateVoiceControls(); scheduleDraftSave() }
+    func textViewDidChange(_ textView:UITextView) {
+        if voice.state == .idle, translateOn, latestTranslation != nil { clearTranslation() }
+        updateVoiceControls(); scheduleDraftSave()
+    }
     func textViewDidBeginEditing(_ textView:UITextView) {
         DispatchQueue.main.async { [weak self] in guard let self,let scroll=self.scroll else { return }; self.view.layoutIfNeeded(); scroll.scrollRectToVisible(self.editor.convert(self.editor.bounds,to:scroll).insetBy(dx:0,dy:-16),animated:LianaMotion.enabled) }
     }
@@ -158,6 +192,247 @@ final class MobileToolsViewController:UIViewController,UIDocumentPickerDelegate,
     private func updateStatus() {
         let defaults:[Section:String]=[.voice:"首次录音会请求麦克风与语音识别权限，录音留在本机。",.dictionary:"选择文件或链接，解析完成后再复制到键盘。",.media:"复制内容在本机保留 10 分钟，可直接粘贴或回键盘接收。",.sync:"连接由你主动发起，不在后台监听剪贴板。"]
         status.text=statuses[section] ?? defaults[section]
+    }
+    private var copyText:String {
+        VoiceTranscriptComposer.compose(original:editor.text,translation:translateOn ? latestTranslation : nil,target:translateOn ? translationTarget : nil)
+    }
+    private func languageRow() -> UIStackView {
+        let row=UIStackView(arrangedSubviews:[LianaUI.label("识别语言",size:13,weight:.medium,muted:true),UIView(),languageButton]); row.alignment = .center; row.spacing = 8
+        return row
+    }
+    private func editorHeaderRow() -> UIStackView {
+        let row=UIStackView(arrangedSubviews:[editorCaption,UIView(),clearDraft]); row.alignment = .center; row.spacing = 8
+        return row
+    }
+    private func translationRow() -> UIStackView {
+        let row=UIStackView(arrangedSubviews:[LianaUI.label("同声传译",size:14,weight:.medium),targetButton,UIView(),translateSwitch]); row.alignment = .center; row.spacing = 8
+        return row
+    }
+    private func configureVoiceControls() {
+        languageButton.surface = .tile; languageButton.rounded = 13
+        languageButton.accessibilityIdentifier="voice.language"; languageButton.accessibilityLabel="识别语言"
+        languageButton.showsMenuAsPrimaryAction=true
+        languageButton.contentEdgeInsets=UIEdgeInsets(top:10,left:14,bottom:10,right:14)
+        languageButton.titleLabel?.font=LianaPalette.font(14,weight:.medium,maximum:20)
+        languageButton.setImage(UIImage(systemName:"globe"),for:.normal)
+        languageButton.setPreferredSymbolConfiguration(UIImage.SymbolConfiguration(pointSize:15,weight:.medium),forImageIn:.normal)
+        languageButton.imageEdgeInsets=UIEdgeInsets(top:0,left:-6,bottom:0,right:6)
+        languageButton.setContentHuggingPriority(.required,for:.horizontal)
+        languageButton.heightAnchor.constraint(greaterThanOrEqualToConstant:38).isActive=true
+
+        targetButton.surface = .tile; targetButton.rounded = 13
+        targetButton.accessibilityIdentifier="voice.target"; targetButton.accessibilityLabel="译文目标语言"
+        targetButton.showsMenuAsPrimaryAction=true
+        targetButton.contentEdgeInsets=UIEdgeInsets(top:8,left:12,bottom:8,right:12)
+        targetButton.titleLabel?.font=LianaPalette.font(13,weight:.medium,maximum:19)
+        targetButton.setContentHuggingPriority(.required,for:.horizontal)
+        targetButton.heightAnchor.constraint(greaterThanOrEqualToConstant:34).isActive=true
+
+        translateSwitch.accessibilityIdentifier="voice.translate"; translateSwitch.accessibilityLabel="同声传译"
+        translateSwitch.onTintColor=LianaPalette.primary
+        translateSwitch.isOn=translateOn
+        translateSwitch.addTarget(self,action:#selector(toggleTranslation),for:.valueChanged)
+
+        voiceHint.accessibilityIdentifier="voice.hint"
+        translationHint.accessibilityIdentifier="voice.translation.hint"
+        translationText.accessibilityIdentifier="voice.translation"
+        translationText.accessibilityLabel="本机译文"
+        translationCaption.accessibilityIdentifier="voice.translation.caption"
+        voiceHint.isHidden=true; settingsButton.isHidden=true
+        refreshLanguageMenus(); refreshOnDeviceStatus(); updateTranslationViews()
+    }
+    private func refreshLanguageMenus() {
+        languageButton.setTitle(recognitionLanguage.nativeName,for:.normal)
+        languageButton.accessibilityValue=recognitionLanguage.menuTitle
+        languageButton.menu=UIMenu(title:"识别语言",children:VoiceLanguage.allCases.map { language in
+            UIAction(title:language.menuTitle,state:language == recognitionLanguage ? .on : .off) { [weak self] _ in self?.selectRecognition(language) }
+        })
+        targetButton.setTitle("译为 \(translationTarget.nativeName)",for:.normal)
+        targetButton.accessibilityValue=translationTarget.menuTitle
+        targetButton.menu=UIMenu(title:"译文语言",children:VoiceLanguage.allCases.filter { $0 != recognitionLanguage }.map { language in
+            UIAction(title:language.menuTitle,state:language == translationTarget ? .on : .off) { [weak self] _ in self?.selectTranslationTarget(language) }
+        })
+        editorCaption.text="\(recognitionLanguage.nativeName) · 本机识别"
+    }
+    private func selectRecognition(_ language:VoiceLanguage) {
+        guard voice.state == .idle,language != recognitionLanguage else { return }
+        recognitionLanguage=language; VoiceLanguageSettings.saveRecognition(language); voice.language=language
+        if translationTarget == language {
+            translationTarget=VoiceLanguageSettings.saveTranslationTarget(VoiceLanguageSettings.translationTarget(source:language))
+        }
+        refreshLanguageMenus(); refreshOnDeviceStatus(); updateVoiceControls()
+        if translateOn { clearTranslation(); configureTranslationCallbacks(); checkTranslationAvailability() }
+        setStatus("已切换到\(language.nativeName)；识别只在本机进行。",in:.voice)
+    }
+    private func selectTranslationTarget(_ language:VoiceLanguage) {
+        guard voice.state == .idle,language != recognitionLanguage,language != translationTarget else { return }
+        translationTarget=VoiceLanguageSettings.saveTranslationTarget(language)
+        refreshLanguageMenus()
+        if translateOn { clearTranslation(); configureTranslationCallbacks(); checkTranslationAvailability() }
+        updateTranslationViews(); updateVoiceControls()
+    }
+    private func refreshOnDeviceStatus() {
+        guard let recognizer=SFSpeechRecognizer(locale:recognitionLanguage.locale) else {
+            showVoiceHint("系统不支持\(recognitionLanguage.nativeName)语音识别，请换一种语言。",settings:false); return
+        }
+        if recognizer.supportsOnDeviceRecognition { hideVoiceHint() }
+        else { showVoiceHint("本机还没有\(recognitionLanguage.nativeName)离线语音包。到「设置 → 通用 → 键盘 → 听写语言」下载后再试；松萝不会改用云端识别。") }
+    }
+    private func showVoiceHint(_ text:String,settings:Bool = false) {
+        voiceHint.text=text; voiceHint.isHidden=false; settingsButton.isHidden = !settings
+    }
+    private func hideVoiceHint() { voiceHint.isHidden=true; settingsButton.isHidden=true }
+    private func handleVoiceIssue(_ issue:LocalVoiceSession.Issue) {
+        switch issue {
+        case .speechPermissionDenied:
+            showVoiceHint("需要「语音识别」权限。请在系统设置中允许松萝后重试；音频不会离开设备。",settings:true)
+        case .microphonePermissionDenied:
+            showVoiceHint("需要麦克风权限。请在系统设置中允许松萝后重试；录音只在本机转换。",settings:true)
+        case .recognizerUnavailable(let language):
+            showVoiceHint("系统不支持\(language.nativeName)语音识别，请换一种语言。",settings:false)
+        case .onDeviceModelMissing(let language):
+            showVoiceHint("本机还没有\(language.nativeName)离线语音包。到「设置 → 通用 → 键盘 → 听写语言」下载后再试；松萝不会改用云端识别。")
+        case .failed(let message):
+            showVoiceHint(message,settings:false)
+        }
+    }
+    private func openSettings() {
+        guard let url=URL(string:UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
+    }
+    @objc private func toggleTranslation() {
+        guard voice.state == .idle else { return }
+        translateOn=translateSwitch.isOn
+        VoiceLanguageSettings.saveTranslationEnabled(translateOn)
+        if translateOn {
+            configureTranslationCallbacks(); attachTranslationHost(); checkTranslationAvailability()
+        } else {
+            clearTranslation(); setStatus("已关闭同声传译，仍可复制识别文字。",in:.voice)
+        }
+        updateTranslationViews(); updateVoiceControls()
+    }
+    private func configureTranslationCallbacks() {
+        let epoch=translationEpoch
+        translation.onResult={ [weak self] result in
+            guard let self,self.translationEpoch == epoch,self.translateOn else { return }
+            self.latestTranslation=result.translatedText; self.latestTranslationSource=result.sourceText; self.translationStatus=nil
+            self.updateVoiceControls()
+        }
+        translation.onFailure={ [weak self] message in
+            guard let self,self.translationEpoch == epoch else { return }
+            self.translationStatus=message; self.updateTranslationViews(); self.setStatus(message,in:.voice)
+        }
+        translation.onPreparing={ [weak self] in
+            guard let self,self.translationEpoch == epoch else { return }
+            self.translationStatus="正在准备本机语言包，请在系统提示中确认…"; self.updateTranslationViews()
+        }
+        translation.onAvailability={ [weak self] availability in
+            guard let self,self.translationEpoch == epoch else { return }
+            self.apply(availability)
+        }
+    }
+    private func checkTranslationAvailability() {
+        guard translateOn else { return }
+        guard VoiceTranslationController.isSupported else {
+            translationStatus=VoiceTranslationController.minimumSystemDescription + "当前仅识别文字。"
+            translateOn=false; translateSwitch.setOn(false,animated:true); VoiceLanguageSettings.saveTranslationEnabled(false)
+            translation.cancel(); updateTranslationViews(); updateVoiceControls(); return
+        }
+        translation.checkAvailability(source:recognitionLanguage,target:translationTarget)
+        updateTranslationViews()
+    }
+    private func apply(_ availability:VoiceTranslationAvailability) {
+        switch availability {
+        case .checking:
+            translationStatus="正在检查本机翻译语言包…"
+        case .ready:
+            translationStatus="本机翻译已就绪，边识别边出译文。"
+        case .needsDownload:
+            translationStatus="正在准备\(translationTarget.nativeName)语言包，请在系统弹窗中确认；译文只在本机生成。"
+            translation.prepare(source:recognitionLanguage,target:translationTarget)
+        case .unsupported:
+            translationStatus="系统暂不支持\(recognitionLanguage.nativeName) → \(translationTarget.nativeName)的本地翻译，请换一个目标语言。"
+            disableTranslation()
+            setStatus(translationStatus ?? "",in:.voice)
+        case .requiresNewerOS:
+            translationStatus=VoiceTranslationController.minimumSystemDescription + "当前仅识别文字。"
+            disableTranslation()
+            setStatus(translationStatus ?? "",in:.voice)
+        case .failed(let message):
+            translationStatus=message
+        }
+        updateTranslationViews(); updateVoiceControls()
+    }
+    private func disableTranslation() {
+        translateOn=false; translateSwitch.setOn(false,animated:true); VoiceLanguageSettings.saveTranslationEnabled(false)
+        translation.cancel()
+    }
+    private func beginVoiceSession() {
+        translationEpoch += 1
+        translationWork?.cancel(); translationWork=nil
+        translationThrottle.reset()
+        latestTranslation=nil; latestTranslationSource=nil; translationStatus=nil; lastRecognizedText=""
+        translation.cancel()
+        voice.language=recognitionLanguage
+        if translateOn { configureTranslationCallbacks(); attachTranslationHost(); checkTranslationAvailability() }
+        updateTranslationViews()
+    }
+    private func endTranslationSession() {
+        translationEpoch += 1
+        translationWork?.cancel(); translationWork=nil
+        translation.cancel()
+    }
+    private func clearTranslation() {
+        endTranslationSession()
+        translationThrottle.reset()
+        latestTranslation=nil; latestTranslationSource=nil; translationStatus=nil; lastRecognizedText=""
+        updateTranslationViews(); updateVoiceControls()
+    }
+    private func scheduleTranslation(for text:String,immediate:Bool = false) {
+        guard translateOn,VoiceTranslationController.isSupported else { return }
+        let accepted=translationThrottle.offer(text,at:CACurrentMediaTime())
+        guard immediate || accepted || translationThrottle.hasPending else { return }
+        translationWork?.cancel()
+        let delay=immediate ? 0.12 : VoiceTranslationThrottle.defaultDebounce
+        let work=DispatchWorkItem { [weak self] in
+            guard let self,self.translateOn else { return }
+            guard let pending=self.translationThrottle.take(at:CACurrentMediaTime(),tolerance:0.15,force:immediate) else { return }
+            self.translation.translate(pending,source:self.recognitionLanguage,target:self.translationTarget)
+        }
+        translationWork=work
+        DispatchQueue.main.asyncAfter(deadline:.now()+delay,execute:work)
+    }
+    private func flushTranslation() {
+        guard translateOn,!lastRecognizedText.isEmpty else { return }
+        scheduleTranslation(for:lastRecognizedText,immediate:true)
+    }
+    private func attachTranslationHost() {
+        guard translationHost == nil,let host=translation.hostingViewController else { return }
+        addChild(host)
+        host.view.backgroundColor = .clear; host.view.isUserInteractionEnabled=false; host.view.translatesAutoresizingMaskIntoConstraints=false; host.view.alpha=0
+        view.addSubview(host.view)
+        NSLayoutConstraint.activate([host.view.widthAnchor.constraint(equalToConstant:1),host.view.heightAnchor.constraint(equalToConstant:1),host.view.leadingAnchor.constraint(equalTo:view.leadingAnchor),host.view.topAnchor.constraint(equalTo:view.topAnchor)])
+        host.didMove(toParent:self); translationHost=host
+    }
+    private func updateTranslationViews() {
+        let supported=VoiceTranslationController.isSupported
+        translateSwitch.isOn=translateOn
+        translateSwitch.isEnabled=voice.state == .idle && supported
+        targetButton.isHidden = !supported
+        targetButton.isEnabled=voice.state == .idle && supported
+        translationCaption.isHidden = !translateOn
+        translationCaption.text="译文 · \(translationTarget.nativeName)"
+        let translated=latestTranslation?.trimmingCharacters(in:.whitespacesAndNewlines) ?? ""
+        translationText.text=latestTranslation
+        translationText.isHidden = !translateOn || translated.isEmpty
+        if !supported {
+            translationHint.text=VoiceTranslationController.minimumSystemDescription + "当前仅识别文字。"
+        } else if !translateOn {
+            translationHint.text=translationStatus ?? "开启后边识别边翻译；译文只在本机生成，不联网。"
+        } else {
+            translationHint.text=translationStatus ?? "说到哪里，译到哪里。译文只在本机生成。"
+        }
+        translationHint.isHidden=false
     }
     private func copy(_ payload:KeyboardPayload,in target:Section) {
         do {

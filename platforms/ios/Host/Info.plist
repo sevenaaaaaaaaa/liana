@@ -48,9 +48,9 @@
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>在同一局域网发现并连接你配对的 Mac，将你选择的文件发送给桌宠。</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>仅在主 App 中点击开始语音识别时录音，离线转换为文字。</string>
+	<string>仅在你于松萝主 App 点击开始语音识别时录音；音频只在本机转换为文字，不上传。</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>在本机识别你录制的中文语音，编辑后复制回键盘。</string>
+	<string>在本机识别中文、英语、日语、韩语、俄语、法语、西班牙语语音，并把原文或本机译文复制回键盘；不使用云端识别。</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
