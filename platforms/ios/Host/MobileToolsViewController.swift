@@ -40,6 +40,12 @@ final class MobileToolsViewController:UIViewController,UIDocumentPickerDelegate,
     private var words:[MobileWord]=[]
     private var importGeneration=0
     private var importingDictionary=false
+    private var phrases:[String]=MobilePhraseBookSettings.load()
+    private var phraseSaveWork:DispatchWorkItem?
+    private let phrasesEditor=LianaEditorView()
+    private let phraseCount=LianaUI.label("",size:12,muted:true)
+    private let phraseHint=LianaUI.label("每行一条，最多 20 条、每条 50 字；空行和重复行会自动合并。复制后在键盘工具 → 词库接收，九键长按数字键下滑也能用。",size:13,muted:true)
+    private lazy var phrasesCopy=LianaUI.button("复制常用短语到键盘",icon:"tray.and.arrow.up",role:.primary,id:"dict.phrases.copy") { [weak self] in self?.copyPhrases() }
     private var voicePrefix=""
     private var lastClearedDraft:String?
     private var draftWrite:DispatchWorkItem?
@@ -87,6 +93,13 @@ final class MobileToolsViewController:UIViewController,UIDocumentPickerDelegate,
         clearDraft.contentEdgeInsets=UIEdgeInsets(top:8,left:8,bottom:8,right:8); clearDraft.titleLabel?.font=LianaPalette.font(13,maximum:19)
         clearDraft.widthAnchor.constraint(equalToConstant:64).isActive=true
         format.selectedSegmentIndex=0; format.accessibilityIdentifier="dict.format"; format.accessibilityLabel="词库类型"
+        phrasesEditor.delegate=self; phrasesEditor.font=LianaPalette.font(15); phrasesEditor.adjustsFontForContentSizeCategory=true
+        phrasesEditor.backgroundColor=LianaPalette.soft; phrasesEditor.textColor=LianaPalette.ink; phrasesEditor.tintColor=LianaPalette.ink
+        phrasesEditor.layer.cornerRadius=12; phrasesEditor.textContainerInset=UIEdgeInsets(top:12,left:8,bottom:12,right:8); phrasesEditor.minimumHeight=132; phrasesEditor.visibleLines=4
+        phrasesEditor.text=MobilePhraseBook.text(from:phrases)
+        phrasesEditor.accessibilityIdentifier="dict.phrases.editor"; phrasesEditor.accessibilityLabel="常用短语，每行一条"
+        phraseCount.accessibilityIdentifier="dict.phrases.count"
+        updatePhraseControls()
         voice.onText={ [weak self] text in
             guard let self else { return }
             self.lastRecognizedText=text
@@ -106,13 +119,13 @@ final class MobileToolsViewController:UIViewController,UIDocumentPickerDelegate,
         render(); updateVoiceControls()
     }
     override func viewWillAppear(_ animated:Bool) { super.viewWillAppear(animated); if isViewLoaded && section == .sync { render() } }
-    deinit { NotificationCenter.default.removeObserver(self); draftWrite?.cancel(); fetcher?.cancel(); translationWork?.cancel(); voice.stop() }
+    deinit { NotificationCenter.default.removeObserver(self); draftWrite?.cancel(); phraseSaveWork?.cancel(); fetcher?.cancel(); translationWork?.cancel(); voice.stop() }
     @objc private func stopVoice() { voice.stop(); endTranslationSession(); saveDraft() }
-    @objc private func done() { voice.stop(); endTranslationSession(); saveDraft(); importGeneration += 1; fetcher?.cancel(); dismiss(animated:true) }
+    @objc private func done() { voice.stop(); endTranslationSession(); saveDraft(); savePhrases(); importGeneration += 1; fetcher?.cancel(); dismiss(animated:true) }
     override func viewWillDisappear(_ animated:Bool) {
         super.viewWillDisappear(animated)
         if isBeingDismissed || navigationController?.isBeingDismissed == true { voice.stop(); endTranslationSession() }
-        saveDraft()
+        saveDraft(); savePhrases()
     }
     private func scheduleDraftSave() {
         draftWrite?.cancel()
@@ -125,7 +138,7 @@ final class MobileToolsViewController:UIViewController,UIDocumentPickerDelegate,
         else { UserDefaults.standard.set(editor.text,forKey:Self.draftKey) }
     }
     private func changeSection() {
-        editor.resignFirstResponder()
+        editor.resignFirstResponder(); savePhrases()
         if voice.state == .recording { voice.finish() } else if voice.state == .requesting { voice.stop() }
         section=Section(rawValue:tabs.selectedSegmentIndex) ?? .voice; render(); scroll?.setContentOffset(.zero,animated:false); LianaMotion.reveal(content)
     }
@@ -139,6 +152,7 @@ final class MobileToolsViewController:UIViewController,UIDocumentPickerDelegate,
             refreshOnDeviceStatus(); updateTranslationViews(); updateVoiceControls()
         case .dictionary:
             content.addArrangedSubview(LianaUI.label("添加你的常用词。",size:24,weight:.semibold))
+            content.addArrangedSubview(LianaUI.card([LianaUI.label("常用短语",size:16,weight:.semibold),phraseHint,phrasesEditor,phraseCount,phrasesCopy],spacing:10))
             content.addArrangedSubview(format)
             content.addArrangedSubview(LianaActionRow(title:"本地文件",subtitle:"TXT、TSV 或 Rime 词库",icon:"folder",id:"dict.local") { [weak self] in self?.choose(gif:false) })
             content.addArrangedSubview(LianaActionRow(title:"GitHub 链接",subtitle:"粘贴具体词库文件的地址",icon:"link",id:"dict.github") { [weak self] in self?.github() })
@@ -182,6 +196,7 @@ final class MobileToolsViewController:UIViewController,UIDocumentPickerDelegate,
         updateTranslationViews()
     }
     func textViewDidChange(_ textView:UITextView) {
+        if textView === phrasesEditor { schedulePhraseSave(); updatePhraseControls(); return }
         if voice.state == .idle, translateOn, latestTranslation != nil { clearTranslation() }
         updateVoiceControls(); scheduleDraftSave()
     }
@@ -434,12 +449,39 @@ final class MobileToolsViewController:UIViewController,UIDocumentPickerDelegate,
         }
         translationHint.isHidden=false
     }
+    private func schedulePhraseSave() {
+        phraseSaveWork?.cancel()
+        let work=DispatchWorkItem { [weak self] in self?.savePhrases() }
+        phraseSaveWork=work
+        DispatchQueue.main.asyncAfter(deadline:.now()+0.4,execute:work)
+    }
+    private func savePhrases() {
+        phraseSaveWork?.cancel()
+        let result=MobilePhraseBookSettings.save(phrasesEditor.text)
+        phrases=result.phrases
+        if result.truncated {
+            phrasesEditor.text=MobilePhraseBook.text(from:phrases)
+            setStatus("最多 20 条、每条 50 字，已截断到上限。",in:.dictionary)
+        }
+        updatePhraseControls()
+    }
+    private func updatePhraseControls() {
+        let result=MobilePhraseBook.normalize(phrasesEditor.text)
+        phraseCount.text="\(result.phrases.count)/\(MobilePhraseBook.maximumCount) 条 · 每条最多 \(MobilePhraseBook.maximumLength) 字"
+        phrasesCopy.isEnabled = !result.phrases.isEmpty
+    }
+    private func copyPhrases() {
+        savePhrases()
+        guard !phrases.isEmpty else { setStatus("先写一条常用短语，再复制到键盘。",in:.dictionary); return }
+        copy(KeyboardPayload(kind:"phrases",text:MobilePhraseBook.text(from:phrases)),in:.dictionary)
+    }
     private func copy(_ payload:KeyboardPayload,in target:Section) {
         do {
             try payload.copy()
             let text:String
             switch payload.kind {
             case "words":text="词库已复制。回到松萝工具 → 词库 → 接收。"
+            case "phrases":text="常用短语已复制。回到键盘 → 工具 → 词库 → 接收常用短语（或长按九键数字下滑）。"
             case "pairing":text="配对已复制。回到松萝工具 → 同步 → 接收配对。"
             case "gif":text="GIF 已复制，可在支持图片的聊天框粘贴，也可回松萝接收收藏。"
             default:text="文字已复制，可以直接粘贴，也可回松萝接收。"

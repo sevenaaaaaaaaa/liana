@@ -121,6 +121,7 @@ targets:
       - path: Host/VoiceTranscript.swift
       - path: Host/VoiceTranslation.swift
       - path: Host/VoiceLogicTests.swift
+      - path: Host/MobilePhraseBook.swift
       - path: Host/ViewController.swift
       - path: Host/PetLinkViewController.swift
       - path: Host/PairingScannerViewController.swift
