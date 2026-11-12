@@ -5,6 +5,8 @@ final class KeyboardToolsPanel: UIView {
     var onInsert: ((String) -> Void)?
     var onReceive: (() -> Void)?
     var onSystemLexicon: (() -> Void)?
+    var onPhrases: (() -> Void)?
+    var onCursor: ((Int) -> Void)?
     var onMethod: ((MobileInputMethod) -> Void)?
     var onClipboardSend: (() -> Void)?
     var onClipboardReceive: (() -> Void)?
@@ -17,6 +19,9 @@ final class KeyboardToolsPanel: UIView {
     private let method: MobileInputMethod
 
     var section: Int { tabs.selectedSegmentIndex }
+    /// 内容或计数变化后重建分类内容（不清空面板）。
+    func refresh() { render() }
+
     func select(section: Int) {
         let index = min(tabs.numberOfSegments - 1, max(0, section))
         guard index != tabs.selectedSegmentIndex else { return }
@@ -72,6 +77,8 @@ final class KeyboardToolsPanel: UIView {
             }
             items.append(button("接收内容", icon: "tray.and.arrow.down", id: "tools.receive") { [weak self] in self?.onReceive?() })
             items.append(button("布局手感", icon: "slider.horizontal.3", id: "tools.layout") { [weak self] in self?.onLayout?() })
+            items.append(button("左移光标", icon: "arrow.left", id: "tools.cursor.left") { [weak self] in self?.onCursor?(-1) })
+            items.append(button("右移光标", icon: "arrow.right", id: "tools.cursor.right") { [weak self] in self?.onCursor?(1) })
             content.spacing = 4
             for i in stride(from: 0, to: items.count, by: 3) { content.addArrangedSubview(row(Array(items[i..<min(i+3,items.count)]))) }
         case 1:
@@ -96,6 +103,12 @@ final class KeyboardToolsPanel: UIView {
             content.addArrangedSubview(LianaUI.label("同一局域网内，按需同步文字。首次先在 App 配对 Mac。", size: 12, muted: true))
         default:
             content.spacing = 8
+            let phrases = MobilePhrases.load()
+            content.addArrangedSubview(row([
+                button("常用短语 \(phrases.count) 条", icon: "text.bubble", id: "tools.phrases") { [weak self] in self?.onPhrases?() },
+                button("接收短语", icon: "tray.and.arrow.down", id: "tools.phrases.receive") { [weak self] in self?.onReceive?() },
+            ]))
+            content.addArrangedSubview(LianaUI.label("短语由主 App「词库」页编辑后复制，键盘点「接收短语」覆盖；默认内置 12 条。", size: 12, muted: true))
             content.addArrangedSubview(button("接收已导入的词库", icon: "tray.and.arrow.down", id: "tools.receive") { [weak self] in self?.onReceive?() })
             content.addArrangedSubview(button("添加系统补充词库", icon: "text.badge.plus", id: "tools.system") { [weak self] in self?.onSystemLexicon?() })
             content.addArrangedSubview(LianaUI.label("本地与 GitHub 词库在 App 导入；系统补充包括姓名、文本替换等。", size: 12, muted: true))

@@ -67,6 +67,10 @@ class KeyboardViewController: UIInputViewController {
     private var rootBottom: NSLayoutConstraint!
     private var adjustmentPanel: UIView?
     private var devicePanel: BluetoothDevicePanel?
+    /// 长按滑动后弹出的临时条（数字/字母选择、常用短语）。
+    private var gesturePanel: UIView?
+    private var gestureHint: UILabel?
+    private var gestureHintWork: DispatchWorkItem?
     private var dragStart = KeyboardPreferences()
     private var geometrySave: DispatchWorkItem?
     private var isAdjusting = false
@@ -152,6 +156,7 @@ class KeyboardViewController: UIInputViewController {
         visibleForInput = false
         featurePanel?.removeFromSuperview(); featurePanel = nil
         adjustmentPanel?.removeFromSuperview(); adjustmentPanel = nil
+        closeGesturePanel(); hideGestureHint()
         rawInput = ""; candidateRaw = ""; candidates = []; composingText = ""
         handwritingPanel?.clear(); renderCandidates()
         clipboardSender?.disconnect(); clipboardSender = nil
@@ -438,7 +443,6 @@ class KeyboardViewController: UIInputViewController {
             }
             if i == 2 { items.append(("⌫", sideWidth, { [weak self] in self?.onBackspace() })) }
             let row = letterRow(items, height: layout.keyHeight)
-            if i == 2 { attachBackspace(in: row) }
             column.addArrangedSubview(row)
         }
 
@@ -553,7 +557,6 @@ class KeyboardViewController: UIInputViewController {
             items.append(("⌫", max(layout.pitch, layout.clusterWidth - used), { [weak self] in self?.onBackspace() }))
         }
         let row = letterRow(items, height: layout.keyHeight)
-        if backspace { attachBackspace(in: row) }
         return row
     }
 
@@ -669,6 +672,8 @@ class KeyboardViewController: UIInputViewController {
     }
 
     private func resetKeyboardArea() {
+        gesturePanel?.removeFromSuperview(); gesturePanel = nil
+        gestureHint?.removeFromSuperview(); gestureHint = nil
         keyboardArea.subviews.filter { $0 !== adjustmentPanel && $0 !== devicePanel && $0 !== featurePanel }.forEach { $0.removeFromSuperview() }
         handwritingPanel = nil
         backspaceButtons.removeAll()
@@ -822,6 +827,7 @@ class KeyboardViewController: UIInputViewController {
     }
 
     private func toggleAdjustments() {
+        closeGesturePanel()
         if let panel = adjustmentPanel { adjustmentPanel = nil; syncToolbarState(); LianaMotion.dismiss(panel); return }
         featurePanel?.removeFromSuperview(); featurePanel = nil
         devicePanel?.stop(); devicePanel?.removeFromSuperview(); devicePanel = nil
@@ -921,9 +927,34 @@ class KeyboardViewController: UIInputViewController {
                 row.addArrangedSubview(button); if direction < 0 { row.addArrangedSubview(slider) }
             }; advanced.addArrangedSubview(row)
         }
+        // 长按滑动手势的前置时长（删除键清空固定 3 秒，不在此调节）。
+        let holdValue = LianaUI.label("", size: 13, weight: .medium)
+        let holdSlider = UISlider(); holdSlider.tintColor = LianaPalette.ink
+        holdSlider.minimumValue = 0.5; holdSlider.maximumValue = 2; holdSlider.value = Float(preferences.gestureHold)
+        holdSlider.accessibilityLabel = "手势长按时长"; holdSlider.accessibilityIdentifier = "layout.hold"
+        let holdText: () -> String = { "手势长按  " + String(format: "%.1f", Double(holdSlider.value)) + " s" }
+        holdValue.text = holdText()
+        let holdUpdate: () -> Void = { [weak self, weak holdValue] in
+            guard let self else { return }
+            self.preferences.gestureHold = Double(holdSlider.value)
+            holdValue?.text = holdText()
+            self.applyPreferences()
+        }
+        holdSlider.addAction(UIAction { _ in holdUpdate() }, for: .valueChanged)
+        advanced.addArrangedSubview(holdValue)
+        let holdRow = UIStackView(); holdRow.spacing = 8; holdRow.alignment = .center
+        for direction in [-1, 1] {
+            let button = toolbarButton(direction < 0 ? "minus" : "plus", label: (direction < 0 ? "减少" : "增加") + "手势长按", id: "layout.hold" + (direction < 0 ? ".minus" : ".plus"))
+            button.widthAnchor.constraint(equalToConstant: 44).isActive = true; button.heightAnchor.constraint(equalToConstant: 44).isActive = true
+            button.addAction(UIAction { [weak holdSlider] _ in guard let holdSlider else { return }; holdSlider.value += Float(direction) * 0.1; holdUpdate() }, for: .touchUpInside)
+            holdRow.addArrangedSubview(button); if direction < 0 { holdRow.addArrangedSubview(holdSlider) }
+        }
+        advanced.addArrangedSubview(holdRow)
+        advanced.addArrangedSubview(LianaUI.label("按住后滑动：数字键上滑选字、下滑短语、左右移光标；回车下滑换行；删除键 3 秒上滑清空。", size: 12, muted: true))
     }
 
     private func toggleDevices() {
+        closeGesturePanel()
         if let devicePanel { devicePanel.stop(); devicePanel.removeFromSuperview(); self.devicePanel = nil; syncToolbarState(); return }
         featurePanel?.removeFromSuperview(); featurePanel = nil
         adjustmentPanel?.removeFromSuperview()
@@ -992,23 +1023,64 @@ class KeyboardViewController: UIInputViewController {
             if title == "⌫" { b.accessibilityLabel = "删除，长按连续删除" }
         }
         if title == shiftTitle { b.accessibilityLabel = page == .letters ? "切换大写，连点锁定" : "切换符号" }
+        if title == "⌫" { attachBackspaceGestures(to: b) }
+        if title == "⏎" { attachEnterGesture(to: b) }
         return b
     }
 
     // MARK: - 退格长按连删（§3.3）
 
-    private func attachBackspace(in row: UIStackView) {
-        for v in row.arrangedSubviews {
-            guard let b = v as? UIButton, b.accessibilityIdentifier == "key.⌫" else { continue }
-            attachBackspaceGestures(to: b)
-        }
-    }
-
     private func attachBackspaceGestures(to button: UIButton) {
         let longPress = UILongPressGestureRecognizer(target: self, action: #selector(onBackspaceLongPress(_:)))
         longPress.minimumPressDuration = 0.3
         button.addGestureRecognizer(longPress)
+        let clear = HoldSwipeGestureRecognizer(policy: HoldSwipePolicy(holdDuration: KeyboardGestureDefaults.clearHold))
+        clear.onArmed = { [weak self] in
+            guard let self else { return }
+            self.stopRepeat()
+            if self.hapticsEnabled { self.hapticStrong.impactOccurred(intensity: 0.8) }
+            self.showGestureHint("继续上滑清空")
+        }
+        clear.onFire = { [weak self] direction in
+            guard direction == .up else { return }
+            self?.clearAllInput()
+        }
+        button.addGestureRecognizer(clear)
+        button.accessibilityCustomActions = [UIAccessibilityCustomAction(name: "清空当前输入", target: self, selector: #selector(clearAllAccessibility))]
         backspaceButtons.append(button)
+    }
+
+    /// 回车：长按默认 1 秒后下滑换行（点按行为不变）。
+    private func attachEnterGesture(to button: UIButton) {
+        let gesture = HoldSwipeGestureRecognizer(policy: HoldSwipePolicy(holdDuration: preferences.gestureHold))
+        gesture.onArmed = { [weak self] in self?.showGestureHint("继续下滑换行") }
+        gesture.onFire = { [weak self] direction in
+            guard direction == .down else { return }
+            self?.hideGestureHint()
+            // 有组合串时先提交再换行，不额外提交一次。
+            self?.send(.literal("\n"))
+        }
+        button.addGestureRecognizer(gesture)
+    }
+
+    /// 九键数字键（1–9）：长按后上滑选字、下滑短语、左右移光标。
+    /// 数字 1 同时是页面键，仍保留这组手势（上滑给数字与常用标点）。
+    private func attachDigitGestures(to button: UIButton, title: String, options: [String]? = nil) {
+        let gesture = HoldSwipeGestureRecognizer(policy: HoldSwipePolicy(holdDuration: preferences.gestureHold))
+        gesture.onArmed = { [weak self] in
+            self?.showGestureHint("上滑选字 · 下滑短语 · 左右移光标")
+        }
+        gesture.onFire = { [weak self] direction in
+            guard let self else { return }
+            self.hideGestureHint()
+            switch direction {
+            case .up: self.showDigitOptions(for: title, options: options)
+            case .down: self.showPhraseStrip()
+            case .left: self.moveCursor(-1)
+            case .right: self.moveCursor(1)
+            }
+        }
+        button.addGestureRecognizer(gesture)
     }
 
     @objc private func onBackspaceLongPress(_ g: UILongPressGestureRecognizer) {
@@ -1033,6 +1105,145 @@ class KeyboardViewController: UIInputViewController {
     private func stopRepeat() {
         repeatTimer?.invalidate()
         repeatTimer = nil
+    }
+
+    // MARK: - 长按滑动（清空 / 换行 / 数字键选字）
+
+    private func showGestureHint(_ text: String) {
+        hideGestureHint()
+        let label = LianaUI.label(text, size: 13, weight: .medium)
+        label.textColor = LianaPalette.key
+        label.backgroundColor = LianaPalette.ink
+        label.textAlignment = .center
+        label.layer.cornerRadius = 14
+        label.layer.cornerCurve = .continuous
+        label.clipsToBounds = true
+        label.accessibilityIdentifier = "gesture.hint"
+        label.translatesAutoresizingMaskIntoConstraints = false
+        keyboardArea.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.centerXAnchor.constraint(equalTo: keyboardArea.centerXAnchor),
+            label.bottomAnchor.constraint(equalTo: keyboardArea.bottomAnchor, constant: -12),
+            label.heightAnchor.constraint(equalToConstant: 28),
+            label.widthAnchor.constraint(greaterThanOrEqualToConstant: 92),
+        ])
+        gestureHint = label
+        UIAccessibility.post(notification: .announcement, argument: text)
+        let work = DispatchWorkItem { [weak self] in self?.hideGestureHint() }
+        gestureHintWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6, execute: work)
+    }
+
+    private func hideGestureHint() {
+        gestureHintWork?.cancel(); gestureHintWork = nil
+        gestureHint?.removeFromSuperview(); gestureHint = nil
+    }
+
+    /// 清除动作：清空组合串、手写画布，并清掉当前输入框里已经上屏的文字。
+    private func clearAllInput() {
+        stopRepeat()
+        closeGesturePanel()
+        hideGestureHint()
+        handwritingPanel?.clear()
+        send(.clear)
+        rawInput = ""; candidateRaw = ""; candidates = []; composingText = ""
+        renderCandidates()
+        if let context = textDocumentProxy.documentContextBeforeInput, !context.isEmpty {
+            for _ in context { textDocumentProxy.deleteBackward() }
+        }
+        if hapticsEnabled { hapticStrong.impactOccurred(intensity: 0.8) }
+    }
+
+    @objc private func clearAllAccessibility() -> Bool {
+        clearAllInput()
+        return true
+    }
+
+    /// 上滑数字键：该键数字 + 字母小写/大写，点选插入。
+    private func showDigitOptions(for title: String, options explicit: [String]? = nil) {
+        let digit = String(title.prefix(1))
+        let letters = title.split(separator: " ").dropFirst().first.map(String.init) ?? ""
+        var options: [String] = explicit ?? []
+        if options.isEmpty {
+            options = [digit]
+            options += letters.map { String($0).lowercased() }
+            options += letters.map { String($0).uppercased() }
+        }
+        var seen = Set<String>()
+        options = options.filter { !$0.isEmpty && seen.insert($0).inserted }
+        var buttons = options.map { option in
+            LianaUI.button(option, role: .key, id: "digit.option." + option) { [weak self] in
+                self?.insertText(option)
+                self?.closeGesturePanel()
+            }
+        }
+        buttons.append(LianaUI.button("✕", role: .plain, id: "gesture.close") { [weak self] in self?.closeGesturePanel() })
+        showGestureStrip(id: "gesture.digits", buttons: buttons)
+    }
+
+    /// 下滑数字键：常用短语条。
+    private func showPhraseStrip() {
+        let phrases = MobilePhrases.load()
+        guard !phrases.isEmpty else {
+            showGestureHint("还没有常用短语，请在主 App 配置后接收")
+            return
+        }
+        var buttons: [UIButton] = phrases.enumerated().map { index, phrase in
+            LianaUI.button(phrase, role: .utility, id: "phrase.\(index)") { [weak self] in
+                self?.insertText(phrase)
+                self?.closeGesturePanel()
+            }
+        }
+        buttons.append(LianaUI.button("✕", role: .plain, id: "gesture.close") { [weak self] in self?.closeGesturePanel() })
+        showGestureStrip(id: "gesture.phrases", buttons: buttons)
+    }
+
+    private func showGestureStrip(id: String, buttons: [UIButton], height: CGFloat = 56) {
+        closeGesturePanel()
+        let panel = UIView()
+        panel.backgroundColor = LianaPalette.card
+        panel.layer.cornerRadius = 12
+        panel.layer.cornerCurve = .continuous
+        panel.accessibilityIdentifier = id
+        panel.translatesAutoresizingMaskIntoConstraints = false
+        keyboardArea.addSubview(panel)
+        let scroll = UIScrollView()
+        scroll.showsHorizontalScrollIndicator = false
+        scroll.contentInsetAdjustmentBehavior = .never
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        panel.addSubview(scroll)
+        let stack = UIStackView(arrangedSubviews: buttons)
+        stack.axis = .horizontal
+        stack.spacing = 8
+        stack.alignment = .fill
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        scroll.addSubview(stack)
+        NSLayoutConstraint.activate([
+            panel.leadingAnchor.constraint(equalTo: keyboardArea.leadingAnchor, constant: 6),
+            panel.trailingAnchor.constraint(equalTo: keyboardArea.trailingAnchor, constant: -6),
+            panel.bottomAnchor.constraint(equalTo: keyboardArea.bottomAnchor, constant: -6),
+            panel.heightAnchor.constraint(equalToConstant: height),
+            scroll.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 6),
+            scroll.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -6),
+            scroll.topAnchor.constraint(equalTo: panel.topAnchor, constant: 4),
+            scroll.bottomAnchor.constraint(equalTo: panel.bottomAnchor, constant: -4),
+            stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor),
+            stack.heightAnchor.constraint(equalTo: scroll.frameLayoutGuide.heightAnchor),
+        ])
+        for key in buttons { key.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true }
+        gesturePanel = panel
+        // 未挂到窗口（单元测试）时不做过渡，避免半透明中间态。
+        if view.window != nil { LianaMotion.reveal(panel) }
+        UIAccessibility.post(notification: .screenChanged, argument: buttons.first)
+    }
+
+    private func closeGesturePanel() {
+        guard let panel = gesturePanel else { return }
+        gesturePanel = nil
+        LianaMotion.dismiss(panel)
     }
 
     // MARK: - 按键行为（与 macOS/Android 端约定一致）
@@ -1214,9 +1425,13 @@ extension KeyboardViewController {
         keyboardArea.addSubview(content)
         NSLayoutConstraint.activate([content.leadingAnchor.constraint(equalTo: keyboardArea.leadingAnchor, constant: 5),content.trailingAnchor.constraint(equalTo: keyboardArea.trailingAnchor, constant: -5),content.topAnchor.constraint(equalTo: keyboardArea.topAnchor),content.bottomAnchor.constraint(equalTo: keyboardArea.bottomAnchor)])
     }
-    private func basicFunctions() -> UIStackView {
+    private func basicFunctions(showsNumbers: Bool = true) -> UIStackView {
         let row = UIStackView(); row.spacing = 5; row.distribution = .fillEqually
-        for (text, action): (String, () -> Void) in [("123",{ [weak self] in self?.togglePage() }),("🌐",{}),("中",{ [weak self] in self?.onModeToggle() }),("空格",{ [weak self] in self?.onSpace() }),("⏎",{ [weak self] in self?.onEnter() })] {
+        var items: [(String, () -> Void)] = []
+        // 九键的数字 1 已经是页面键，不再需要独立的 123。
+        if showsNumbers { items.append(("123", { [weak self] in self?.togglePage() })) }
+        items += [("🌐", {}), ("中", { [weak self] in self?.onModeToggle() }), ("空格", { [weak self] in self?.onSpace() }), ("⏎", { [weak self] in self?.onEnter() })]
+        for (text, action) in items {
             let key = keyButton(text, action: action); row.addArrangedSubview(key); if text == "中" { modeButton = key }
         }
         configureModeMenu(); return row
@@ -1231,15 +1446,32 @@ extension KeyboardViewController {
         let values = [["1 · 符号", "2 ABC", "3 DEF"],["4 GHI", "5 JKL", "6 MNO"],["7 PQRS", "8 TUV", "9 WXYZ"]]
         for titles in values {
             let row = UIStackView(); row.spacing = 5; row.distribution = .fillEqually
-            for title in titles { row.addArrangedSubview(keyButton(title) { [weak self] in
-                guard let self else { return }
-                if title.hasPrefix("1") { self.insertText("，") } else { self.send(.feed(String(title.prefix(1)))) }
-            }) }
-            let back = keyButton(titles[0].hasPrefix("1") ? "⌫" : (titles[0].hasPrefix("4") ? "清空" : "工具")) { [weak self] in
-                if titles[0].hasPrefix("1") { self?.onBackspace() } else if titles[0].hasPrefix("4") { self?.send(.clear) } else { self?.toggleTools() }
-            }; row.addArrangedSubview(back); column.addArrangedSubview(row)
+            for title in titles {
+                let key = keyButton(title) { [weak self] in
+                    guard let self else { return }
+                    if title.hasPrefix("1") { self.togglePage() } else { self.send(.feed(String(title.prefix(1)))) }
+                }
+                if title.hasPrefix("1") {
+                    (key as? LianaPressButton)?.surface = .utility
+                    key.accessibilityLabel = "数字与符号"
+                    key.accessibilityHint = "长按上滑可选数字与标点，点按切到数字和符号页"
+                    attachDigitGestures(to: key, title: title, options: ["1", "，", "。", "？", "！"])
+                } else {
+                    attachDigitGestures(to: key, title: title)
+                }
+                row.addArrangedSubview(key)
+            }
+            let side: UIButton
+            if titles[0].hasPrefix("1") {
+                side = keyButton("⌫") { [weak self] in self?.onBackspace() }
+            } else if titles[0].hasPrefix("4") {
+                side = keyButton("清空") { [weak self] in self?.send(.clear) }
+            } else {
+                side = keyButton("，") { [weak self] in self?.insertText("，") }
+            }
+            row.addArrangedSubview(side); column.addArrangedSubview(row)
         }
-        column.addArrangedSubview(basicFunctions()); pinKeyboard(column)
+        column.addArrangedSubview(basicFunctions(showsNumbers: false)); pinKeyboard(column)
     }
     /// 九键 · 侧栏（默认）：中间标准 3x3，左右两列更窄。
     /// 左列放符号（，。？！），右列放功能（⌫、⏎、清空），底行放切换（中／123／地球）、
@@ -1261,7 +1493,15 @@ extension KeyboardViewController {
             for title in titles {
                 let key = keyButton(title) { [weak self] in
                     guard let self else { return }
-                    if title.hasPrefix("1") { self.insertText("，") } else { self.send(.feed(String(title.prefix(1)))) }
+                    if title.hasPrefix("1") { self.togglePage() } else { self.send(.feed(String(title.prefix(1)))) }
+                }
+                if title.hasPrefix("1") {
+                    (key as? LianaPressButton)?.surface = .utility
+                    key.accessibilityLabel = "数字与符号"
+                    key.accessibilityHint = "长按上滑可选数字与标点，点按切到数字和符号页"
+                    attachDigitGestures(to: key, title: title, options: ["1", "，", "。", "？", "！"])
+                } else {
+                    attachDigitGestures(to: key, title: title)
                 }
                 mains.append(key); row.addArrangedSubview(key)
             }
@@ -1270,7 +1510,6 @@ extension KeyboardViewController {
             switch index {
             case 0:
                 right = keyButton("⌫") { [weak self] in self?.onBackspace() }
-                attachBackspaceGestures(to: right)
             case 1:
                 right = keyButton("⏎") { [weak self] in self?.onEnter() }
             default:
@@ -1284,12 +1523,10 @@ extension KeyboardViewController {
         let mode = keyButton("中") { [weak self] in self?.onModeToggle() }
         modeButton = mode
         configureModeMenu()
-        let digits = keyButton("123") { [weak self] in self?.togglePage() }
         let globe = keyButton("🌐") {}
         let space = keyButton("空格") { [weak self] in self?.onSpace() }
-        let tools = keyButton("工具") { [weak self] in self?.toggleTools() }
-        for key in [mode, digits, globe, space, tools] { functions.addArrangedSubview(key) }
-        for key in [digits, globe, tools] { key.widthAnchor.constraint(equalTo: mode.widthAnchor).isActive = true }
+        for key in [mode, globe, space] { functions.addArrangedSubview(key) }
+        globe.widthAnchor.constraint(equalTo: mode.widthAnchor).isActive = true
         space.widthAnchor.constraint(equalTo: mode.widthAnchor, multiplier: 2).isActive = true
         column.addArrangedSubview(functions)
         pinKeyboard(column)
@@ -1320,7 +1557,6 @@ extension KeyboardViewController {
         row.addArrangedSubview(keyButton("撤销一笔") { [weak canvas] in canvas?.undo() })
         row.addArrangedSubview(keyButton("清空") { [weak self, weak canvas] in canvas?.clear(); self?.send(.clear) })
         row.addArrangedSubview(keyButton("⌫") { [weak self] in self?.onBackspace() })
-        row.addArrangedSubview(keyButton("工具") { [weak self] in self?.toggleTools() })
         row.heightAnchor.constraint(equalToConstant: 40).isActive = true; column.addArrangedSubview(row)
         let functions = basicFunctions(); functions.heightAnchor.constraint(equalToConstant: CGFloat(preferences.keyHeight)).isActive = true; column.addArrangedSubview(functions); pinKeyboard(column)
     }
@@ -1341,6 +1577,7 @@ extension KeyboardViewController {
         }
     }
     private func toggleTools(section: Int? = nil) {
+        closeGesturePanel()
         if let panel = featurePanel {
             if let section, section != panel.section { panel.select(section: section); return }
             featurePanel = nil; syncToolbarState(); LianaMotion.dismiss(panel); return
@@ -1355,6 +1592,8 @@ extension KeyboardViewController {
         panel.onInsert = { [weak self] in self?.insertText($0) }
         panel.onReceive = { [weak self] in self?.receiveHostContent() }
         panel.onSystemLexicon = { [weak self] in self?.importSystemLexicon() }
+        panel.onPhrases = { [weak self] in self?.showPhraseStrip() }
+        panel.onCursor = { [weak self] delta in self?.moveCursor(delta) }
         panel.onClipboardSend = { [weak self] in self?.clipboardToMac(pull: false) }
         panel.onClipboardReceive = { [weak self] in self?.clipboardToMac(pull: true) }
     }
@@ -1376,6 +1615,8 @@ extension KeyboardViewController {
             case "words": send(.importWords(payload.words ?? [])); featurePanel?.status("正在导入本地词库…")
             case "text": insertText(payload.text ?? ""); featurePanel?.status("已插入文字。")
             case "gif": try KeyboardToolsPanel.saveGIF(payload.gif ?? Data()); toggleTools(); toggleTools(); featurePanel?.status("GIF 已导入，点缩略图复制后粘贴。")
+            case "phrases":
+                importPhrases(payload.text ?? "")
             case "pairing":
                 let profile = try PetLink.Profile.parse(payload.text ?? "")
                 try PetLink.store(profile, account: "keyboard.mac")
@@ -1383,6 +1624,18 @@ extension KeyboardViewController {
             default: throw MobileImportError.message("不支持的内容类型。")
             }
         } catch { featurePanel?.status(error.localizedDescription) }
+    }
+    /// 主 App 的常用短语：每行一条，去空行/去重/最多 20 条/每条 ≤50 字。
+    @discardableResult
+    func importPhrases(_ text: String) -> Int {
+        let saved = MobilePhrases.save(text: text)
+        guard !saved.isEmpty else {
+            featurePanel?.status("没有可保存的常用短语；每行一条，最多 20 条。")
+            return 0
+        }
+        featurePanel?.refresh()
+        featurePanel?.status("已保存 \(saved.count) 条常用短语")
+        return saved.count
     }
     private func clipboardToMac(pull: Bool) {
         guard hasFullAccess else { featurePanel?.status("同步剪贴板需要允许键盘完全访问。"); return }

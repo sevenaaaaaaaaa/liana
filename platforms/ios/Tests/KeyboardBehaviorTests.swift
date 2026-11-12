@@ -10,8 +10,9 @@ private final class MemoryDocument: NSObject, UITextDocumentProxy {
     var selectedText: String? { nil }
     var documentInputMode: UITextInputMode? { nil }
     var documentIdentifier = UUID()
+    var deletes = 0
     func insertText(_ value: String) { text += value; events.append("insert:" + value) }
-    func deleteBackward() { if !text.isEmpty { text.removeLast() } }
+    func deleteBackward() { deletes += 1; if !text.isEmpty { text.removeLast() } }
     func adjustTextPosition(byCharacterOffset offset: Int) { events.append("cursor:\(offset)") }
     func setMarkedText(_ markedText: String, selectedRange: NSRange) {}
     func unmarkText() {}
@@ -35,6 +36,7 @@ final class KeyboardBehaviorTests: XCTestCase {
     private var savedAppearance: Any?
     private var savedMethod: Any?
     private var savedDraft: Any?
+    private var savedPhrases: Any?
     override func setUp() {
         super.setUp()
         savedDraft=UserDefaults.standard.object(forKey:MobileToolsViewController.draftKey)
@@ -42,15 +44,21 @@ final class KeyboardBehaviorTests: XCTestCase {
         savedMethod = UserDefaults.standard.object(forKey: "keyboard.method")
         UserDefaults.standard.removeObject(forKey: "keyboard.method")
         savedPreferences = UserDefaults.standard.data(forKey: "keyboard.layout.v1")
+        savedPhrases = UserDefaults.standard.object(forKey: MobilePhrases.key)
+        UserDefaults.standard.removeObject(forKey: MobilePhrases.key)
         savedAppearance = UserDefaults.standard.object(forKey: "keyboard.appearance")
         UserDefaults.standard.set(0, forKey: "keyboard.appearance")
         KeyboardPreferences().save()
+        // 截图与断言都按最终状态：测试里关闭 UIView 动画，避免面板 reveal 拍到半透明。
+        UIView.setAnimationsEnabled(false)
     }
     override func tearDown() {
         UserDefaults.standard.set(savedPreferences, forKey: "keyboard.layout.v1")
+        UserDefaults.standard.set(savedPhrases, forKey: MobilePhrases.key)
         UserDefaults.standard.set(savedAppearance, forKey: "keyboard.appearance")
         UserDefaults.standard.set(savedMethod, forKey: "keyboard.method")
         UserDefaults.standard.set(savedDraft,forKey:MobileToolsViewController.draftKey)
+        UIView.setAnimationsEnabled(true)
         super.tearDown()
     }
     private func fixture() -> FixtureKeyboard {
@@ -79,6 +87,11 @@ final class KeyboardBehaviorTests: XCTestCase {
     }
     private func typePinyin(_ value: String, _ keyboard: FixtureKeyboard) throws {
         for character in value { try tap("key." + String(character), keyboard) }
+    }
+
+    /// 让短过渡（面板 reveal）走完再截图。
+    private func settle(_ seconds: TimeInterval = 0.25) {
+        RunLoop.current.run(until: Date().addingTimeInterval(seconds))
     }
 
     private func attachScreenshot(_ name: String, _ keyboard: FixtureKeyboard) {
@@ -746,7 +759,7 @@ final class KeyboardBehaviorTests: XCTestCase {
             keyboard.view.frame = CGRect(x: 0, y: 0, width: width, height: keyboard.view.intrinsicContentSize.height)
             keyboard.view.setNeedsLayout(); keyboard.view.layoutIfNeeded()
             let height = keyboard.view.bounds.height
-            for title in ["1 · 符号", "2 ABC", "5 JKL", "9 WXYZ", "，", "。", "？！", "⌫", "⏎", "清空", "中", "123", "🌐", "空格", "工具"] {
+            for title in ["1 · 符号", "2 ABC", "5 JKL", "9 WXYZ", "，", "。", "？！", "⌫", "⏎", "清空", "中", "🌐", "空格"] {
                 let key = try button("key." + title, keyboard)
                 let rect = key.convert(key.bounds, to: keyboard.view)
                 XCTAssertGreaterThanOrEqual(rect.minX, -0.5, "key.\(title) 左越界")
@@ -763,6 +776,9 @@ final class KeyboardBehaviorTests: XCTestCase {
             XCTAssertLessThan(side, main, "侧栏必须窄于主键")
             attachScreenshot("iPhone-nine-key-sidebar-\(Int(width))", keyboard)
         }
+        // 工具键已移除（入口只在顶栏），九键也没有独立 123。
+        XCTAssertNil(allViews(keyboard.view).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "key.工具" })
+        XCTAssertNil(allViews(keyboard.view).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "key.123" })
         // 中间仍是标准 3x3，点 5 进入九宫格组合。
         try tap("key.5 JKL", keyboard)
         XCTAssertFalse(candidateTitles(keyboard).isEmpty, "九键单键没有候选")
@@ -876,7 +892,10 @@ final class KeyboardBehaviorTests: XCTestCase {
         preferences.save()
         let keyboard = fixture()
         XCTAssertTrue(allViews(keyboard.view).compactMap { $0 as? UIButton }.contains { $0.accessibilityIdentifier == "key.清空" })
-        XCTAssertFalse(allViews(keyboard.view).compactMap { $0 as? UIButton }.contains { $0.accessibilityIdentifier == "key.，" })
+        // 经典布局第 3 行右侧现在是「，」；侧栏独有的「。」「？！」不存在。
+        XCTAssertTrue(allViews(keyboard.view).compactMap { $0 as? UIButton }.contains { $0.accessibilityIdentifier == "key.，" })
+        XCTAssertFalse(allViews(keyboard.view).compactMap { $0 as? UIButton }.contains { $0.accessibilityIdentifier == "key.。" })
+        XCTAssertFalse(allViews(keyboard.view).compactMap { $0 as? UIButton }.contains { $0.accessibilityIdentifier == "key.？！" })
         try typeNineKey("64426", keyboard)
         XCTAssertEqual(try button("candidate.0", keyboard).title(for: .normal), "你好")
         try tap("candidate.0", keyboard)
@@ -889,7 +908,7 @@ final class KeyboardBehaviorTests: XCTestCase {
         control.sendActions(for: .valueChanged)
         try tap("layout.done", keyboard)
         XCTAssertEqual(KeyboardPreferences.load().nineKeyLayout, .sidebar)
-        XCTAssertTrue(allViews(keyboard.view).compactMap { $0 as? UIButton }.contains { $0.accessibilityIdentifier == "key.，" })
+        XCTAssertTrue(allViews(keyboard.view).compactMap { $0 as? UIButton }.contains { $0.accessibilityIdentifier == "key.。" })
     }
 
     /// 新布局是默认值；旧版本保存的手感快照（没有该字段）仍能解码。
@@ -905,6 +924,216 @@ final class KeyboardBehaviorTests: XCTestCase {
         XCTAssertEqual(restored.keyHeight, 52)
         XCTAssertEqual(restored.width, 0.9, accuracy: 0.001)
         XCTAssertEqual(restored.nineKeyLayout, .sidebar)
+        XCTAssertEqual(restored.gestureHold, KeyboardGestureDefaults.hold)
+    }
+
+    // MARK: - 长按滑动手势与常用短语（第三轮）
+
+    private func holdSwipe(on title: String, _ keyboard: FixtureKeyboard) throws -> HoldSwipeGestureRecognizer {
+        let key = try button("key." + title, keyboard)
+        return try XCTUnwrap(key.gestureRecognizers?.compactMap { $0 as? HoldSwipeGestureRecognizer }.first, "key.\(title) 缺少长按滑动识别器")
+    }
+
+    private func trigger(_ gesture: HoldSwipeGestureRecognizer, _ direction: HoldSwipeDirection, hold: TimeInterval) {
+        gesture.begin()
+        gesture.update(elapsed: hold + 0.01, translation: .zero)
+        let translation: CGPoint
+        switch direction {
+        case .up: translation = CGPoint(x: 0, y: -40)
+        case .down: translation = CGPoint(x: 0, y: 40)
+        case .left: translation = CGPoint(x: -40, y: 0)
+        case .right: translation = CGPoint(x: 40, y: 0)
+        }
+        gesture.update(elapsed: hold + 0.05, translation: translation)
+    }
+
+    func testHoldSwipePolicyTimingThresholdsAndDirections() {
+        let policy = HoldSwipePolicy(holdDuration: 1, threshold: 28)
+        // 未达到时长：不 arm、不触发。
+        XCTAssertEqual(policy.outcome(elapsed: 0.5, translation: CGPoint(x: 0, y: -60), armed: false), .none)
+        // 达到时长：只 arm，不因未滑动而触发。
+        XCTAssertEqual(policy.outcome(elapsed: 1.02, translation: .zero, armed: false), .armed)
+        XCTAssertEqual(policy.outcome(elapsed: 1.02, translation: .zero, armed: true), .none)
+        // 四个方向。
+        XCTAssertEqual(policy.outcome(elapsed: 1.1, translation: CGPoint(x: 0, y: -28), armed: true), .fire(.up))
+        XCTAssertEqual(policy.outcome(elapsed: 1.1, translation: CGPoint(x: 0, y: 28), armed: true), .fire(.down))
+        XCTAssertEqual(policy.outcome(elapsed: 1.1, translation: CGPoint(x: -28, y: 0), armed: true), .fire(.left))
+        XCTAssertEqual(policy.outcome(elapsed: 1.1, translation: CGPoint(x: 28, y: 0), armed: true), .fire(.right))
+        // 未达阈值 / 主方向 / 取消。
+        XCTAssertNil(policy.direction(for: CGPoint(x: 12, y: 20)))
+        XCTAssertEqual(policy.direction(for: CGPoint(x: 40, y: -30)), .right)
+        XCTAssertEqual(policy.outcome(elapsed: 2, translation: CGPoint(x: 0, y: -60), armed: true, cancelled: true), .cancelled)
+        // 有状态判定器：只触发一次，取消后不再触发。
+        var tracker = HoldSwipeTracker(policy: policy)
+        tracker.begin()
+        XCTAssertFalse(tracker.armIfDue(elapsed: 0.4))
+        XCTAssertNil(tracker.swipe(translation: CGPoint(x: 0, y: -40)))
+        XCTAssertTrue(tracker.armIfDue(elapsed: 1))
+        XCTAssertNil(tracker.swipe(translation: .zero))
+        XCTAssertEqual(tracker.swipe(translation: CGPoint(x: 0, y: -40)), .up)
+        XCTAssertNil(tracker.swipe(translation: CGPoint(x: 0, y: -60)), "只触发一次")
+        tracker.begin()
+        tracker.cancel()
+        XCTAssertNil(tracker.swipe(translation: CGPoint(x: 0, y: -60)))
+    }
+
+    /// 删除键：3 秒上滑清空；普通点按仍然只删一个字。
+    func testDeleteHoldSwipeClearsInputWithoutExtraDelete() throws {
+        UserDefaults.standard.set("t9", forKey: "keyboard.method")
+        let keyboard = fixture()
+        keyboard.document.text = "保留"
+        try typeNineKey("64426", keyboard)
+        XCTAssertEqual(try button("candidate.0", keyboard).title(for: .normal), "你好")
+        let delete = try holdSwipe(on: "⌫", keyboard)
+        XCTAssertEqual(delete.policy.holdDuration, KeyboardGestureDefaults.clearHold, "清空手势固定 3 秒")
+        delete.begin()
+        delete.update(elapsed: 2.9, translation: .zero)
+        XCTAssertNil(allViews(keyboard.view).first { $0.accessibilityIdentifier == "gesture.hint" }, "未到 3 秒不能提示")
+        delete.update(elapsed: 3.01, translation: .zero)
+        XCTAssertNotNil(allViews(keyboard.view).first { $0.accessibilityIdentifier == "gesture.hint" }, "armed 后要提示上滑")
+        attachScreenshot("iPhone-gesture-clear-hint", keyboard)
+        delete.update(elapsed: 3.05, translation: CGPoint(x: 0, y: -40))
+        drain(keyboard)
+        XCTAssertEqual(keyboard.document.text, "")
+        XCTAssertEqual(keyboard.document.deletes, 2, "只删掉已上屏的两个字，不能多删")
+        XCTAssertTrue(candidateTitles(keyboard).isEmpty, "清空后候选应消失")
+        // 普通点按不受影响：仍然只删一个字。
+        let second = fixture()
+        second.document.text = "保留"
+        try tap("key.⌫", second)
+        XCTAssertEqual(second.document.text, "保")
+    }
+
+    /// 回车：长按下滑换行，有组合串时只提交一次。
+    func testEnterHoldSwipeInsertsNewlineOnce() throws {
+        let keyboard = fixture()
+        try typePinyin("nihao", keyboard)
+        trigger(try holdSwipe(on: "⏎", keyboard), .down, hold: KeyboardGestureDefaults.hold)
+        drain(keyboard)
+        XCTAssertEqual(keyboard.document.text, "你好\n")
+        // 空组合串时下滑只换行。
+        let empty = fixture()
+        trigger(try holdSwipe(on: "⏎", empty), .down, hold: KeyboardGestureDefaults.hold)
+        drain(empty)
+        XCTAssertEqual(empty.document.text, "\n")
+    }
+
+    /// 九键数字键：上滑选数字/字母大小写、下滑短语、左右移动光标。
+    func testDigitHoldSwipesPickLettersPhrasesAndCursor() throws {
+        UserDefaults.standard.set("t9", forKey: "keyboard.method")
+        let keyboard = fixture()
+        // 未达到时长不触发。
+        let two = try holdSwipe(on: "2 ABC", keyboard)
+        two.begin()
+        two.update(elapsed: 0.9, translation: CGPoint(x: 0, y: -40))
+        XCTAssertNil(allViews(keyboard.view).first { $0.accessibilityIdentifier == "gesture.digits" })
+        XCTAssertEqual(keyboard.document.text, "")
+        // 上滑：数字 + 大小写字母。
+        trigger(two, .up, hold: KeyboardPreferences.load().gestureHold)
+        XCTAssertNotNil(allViews(keyboard.view).first { $0.accessibilityIdentifier == "gesture.digits" })
+        for option in ["2", "A", "B", "C", "a", "b", "c"] { XCTAssertNotNil(try button("digit.option." + option, keyboard), option) }
+        settle()
+        attachScreenshot("iPhone-digit-options", keyboard)
+        try tap("digit.option.B", keyboard)
+        XCTAssertEqual(keyboard.document.text, "B")
+        XCTAssertNil(allViews(keyboard.view).first { $0.accessibilityIdentifier == "gesture.digits" })
+        // 下滑：常用短语条。
+        let phrases = MobilePhrases.load()
+        let three = try holdSwipe(on: "3 DEF", keyboard)
+        trigger(three, .down, hold: KeyboardPreferences.load().gestureHold)
+        XCTAssertNotNil(allViews(keyboard.view).first { $0.accessibilityIdentifier == "gesture.phrases" })
+        settle()
+        attachScreenshot("iPhone-phrase-strip", keyboard)
+        try tap("phrase.0", keyboard)
+        XCTAssertEqual(keyboard.document.text, "B" + phrases[0])
+        XCTAssertNil(allViews(keyboard.view).first { $0.accessibilityIdentifier == "gesture.phrases" })
+        // 数字 1 兼作页面键，长按上滑仍给数字与常用标点。
+        let one = try holdSwipe(on: "1 · 符号", keyboard)
+        trigger(one, .up, hold: KeyboardPreferences.load().gestureHold)
+        XCTAssertNotNil(try button("digit.option.1", keyboard))
+        XCTAssertNotNil(try button("digit.option.，", keyboard))
+        try tap("gesture.close", keyboard)
+        // 左右滑：移动光标。
+        let before = keyboard.document.events
+        let four = try holdSwipe(on: "4 GHI", keyboard)
+        trigger(four, .left, hold: KeyboardPreferences.load().gestureHold)
+        drain(keyboard)
+        trigger(four, .right, hold: KeyboardPreferences.load().gestureHold)
+        drain(keyboard)
+        XCTAssertEqual(Array(keyboard.document.events.dropFirst(before.count)), ["cursor:-1", "cursor:1"])
+        try tap("composition.clear", keyboard)
+    }
+
+    /// 常用短语：内置默认、清洗规则与主 App payload 接入。
+    func testPhrasesDefaultsSanitizeAndImport() throws {
+        XCTAssertEqual(MobilePhrases.load(), MobilePhrases.builtIn)
+        let messy = "\n好的\n\n谢谢\n好的\n" + String(repeating: "长", count: MobilePhrases.maxLength + 1) + "\n" + (1...25).map { "第\($0)条" }.joined(separator: "\n")
+        let cleaned = MobilePhrases.sanitize(text: messy)
+        XCTAssertLessThanOrEqual(cleaned.count, MobilePhrases.limit)
+        XCTAssertEqual(cleaned.first, "好的")
+        XCTAssertEqual(cleaned.filter { $0 == "好的" }.count, 1)
+        XCTAssertFalse(cleaned.contains { $0.count > MobilePhrases.maxLength })
+        let keyboard = fixture()
+        try tap("tools.open", keyboard)
+        let tabs = try XCTUnwrap(allViews(keyboard.view).compactMap { $0 as? UISegmentedControl }.first { $0.accessibilityIdentifier == "tools.section" })
+        tabs.selectedSegmentIndex = 3; tabs.sendActions(for: .valueChanged)
+        XCTAssertNotNil(try button("tools.phrases", keyboard))
+        XCTAssertNotNil(try button("tools.phrases.receive", keyboard))
+        XCTAssertEqual(keyboard.importPhrases("甲\n乙\n甲\n\n丙"), 3)
+        XCTAssertEqual(MobilePhrases.load(), ["甲", "乙", "丙"])
+        let status = try XCTUnwrap(allViews(keyboard.view).compactMap { $0 as? UILabel }.first { $0.accessibilityIdentifier == "tools.status" })
+        XCTAssertEqual(status.text, "已保存 3 条常用短语")
+        XCTAssertEqual(keyboard.importPhrases("\n  \n"), 0, "空内容不覆盖")
+        XCTAssertEqual(MobilePhrases.load(), ["甲", "乙", "丙"])
+        attachScreenshot("iPhone-phrases-tools", keyboard)
+    }
+
+    /// 工具键从键盘移除，但顶栏 tools.open 仍能打开面板。
+    func testKeyboardHasNoToolKeyEverywhere() throws {
+        for layout in NineKeyLayout.allCases {
+            UserDefaults.standard.set("t9", forKey: "keyboard.method")
+            var preferences = KeyboardPreferences()
+            preferences.nineKeyLayout = layout
+            preferences.save()
+            let keyboard = fixture()
+            XCTAssertFalse(allViews(keyboard.view).compactMap { $0 as? UIButton }.contains { $0.accessibilityIdentifier == "key.工具" || $0.title(for: .normal) == "工具" }, "\(layout) 仍有工具键")
+            try tap("tools.open", keyboard)
+            XCTAssertNotNil(try button("tools.close", keyboard), "\(layout) 顶栏工具入口失效")
+            try tap("tools.close", keyboard)
+            XCTAssertNotNil(try button("key.5 JKL", keyboard))
+            attachScreenshot("iPhone-nine-key-\(layout.rawValue)", keyboard)
+        }
+        UserDefaults.standard.set("handwriting", forKey: "keyboard.method")
+        let hand = fixture()
+        XCTAssertFalse(allViews(hand.view).compactMap { $0 as? UIButton }.contains { $0.accessibilityIdentifier == "key.工具" })
+        try tap("tools.open", hand)
+        XCTAssertNotNil(try button("tools.close", hand))
+    }
+
+    /// 数字 1 兼作页面键；九键没有独立 123，QWERTY 保留。
+    func testNineKeyOneKeySwitchesPagesAndNoSeparateNumbersKey() throws {
+        UserDefaults.standard.set("t9", forKey: "keyboard.method")
+        for layout in NineKeyLayout.allCases {
+            var preferences = KeyboardPreferences()
+            preferences.nineKeyLayout = layout
+            preferences.save()
+            let keyboard = fixture()
+            XCTAssertNil(allViews(keyboard.view).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "key.123" }, "\(layout) 不应有独立 123")
+            try tap("key.1 · 符号", keyboard)
+            XCTAssertNil(allViews(keyboard.view).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "key.q" }, "\(layout) 未切到数字页")
+            XCTAssertNotNil(try button("key.1", keyboard))
+            XCTAssertNotNil(try button("key.ABC", keyboard))
+            settle()
+            attachScreenshot("iPhone-nine-key-numbers-\(layout.rawValue)", keyboard)
+            try tap("key.1", keyboard)
+            XCTAssertEqual(keyboard.document.text, "1")
+            try tap("key.ABC", keyboard)
+            XCTAssertNotNil(try button("key.2 ABC", keyboard), "\(layout) 未回到九键字母页")
+            XCTAssertNil(allViews(keyboard.view).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "key.q" }, "九键字母页不应出现 QWERTY 字母")
+        }
+        UserDefaults.standard.removeObject(forKey: "keyboard.method")
+        let qwerty = fixture()
+        XCTAssertNotNil(try button("key.123", qwerty), "QWERTY 仍有 123")
     }
 
 }

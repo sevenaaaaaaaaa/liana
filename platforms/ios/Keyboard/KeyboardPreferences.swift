@@ -25,11 +25,13 @@ struct KeyboardPreferences: Codable, Equatable {
     var entryPosition: Double = 1
     /// 九键布局形态。旧版本保存的数据里没有这个字段，解码时回落为新默认（侧栏）。
     var nineKeyLayout: NineKeyLayout = .sidebar
+    /// 九键数字键 / 回车键的长按滑动手势前置时长（秒）。删除键的清空手势固定 3 秒。
+    var gestureHold: Double = KeyboardGestureDefaults.hold
 
     init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case keyHeight, width, alignment, candidateFont, bottomPadding, entryPosition, nineKeyLayout
+        case keyHeight, width, alignment, candidateFont, bottomPadding, entryPosition, nineKeyLayout, gestureHold
     }
 
     // 手写 init(from:)：新增字段只做 decodeIfPresent，旧快照仍能恢复其余手感设置。
@@ -42,6 +44,7 @@ struct KeyboardPreferences: Codable, Equatable {
         bottomPadding = try values.decodeIfPresent(Double.self, forKey: .bottomPadding) ?? 0
         entryPosition = try values.decodeIfPresent(Double.self, forKey: .entryPosition) ?? 1
         nineKeyLayout = try values.decodeIfPresent(NineKeyLayout.self, forKey: .nineKeyLayout) ?? .sidebar
+        gestureHold = try values.decodeIfPresent(Double.self, forKey: .gestureHold) ?? KeyboardGestureDefaults.hold
     }
 
     mutating func normalize() {
@@ -51,6 +54,7 @@ struct KeyboardPreferences: Codable, Equatable {
         candidateFont = Self.clamp(candidateFont, 14...24, fallback: 17)
         bottomPadding = Self.clamp(bottomPadding, 0...24, fallback: 0)
         entryPosition = Self.clamp(entryPosition, 0...1, fallback: 1)
+        gestureHold = Self.clamp(gestureHold, 0.5...2, fallback: KeyboardGestureDefaults.hold)
     }
 
     private static func clamp(_ value: Double, _ range: ClosedRange<Double>, fallback: Double) -> Double {
