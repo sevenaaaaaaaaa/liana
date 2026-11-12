@@ -1,11 +1,62 @@
+import Foundation
+import CoreGraphics
+#if !PETCHAT_AUTO_TRIGGER_POLICY_TEST
 import AppKit
 import ApplicationServices
+#endif
+
+// MARK: - 自动进入对话的触发判定（纯逻辑，可单测）
+
+/// 自动进入对话模式的触发条件：只有「鼠标停在桌宠窗口上 + 前台是 Finder / 桌面 +
+/// 焦点不在输入框 + 1.5 秒内敲了 4 个以上小写字母」才触发。
+///
+/// 用户明确要求：鼠标在别的 App 上时一律不抢焦点。把判定抽成纯函数（不碰 NSEvent / AX），
+/// 用 -D PETCHAT_AUTO_TRIGGER_POLICY_TEST 单独编译本文件即可回归，不需要辅助功能权限。
+enum PetChatAutoTriggerPolicy {
+    /// 前台应用分类（不直接依赖 NSWorkspace，方便测试）。
+    enum Frontmost: Equatable {
+        /// 松萝自己（输入法面板 / 桌宠）
+        case liana
+        /// Finder / 桌面：只在桌面上「直接打字叫桌宠」时才允许自动弹出。
+        case finder
+        /// 其他第三方 App（含游戏）：用户正在别处工作，不打扰。
+        case thirdParty
+    }
+
+    struct Input {
+        var frontmost: Frontmost
+        var mouseLocation: CGPoint
+        var petFrame: CGRect?
+        var letterCount: Int
+        var isSnoozed: Bool
+        var isChatOpen: Bool
+        /// 焦点是否在输入框。查询要走辅助功能（AX），所以只在前面所有便宜条件都满足后才求值。
+        var focusIsTextInput: () -> Bool
+    }
+
+    /// 连续敲多少个小写字母才认为是在叫桌宠（从 3 提到 4，减少误判）。
+    static let minimumLetters = 4
+    /// 字母累计窗口（秒）。
+    static let window: TimeInterval = 1.5
+
+    static func shouldOpen(_ input: Input) -> Bool {
+        guard !input.isChatOpen, !input.isSnoozed else { return false }
+        guard input.letterCount >= minimumLetters else { return false }
+        // 只在「桌面 / Finder」前台时自动弹出：第三方 App 前台时用户在别处工作，松萝自己前台时也不该抢。
+        guard input.frontmost == .finder else { return false }
+        // 鼠标必须真的在桌宠窗口（其可见区域）上；鼠标在别的 App 上时一律不触发。
+        guard let petFrame = input.petFrame, petFrame.contains(input.mouseLocation) else { return false }
+        return !input.focusIsTextInput()
+    }
+}
+
+#if !PETCHAT_AUTO_TRIGGER_POLICY_TEST
 
 /// 和桌宠聊天：对话气泡（自带拼音输入）+ 回复大脑（本机规则 / 本机模型）+ 自动进入对话模式。
 ///
 /// 隐私：聊天内容只在内存里，关掉窗口就没了；本机模型走 127.0.0.1 的 llama-server，不联网（ADR-0004）。
-/// 自动进入对话模式默认关闭；开启后需要辅助功能权限，只用来判断「当前焦点是不是输入框」并在
-/// 不是输入框时看到按键，**不记录任何按键**，判断完即丢弃。
+/// 自动进入对话模式默认关闭；开启后需要辅助功能权限，只用来判断「当前焦点是不是输入框」，
+/// 并且只有鼠标停在桌宠上、前台是 Finder / 桌面时才在按键后弹出，**不记录任何按键**，判断完即丢弃。
 
 // MARK: - 回复大脑
 
@@ -601,11 +652,20 @@ final class PetChatAutoTrigger {
             return
         }
         let now = Date()
-        buffer = buffer.filter { now.timeIntervalSince($0.at) < 1.5 } + [(now, ch)]
-        guard buffer.count >= 3, now > snoozeUntil, !PetChatController.shared.isOpen else { return }
+        buffer = buffer.filter { now.timeIntervalSince($0.at) < PetChatAutoTriggerPolicy.window } + [(now, ch)]
+        guard buffer.count >= PetChatAutoTriggerPolicy.minimumLetters else { return }
         let letters = String(buffer.map(\.ch))
+        let input = PetChatAutoTriggerPolicy.Input(
+            frontmost: frontmostKind(),
+            mouseLocation: NSEvent.mouseLocation,
+            petFrame: PetWindowController.shared.petFrame,
+            letterCount: letters.count,
+            isSnoozed: now <= snoozeUntil,
+            isChatOpen: PetChatController.shared.isOpen,
+            focusIsTextInput: { [weak self] in self?.focusIsBusy() ?? true })
+        // 不管这次弹不弹，都把这段字母清空：别让在别的 App 里打的字被带进下一次自动对话。
         buffer.removeAll()
-        guard !focusIsBusy(), !frontmostExcluded() else { return }
+        guard PetChatAutoTriggerPolicy.shouldOpen(input) else { return }
         DispatchQueue.main.async {
             PetChatController.shared.open(prefill: letters, automatic: true)
         }
@@ -631,12 +691,13 @@ final class PetChatAutoTrigger {
         return false
     }
 
-    /// 游戏类应用不打扰（它们用字母键操作）
-    private func frontmostExcluded() -> Bool {
-        guard let app = NSWorkspace.shared.frontmostApplication else { return false }
-        if app.processIdentifier == ProcessInfo.processInfo.processIdentifier { return true }
-        if let url = app.bundleURL, let category = Bundle(url: url)?.infoDictionary?["LSApplicationCategoryType"] as? String,
-           category.contains("games") { return true }
-        return false
+    /// 前台分类：只有 Finder / 桌面允许自动叫出聊天；松萝自己与第三方 App（含游戏）都不抢焦点。
+    private func frontmostKind() -> PetChatAutoTriggerPolicy.Frontmost {
+        guard let app = NSWorkspace.shared.frontmostApplication else { return .finder }
+        if app.processIdentifier == ProcessInfo.processInfo.processIdentifier { return .liana }
+        if app.bundleIdentifier == "com.apple.finder" { return .finder }
+        return .thirdParty
     }
 }
+
+#endif
