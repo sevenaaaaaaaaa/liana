@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use liana_core::syllables::{is_syllable, is_syllable_prefix};
 use liana_core::{Candidate, CandidateKind, CommentRole, MatchQuality, Scheme};
@@ -57,10 +57,32 @@ const JIANPIN_PRIOR_BONUS: f64 = 1.5;
 const BEAM: usize = 8;
 /// 有搭配模型时，每个读音参与竞争的同音词数（没有模型时只取最高的一个，和纯词频一致）。
 const LM_HOMOPHONES: usize = 4;
+
 /// 搭配分超过这个值的部分才算证据（octagram 里「没搭配」与「有搭配」的分界）。
 const LM_THRESHOLD: f64 = 8.0;
 /// 搭配证据的权重（与 ln 词频同尺度；用 xtask accuracy 的整句 / 困难 / 词汇三套评测调出）。
 const LM_WEIGHT: f64 = 0.35;
+
+/// 评测/调参时可用环境变量覆盖阈值与权重（生产默认仍是上面的常量）。
+fn lm_threshold() -> f64 {
+    static VALUE: OnceLock<f64> = OnceLock::new();
+    *VALUE.get_or_init(|| {
+        std::env::var("LIANA_LM_THRESHOLD")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(LM_THRESHOLD)
+    })
+}
+
+fn lm_weight() -> f64 {
+    static VALUE: OnceLock<f64> = OnceLock::new();
+    *VALUE.get_or_init(|| {
+        std::env::var("LIANA_LM_WEIGHT")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(LM_WEIGHT)
+    })
+}
 /// 只对覆盖最好的前几条切分跑带搭配模型的完整搜索，其余切分仍用纯词频（长输入保持流畅）。
 const LM_PATHS: usize = 6;
 /// 最多给出几条不同的整句候选。
@@ -972,8 +994,8 @@ impl PinyinDecoder {
                         let pass_through = entries.is_empty();
                         let bonus = match lm {
                             Some(lm) if !pass_through && !base.text.is_empty() => {
-                                lm.junction(&base.text, text, LM_THRESHOLD as f32) as f64
-                                    * LM_WEIGHT
+                                lm.junction(&base.text, text, lm_threshold() as f32) as f64
+                                    * lm_weight()
                             }
                             _ => 0.0,
                         };

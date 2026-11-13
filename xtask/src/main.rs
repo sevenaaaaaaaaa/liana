@@ -684,6 +684,17 @@ fn lm_cmd(args: &[String]) -> Result<(), String> {
         }
         Some("build") => lm_build(&args[1..]),
         Some("prune") => lm_prune(&args[1..]),
+        Some("get") => {
+            let path = args.get(1).ok_or("需要 .lm 路径")?;
+            let bytes = std::fs::read(path).map_err(|e| format!("读取 {path}: {e}"))?;
+            let lm = liana_dict::lm::Collocations::from_bytes(&bytes)
+                .map_err(|e| format!("解析 {path}: {e:?}"))?;
+            for probe in &args[2..] {
+                let chars: Vec<char> = probe.chars().collect();
+                println!("{probe}: {:?}", lm.get(&chars));
+            }
+            Ok(())
+        }
         _ => Err("用法: xtask lm stats|sample <.gram> [搭配…]\n      xtask lm build <.gram> -o <base.lm> [--max-len 3] [--min-value 0] [--top-chars 6000]\n      xtask lm prune <in.lm> -o <out.lm> [--min-score S] [--max-entries N]".into()),
     }
 }
