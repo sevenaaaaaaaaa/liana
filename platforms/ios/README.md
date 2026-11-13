@@ -119,7 +119,7 @@ VoiceOver 替代路径：清空用删除键的自定义动作「清空当前输�
 构建时分两档，兼顾键盘扩展的内存预算与候选覆盖：
 
 - **core（`Resources/base.ifd`）**：从 `base-large.tsv` 按词频选 10 万条，保留全部单字与常用简拼先验，并合并 `packs/default/*` 人工词包。当前 135,113 词条 / 2.53 MB，供 Rust 会话做整句候选。
-- **full（`Resources/mobile.sqlite`）**：合并 `base-large.tsv`（199,776 条）+ `packs/default` + `packs/optional` + `packs/mobile` 的混合拉丁词，同词同音取最大词频去重，生成拼音/五笔/英文回退索引。当前 236,317 条拼音词条，SQLite 39.1 MB。
+- **full（`Resources/mobile.sqlite`）**：合并 `base-large.tsv`（199,776 条）+ `packs/default` + `packs/optional` + `packs/mobile` 的混合拉丁词，同词同音取最大词频去重，生成拼音/五笔/英文回退索引。当前 236,317 条拼音词条 + `tags` 表 27,666 行（place 3,550 / person 24,116），SQLite 40.4 MiB。
 
 词包覆盖常见字词、词组、诗歌名句、人名、地名、生活用品、学科、办公用品、软件/App、AI 词汇、医疗养生、金融、年度媒体盘点与网络流行语；多音字读音逐条校对（银行 hang、重庆 chong、长城 chang、重量 zhong、长大 zhang 等）。不打包桌面神经模型。SQLite 按磁盘页读取，不整体常驻；base.ifd 常驻内存。实体设备内存、不同 App 中的切换与长期使用仍需验证。
 
@@ -131,6 +131,11 @@ VoiceOver 替代路径：清空用删除键的自定义动作「清空当前输�
 4. **音节兜底**：以上都没有时，用内置合法音节表做 DP 切分，逐音节取单字最高频候选，任何合法拼音输入都不会空白。
 
 分层实现见 `Keyboard/MobileEngine.swift` 的 `refresh()` 与 `PinyinSyllables.swift`；只查本地词库与用户词库，不内置特例词、不联网；九宫格与全拼共用同一套词条。覆盖回归语料 97 条真实输入（生活用品／学科／办公／App／AI／医疗／金融／诗歌／人名／地名／流行语等）：候选空白 0 条，已收录词首候选零错位。
+
+首选排序在四层之上再叠加两类信号，规则见 `MobileEngine.refresh()` 与 `RankingBehaviorTests`：
+
+- **学习权重**：用户选过的词按本机 learned 计数排到同码候选最前，再选别的词即可切回。
+- **上下文类别**：mobile.sqlite 的 `tags` 表给词打 place／person 标签；最近上屏尾部是「去／到／在／回／从／往／来／驻／出差到／飞往」时优先地名，是「叫／是／找／老师／同学／同事」时优先人名。例如 `chengdu` 裸打首选仍是「程度」，但上屏「去」之后首选变成「成都」；`xian` 在「在」之后首选「西安」；`lihua` 在「叫」之后首选「李华」。没有触发词时完全不重排，裸打语义仍按词频。
 
 ## 验证
 
