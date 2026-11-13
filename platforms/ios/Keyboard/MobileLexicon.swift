@@ -18,7 +18,7 @@ final class MobileLexicon {
         let path = Self.directory.appendingPathComponent("personal.sqlite").path
         guard sqlite3_open(path, &database) == SQLITE_OK else { return }
         execute("PRAGMA cache_size=-512; PRAGMA journal_mode=WAL;")
-        execute("CREATE TABLE IF NOT EXISTS words(word TEXT,code TEXT,digits TEXT,freq INTEGER,kind TEXT,reading TEXT,PRIMARY KEY(word,code,kind)); CREATE INDEX IF NOT EXISTS custom_code ON words(kind,code); CREATE INDEX IF NOT EXISTS custom_digits ON words(digits); CREATE TABLE IF NOT EXISTS learned(word TEXT,code TEXT,n INTEGER,PRIMARY KEY(word,code));")
+        execute("CREATE TABLE IF NOT EXISTS words(word TEXT,code TEXT,digits TEXT,freq INTEGER,kind TEXT,reading TEXT,PRIMARY KEY(word,code,kind)); CREATE INDEX IF NOT EXISTS custom_code ON words(kind,code); CREATE INDEX IF NOT EXISTS custom_digits ON words(digits); CREATE TABLE IF NOT EXISTS learned(word TEXT,code TEXT,n INTEGER,PRIMARY KEY(word,code)); CREATE INDEX IF NOT EXISTS learned_code ON learned(code);")
         execute("ALTER TABLE words ADD COLUMN reading TEXT")
         if let base = baseURL ?? bundle.url(forResource: "mobile", withExtension: "sqlite") {
             var statement: OpaquePointer?
@@ -147,6 +147,19 @@ final class MobileLexicon {
         while sqlite3_step(statement) == SQLITE_ROW {
             output.append((text(statement, 0), Int(sqlite3_column_int64(statement, 1)), Int(sqlite3_column_int64(statement, 2))))
         }
+        return output
+    }
+
+    /// 用户学习过的词（可能只存在于 learned 表，例如整句候选）。
+    func learnedWords(code: String, limit: Int = 24) -> [String] {
+        guard !code.isEmpty, code.count <= 128 else { return [] }
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(database, "SELECT word FROM learned WHERE code=? ORDER BY n DESC, word LIMIT ?", -1, &statement, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_text(statement, 1, code, -1, transient)
+        sqlite3_bind_int(statement, 2, Int32(limit))
+        var output: [String] = []
+        while sqlite3_step(statement) == SQLITE_ROW { output.append(text(statement, 0)) }
         return output
     }
 

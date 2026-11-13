@@ -54,8 +54,14 @@ final class MobilePhraseComposer {
     }
 
     /// 整句候选。首候选是最优分段，其后是同段换词得到的近似候选。
-    func candidates(_ raw: String, kind: String, limit: Int = 9) -> [String] {
+    func candidates(_ raw: String, kind: String, limit: Int = 24) -> [String] {
         guard limit > 0, let segments = segments(raw, kind: kind) else { return [] }
+        // 噪声过滤：两音节以上却整句切成一串单字（例如「呢/呢」）时不进候选，
+        // 这类分段只留给引擎「永不空白」的音节兜底，避免逐字垃圾占满候选位。
+        if segments.count >= 2 || syllableCount(of: segments) >= 2,
+           segments.map(\.best).allSatisfy({ $0.count <= 1 }) {
+            return []
+        }
         var output: [String] = []
         var seen = Set<String>()
         func append(_ text: String) {
@@ -141,6 +147,16 @@ final class MobilePhraseComposer {
             guard result.count <= maxSegments else { return nil }
         }
         return result.reversed()
+    }
+
+    /// 分段对应的音节数（用于判断「是不是逐字垃圾」）。
+    private func syllableCount(of segments: [Segment]) -> Int {
+        let syllables = cachedSyllableSet ?? {
+            let set = Set(lexicon.syllables()); cachedSyllableSet = set; return set
+        }()
+        return segments.reduce(0) { total, segment in
+            total + max(1, split(segment.bestCode, syllables: syllables).count)
+        }
     }
 
     /// 把一个词的拼音 code 拆成音节（jintian → jin / tian）；拆不开时保留整词。

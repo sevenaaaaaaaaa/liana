@@ -68,6 +68,9 @@ final class MobileEngine {
     /// 最近上屏内容尾部（最多 4 个字），用于「去/在/叫/老师…」的上下文重排。
     private var lastCommittedTail = ""
 
+    /// 候选深度：候选条可横向滚动；会话仍只保留 9 个原始索引。
+    private static let candidateLimit = 24
+
     private static let placeContexts = ["出差到", "住在", "飞往", "去", "到", "在", "回", "从", "往", "来", "驻"]
     private static let personContexts = ["老师", "同学", "同事", "叫", "是", "找"]
 
@@ -224,13 +227,20 @@ final class MobileEngine {
                 if pinyin.allSatisfy({ $0.isASCII && $0.isLetter }) {
                     // 导入的快捷词沿用旧行为置顶，按「已学习」看待。
                     if mode == "pinyin" { for word in database().shortcuts(pinyin) { add(word.word, nil, learned: 1) } }
-                    for word in database().exactRanked(pinyin, kind: "pinyin", limit: 9) {
+                    for word in database().exactRanked(pinyin, kind: "pinyin", limit: Self.candidateLimit) {
                         add(word.word, nil, learned: word.learned)
                     }
                 }
+                // 学过的整句可能不在词库里；放在精确层之后，交给 learned 排序去重。
+                for word in database().learnedWords(code: raw, limit: Self.candidateLimit) {
+                    add(word, nil, learned: 1)
+                }
             case "t9":
-                for word in database().exactRanked(raw, kind: "t9", limit: 9) {
+                for word in database().exactRanked(raw, kind: "t9", limit: Self.candidateLimit) {
                     add(word.word, nil, learned: word.learned)
+                }
+                for word in database().learnedWords(code: raw, limit: Self.candidateLimit) {
+                    add(word, nil, learned: 1)
                 }
             default:
                 break
@@ -239,11 +249,11 @@ final class MobileEngine {
         // 2) Rust 会话候选（整句、纠错、简拼、词频与学习重排都在会话内完成）。
         for candidate in sessionChoices { add(candidate.text, candidate.core) }
         // 3) 分段组合：优先级低于会话；会话已占满 9 个空位时追加也不会进候选栏。
-        if merged.count < 9, !raw.isEmpty {
+        if merged.count < Self.candidateLimit, !raw.isEmpty {
             if mode == "t9" {
-                for text in composer().candidates(raw, kind: "t9") { add(text, nil) }
+                for text in composer().candidates(raw, kind: "t9", limit: Self.candidateLimit) { add(text, nil) }
             } else if ["pinyin", "flypy", "mspy", "zrm"].contains(mode), !pinyin.isEmpty {
-                for text in composer().candidates(pinyin, kind: "pinyin") { add(text, nil) }
+                for text in composer().candidates(pinyin, kind: "pinyin", limit: Self.candidateLimit) { add(text, nil) }
             }
         }
         // 4) 兜底：任何合法拼音都要有候选（逐音节取单字）。
@@ -270,7 +280,7 @@ final class MobileEngine {
             }
             merged = learnedPart + tagPart + rest
         }
-        choices = Array(merged.prefix(9)).map { ($0.text, $0.core) }
+        choices = Array(merged.prefix(Self.candidateLimit)).map { ($0.text, $0.core) }
         if mode == "t9" {
             // 九宫格内部缓冲是数字串，顶栏只展示可读拼音，避免「顶栏莫名多出数字」。
             preedit = raw.isEmpty ? "" : (composer().reading(raw, kind: "t9") ?? "九宫格")
@@ -359,7 +369,12 @@ final class MobileEngine {
         guard choices.indices.contains(index) else { return "" }
         let choice = choices[index]
         if let core = choice.core, let session, let pointer = liana_select(session, UInt32(core)) {
-            let text = String(cString: pointer); liana_free_string(pointer); refresh(); return text
+            let text = String(cString: pointer); liana_free_string(pointer)
+            // 会话候选也要写本地学习：下次整串精确层同样优先（core == nil 分支不再重复）。
+            database().learn(text, raw: raw)
+            composerCache?.invalidateCache()
+            refresh()
+            return text
         }
         database().learn(choice.text, raw: raw)
         composerCache?.invalidateCache()

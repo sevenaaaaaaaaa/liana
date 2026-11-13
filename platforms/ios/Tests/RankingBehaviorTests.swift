@@ -51,7 +51,7 @@ final class RankingBehaviorTests: XCTestCase {
 
     private func allViews(_ view: UIView) -> [UIView] { [view] + view.subviews.flatMap(allViews) }
 
-    private func keyboard() -> RankingKeyboard {
+    private func makeKeyboard() -> RankingKeyboard {
         let value = RankingKeyboard()
         value.loadViewIfNeeded()
         value.view.frame = CGRect(x: 0, y: 0, width: 375, height: 301)
@@ -118,7 +118,7 @@ final class RankingBehaviorTests: XCTestCase {
             ("jiao", "叫", "lihua", "李华"),
         ]
         for item in cases {
-            let keyboard = keyboard()
+            let keyboard = makeKeyboard()
             try commit(item.trigger, pinyin: item.triggerPinyin, keyboard)
             type(item.targetPinyin, keyboard)
             let titles = candidates(keyboard)
@@ -130,7 +130,7 @@ final class RankingBehaviorTests: XCTestCase {
     /// 裸打顺序保持词频语义（上下文只在触发词之后生效）。
     func testBareOrderKeepsFrequency() throws {
         for (pinyin, expected) in [("chengdu", "程度"), ("xian", "现"), ("lihua", "梨花")] {
-            let keyboard = keyboard()
+            let keyboard = makeKeyboard()
             type(pinyin, keyboard)
             let titles = candidates(keyboard)
             print("RANK bare \(pinyin) => \(titles.prefix(5).joined(separator: " | "))")
@@ -140,10 +140,10 @@ final class RankingBehaviorTests: XCTestCase {
 
     /// 学习权重：选过的词在新键盘上排第一；再选同码的高频词可以切回。
     func testLearningOverridesAndCanSwitchBack() throws {
-        let first = keyboard()
+        let first = makeKeyboard()
         try commit("成都", pinyin: "chengdu", first)
 
-        let second = keyboard()
+        let second = makeKeyboard()
         type("chengdu", second)
         let learnedOrder = candidates(second)
         XCTAssertEqual(learnedOrder.first, "成都", "学习后应回到首位")
@@ -152,7 +152,7 @@ final class RankingBehaviorTests: XCTestCase {
         tap("candidate.\(index)", second)
         XCTAssertEqual(second.document.text, "程度")
 
-        let third = keyboard()
+        let third = makeKeyboard()
         type("chengdu", third)
         let titles = candidates(third)
         print("RANK learned-switch chengdu => \(titles.prefix(5).joined(separator: " | "))")
@@ -175,9 +175,106 @@ final class RankingBehaviorTests: XCTestCase {
         XCTAssertFalse(lexicon.hasTag("成都", tag: "place"))
     }
 
+    // MARK: - 第六轮：候选深度 / 学习同步 / 分段噪声 / 整句模型
+
+    /// 候选深度统一到 24；候选条横向滚动。
+    func testCandidateDepthIsTwentyFour() throws {
+        let keyboard = makeKeyboard()
+        type("shi", keyboard)
+        let titles = candidates(keyboard)
+        XCTAssertEqual(titles.count, 24)
+        let deep = try XCTUnwrap(allViews(keyboard.view).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "candidate.23" })
+        XCTAssertFalse(deep.isHidden)
+        let strip = try XCTUnwrap(deep.superview?.superview as? UIScrollView)
+        XCTAssertGreaterThan(strip.contentSize.width, strip.bounds.width)
+    }
+
+    /// 从 Rust 会话候选中选词后，本地学习生效：新键盘同码首选是它。
+    func testSessionCandidateSelectionLearnsLocally() throws {
+        let keyboard = makeKeyboard()
+        type("mingtianqugongsi", keyboard)
+        let titles = candidates(keyboard)
+        let index = try XCTUnwrap(titles.firstIndex(of: "明天去公司"), "候选: \(titles.prefix(6))")
+        tap("candidate.\(index)", keyboard)
+        XCTAssertEqual(keyboard.document.text, "明天去公司")
+
+        let lexicon = MobileLexicon(bundle: Bundle(for: Self.self))
+        XCTAssertTrue(lexicon.learnedWords(code: "mingtianqugongsi").contains("明天去公司"))
+
+        let next = makeKeyboard()
+        type("mingtianqugongsi", next)
+        XCTAssertEqual(candidates(next).first, "明天去公司")
+    }
+
+    /// 两音节以上却全是单字的分段不进候选，但引擎兜底仍不空白。
+    func testComposerDropsAllSingleCharacterSegments() throws {
+        let lexicon = MobileLexicon(bundle: Bundle(for: Self.self))
+        let composer = MobilePhraseComposer(lexicon: lexicon)
+        XCTAssertEqual(composer.candidates("nene", kind: "pinyin"), [], "逐字分段不应成为候选")
+        let phrase = composer.candidates("wanshangyiqichifan", kind: "pinyin")
+        XCTAssertFalse(phrase.isEmpty)
+        XCTAssertTrue(phrase.contains { $0.count > 1 }, "正常短语应保留多字词分段：\(phrase.prefix(5))")
+
+        let engine = MobileEngine()
+        engine.sessionFactory = { _, _ in nil }
+        let ready = expectation(description: "start")
+        engine.onUpdate = { _ in ready.fulfill() }
+        engine.start(bundle: Bundle(for: Self.self), mode: "pinyin")
+        wait(for: [ready], timeout: 20)
+        let fallback = engineUpdate(engine, .feed("nene"))
+        XCTAssertFalse(fallback.snapshot.candidates.isEmpty, "兜底仍要有候选")
+    }
+
+    /// 整句模型（base.lm 与 base.ifd 同目录）加载后，整句首选率不回归。
+    func testSentenceModelKeepsWholeSentenceFirstChoice() throws {
+        let bundle = Bundle(for: Self.self)
+        let ifd = try XCTUnwrap(bundle.url(forResource: "base", withExtension: "ifd"))
+        let model = ifd.deletingLastPathComponent().appendingPathComponent("base.lm")
+        let hasModel = FileManager.default.fileExists(atPath: model.path)
+        XCTAssertTrue(hasModel, "base.lm 应与 base.ifd 同目录随包")
+
+        let cases: [(String, String)] = [
+            ("jintiantianqihenhao", "今天天气很好"),
+            ("wanshangyiqichifan", "晚上一起吃饭"),
+            ("zhegeshoujizhendehenhao", "这个手机真的很好"),
+            ("womendediannaohuaile", "我们的电脑坏了"),
+            ("wozaijianadashangxue", "我在加拿大上学"),
+            ("nizaiganshenme", "你在干什么"),
+            ("womenmingtianzaijianba", "我们明天再见吧"),
+            ("womenyiqiqukandianyingba", "我们一起去看电影吧"),
+            ("qinggeiwoyibeishui", "请给我一杯水"),
+            ("wanshangshidianwoyaoshuijiao", "晚上十点我要睡觉"),
+        ]
+        let engine = MobileEngine()
+        let ready = expectation(description: "start")
+        engine.onUpdate = { _ in ready.fulfill() }
+        engine.start(bundle: bundle, mode: "pinyin")
+        wait(for: [ready], timeout: 20)
+        var hits = 0
+        for (raw, expected) in cases {
+            let update = engineUpdate(engine, .feed(raw))
+            XCTAssertFalse(update.snapshot.candidates.isEmpty, raw)
+            if update.snapshot.candidates.first == expected { hits += 1 }
+            else { print("RANK-LM miss \(raw) -> \(update.snapshot.candidates.prefix(3).joined(separator: " | ")) [\(expected)]") }
+            _ = engineUpdate(engine, .clear)
+        }
+        print("RANK-LM first=\(hits)/\(cases.count)")
+        // 无 LM 时这批语料实测 6/10；有 LM 实测 10/10，留一句容差。
+        XCTAssertGreaterThanOrEqual(hits, 9, "整句模型下首选率过低")
+    }
+
+    private func engineUpdate(_ engine: MobileEngine, _ action: MobileEngine.Action) -> MobileEngine.Update {
+        let done = expectation(description: "engine action")
+        var result: MobileEngine.Update!
+        engine.onUpdate = { result = $0; done.fulfill() }
+        engine.submit(action, document: nil)
+        wait(for: [done], timeout: 20)
+        return result
+    }
+
     /// 上下文只提升对应类别的词；普通词序不受影响。
     func testContextDoesNotPromoteUnrelatedWords() throws {
-        let keyboard = keyboard()
+        let keyboard = makeKeyboard()
         try commit("去", pinyin: "qu", keyboard)
         type("nihao", keyboard)
         XCTAssertEqual(candidates(keyboard).first, "你好")
