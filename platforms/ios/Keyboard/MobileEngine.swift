@@ -39,6 +39,12 @@ final class MobileEngine {
         let committed: String
         let deletes: Int
     }
+    /// 合并后的候选：来源不同但统一带「学习次数」用于分层排序。
+    private struct MergedCandidate {
+        let text: String
+        let core: Int?
+        let learned: Int
+    }
     var onUpdate: ((Update) -> Void)?
     /// 会话工厂。测试注入空实现即可模拟「设备上随包词典加载失败」的受限环境，
     /// 用来验证本地词库回退路径；生产环境保持为 nil，走 Rust 会话。
@@ -59,6 +65,11 @@ final class MobileEngine {
     private var composerCache: MobilePhraseComposer?
     private var syllableTableCache: Set<String>?
     private var singleCharacterCache: [String: String] = [:]
+    /// 最近上屏内容尾部（最多 4 个字），用于「去/在/叫/老师…」的上下文重排。
+    private var lastCommittedTail = ""
+
+    private static let placeContexts = ["出差到", "住在", "飞往", "去", "到", "在", "回", "从", "往", "来", "驻"]
+    private static let personContexts = ["老师", "同学", "同事", "叫", "是", "找"]
 
     func start(bundle: Bundle, mode: String) -> Int {
         self.bundle = bundle
@@ -103,7 +114,7 @@ final class MobileEngine {
                     else { committed = " " }
                 case .enter: committed = raw.isEmpty && choices.isEmpty ? "\n" : commitAll()
                 case .literal(let text): committed = commitAll() + text
-                case .clear: raw = ""; choices = []; externalComposition = false; if let session { liana_clear(session) }
+                case .clear: raw = ""; choices = []; externalComposition = false; lastCommittedTail = ""; if let session { liana_clear(session) }
                 case .select(let index, let expected, let text):
                     if externalComposition, raw == expected {
                         committed = text; database().learn(text, raw: raw)
@@ -149,6 +160,8 @@ final class MobileEngine {
                         if choices.isEmpty { message = "未识别出文字，请重新书写" }
                     }
                 }
+                if !committed.isEmpty { noteCommitted(committed) }
+                if deletes > 0 { dropCommitted(deletes) }
                 if case .glide = action { decoded = Snapshot(raw: raw, preedit: raw, candidates: choices.map(\.text)) }
                 else if mode == "handwriting" { decoded = Snapshot(raw: raw, preedit: raw, candidates: choices.map(\.text)) }
                 else { refresh() }
@@ -197,23 +210,28 @@ final class MobileEngine {
         }
         // 全拼直接可用；双拼用会话 preedit 里的全拼（如 nihc → "ni hao"）去查库。
         let pinyin = fullPinyin(for: raw, preedit: preedit)
-        var merged: [(text: String, core: Int?)] = []
+        var merged: [MergedCandidate] = []
         var seen = Set<String>()
-        func add(_ text: String, _ core: Int?) {
+        func add(_ text: String, _ core: Int?, learned: Int = 0) {
             guard !text.isEmpty, !seen.contains(text) else { return }
             seen.insert(text)
-            merged.append((text, core))
+            merged.append(MergedCandidate(text: text, core: core, learned: learned))
         }
         // 1) 本地词库整串精确命中（含用户学习/钉选/快捷词），优先级最高。
         if !raw.isEmpty {
             switch mode {
             case "pinyin", "flypy", "mspy", "zrm":
                 if pinyin.allSatisfy({ $0.isASCII && $0.isLetter }) {
-                    if mode == "pinyin" { for word in database().shortcuts(pinyin) { add(word.word, nil) } }
-                    for word in database().exact(pinyin, kind: "pinyin", limit: 9) { add(word.word, nil) }
+                    // 导入的快捷词沿用旧行为置顶，按「已学习」看待。
+                    if mode == "pinyin" { for word in database().shortcuts(pinyin) { add(word.word, nil, learned: 1) } }
+                    for word in database().exactRanked(pinyin, kind: "pinyin", limit: 9) {
+                        add(word.word, nil, learned: word.learned)
+                    }
                 }
             case "t9":
-                for word in database().exact(raw, kind: "t9", limit: 9) { add(word.word, nil) }
+                for word in database().exactRanked(raw, kind: "t9", limit: 9) {
+                    add(word.word, nil, learned: word.learned)
+                }
             default:
                 break
             }
@@ -236,12 +254,53 @@ final class MobileEngine {
         if merged.isEmpty, !raw.isEmpty, mode == "wubi" || (mode == "en" && session == nil) {
             for word in database().lookup(raw, kind: mode) { add(word.word, nil) }
         }
-        choices = Array(merged.prefix(9))
+        // 5) 上下文重排：学习过 > 上下文类别命中 > 原顺序（会话/词频）。
+        if let tag = contextTag(), merged.count > 1 {
+            var learnedPart: [MergedCandidate] = []
+            var tagPart: [MergedCandidate] = []
+            var rest: [MergedCandidate] = []
+            for candidate in merged {
+                if candidate.learned > 0 {
+                    learnedPart.append(candidate)
+                } else if database().hasTag(candidate.text, tag: tag) {
+                    tagPart.append(candidate)
+                } else {
+                    rest.append(candidate)
+                }
+            }
+            merged = learnedPart + tagPart + rest
+        }
+        choices = Array(merged.prefix(9)).map { ($0.text, $0.core) }
         if mode == "t9" {
             // 九宫格内部缓冲是数字串，顶栏只展示可读拼音，避免「顶栏莫名多出数字」。
             preedit = raw.isEmpty ? "" : (composer().reading(raw, kind: "t9") ?? "九宫格")
         }
         decoded = Snapshot(raw: raw, preedit: preedit, candidates: choices.map(\.text))
+    }
+
+    /// 最近上屏内容的尾部（最多 4 个字）。
+    private func noteCommitted(_ text: String) {
+        guard !text.isEmpty else { return }
+        lastCommittedTail = String((lastCommittedTail + text).suffix(4))
+    }
+
+    /// 删除已上屏文字后同步裁掉尾部，避免上下文错位。
+    private func dropCommitted(_ count: Int) {
+        guard count > 0, !lastCommittedTail.isEmpty else { return }
+        lastCommittedTail = String(lastCommittedTail.dropLast(min(count, lastCommittedTail.count)))
+    }
+
+    /// 根据最近上屏内容判断上下文类别（place / person），无命中返回 nil。
+    private func contextTag() -> String? {
+        guard !lastCommittedTail.isEmpty else { return nil }
+        var best: (tag: String, length: Int)?
+        for trigger in Self.placeContexts where lastCommittedTail.hasSuffix(trigger) {
+            if trigger.count > (best?.length ?? 0) { best = ("place", trigger.count) }
+        }
+        for trigger in Self.personContexts where lastCommittedTail.hasSuffix(trigger) {
+            if trigger.count > (best?.length ?? 0) { best = ("person", trigger.count) }
+        }
+        return best?.tag
     }
 
     /// 双拼会话的 preedit 是全拼（Rust 侧保证）；全拼模式直接用 raw。
