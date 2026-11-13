@@ -36,6 +36,16 @@ final class MobilePhraseComposer {
     private var cachedKind: String?
     private var cachedSegments: [Segment]?
     private var cachedSyllableSet: Set<String>?
+    /// 跨按键缓存精确/前缀查询：每次按键只新增「新后缀」那几条 SQL。
+    private var cachedLookups: [String: [MobileWord]] = [:]
+
+    /// 学习记录/词库变化后清空结果缓存，避免用旧排序。
+    func invalidateCache() {
+        cachedRaw = nil
+        cachedKind = nil
+        cachedSegments = nil
+        cachedLookups.removeAll()
+    }
 
     init(lexicon: MobileLexicon, maxSegmentLength: Int = 24, maxSegments: Int = 24) {
         self.lexicon = lexicon
@@ -167,13 +177,27 @@ final class MobilePhraseComposer {
     }
 
     private func exactMatch(_ key: String, kind: String) -> Match? {
-        let matches = lexicon.exact(key, kind: kind)
+        let token = "exact|\(kind)|\(key)"
+        let matches: [MobileWord]
+        if let cached = cachedLookups[token] {
+            matches = cached
+        } else {
+            matches = lexicon.exact(key, kind: kind)
+            if cachedLookups.count < 512 { cachedLookups[token] = matches }
+        }
         guard let first = matches.first else { return nil }
         return Match(words: matches.map(\.word), codes: matches.map(\.code), frequency: first.frequency)
     }
 
     private func prefixMatch(_ key: String, kind: String) -> Match? {
-        let matches = lexicon.lookup(key, kind: kind, limit: 6)
+        let token = "prefix|\(kind)|\(key)"
+        let matches: [MobileWord]
+        if let cached = cachedLookups[token] {
+            matches = cached
+        } else {
+            matches = lexicon.lookup(key, kind: kind, limit: 6)
+            if cachedLookups.count < 512 { cachedLookups[token] = matches }
+        }
         guard let first = matches.first else { return nil }
         return Match(words: matches.map(\.word), codes: matches.map(\.code), frequency: first.frequency)
     }

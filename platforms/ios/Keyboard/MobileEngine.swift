@@ -57,6 +57,8 @@ final class MobileEngine {
     private var handwriting: HandwritingRecognizer?
     private var layers: URL?
     private var composerCache: MobilePhraseComposer?
+    private var syllableTableCache: Set<String>?
+    private var singleCharacterCache: [String: String] = [:]
 
     func start(bundle: Bundle, mode: String) -> Int {
         self.bundle = bundle
@@ -126,6 +128,9 @@ final class MobileEngine {
                 case .importWords(let words):
                     committed = commitAll()
                     let count = database().importWords(words)
+                    composerCache?.invalidateCache()
+                    syllableTableCache = nil
+                    singleCharacterCache.removeAll()
                     layers = database().exportPinyinLayer()
                     if let session { save(); liana_free(session); self.session = nil; createSession() }
                     message = "已导入 \(count) 条词语"
@@ -171,10 +176,13 @@ final class MobileEngine {
         if let saved = UserDefaults.standard.string(forKey: "user_dict_tsv"), let session { _ = liana_user_import(session, saved) }
         if let session { _ = liana_set_traditional(session, traditional ? 1 : 0) }
     }
+    /// 候选分层合并：本地整串精确命中 → Rust 会话 → 分段组合 → 音节兜底。
+    /// 去重后截断 9 个；会话候选保留原始索引，选择/学习仍走原有逻辑。
     private func refresh() {
         if externalComposition { decoded = Snapshot(raw: raw, preedit: raw, candidates: choices.map(\.text)); return }
         choices = []
         var preedit = raw
+        var sessionChoices: [(text: String, core: Int?)] = []
         if let session, let pointer = liana_composition_json(session) {
             let data = Data(String(cString: pointer).utf8)
             liana_free_string(pointer)
@@ -182,28 +190,106 @@ final class MobileEngine {
                 raw = object["raw"] as? String ?? ""
                 preedit = object["preedit"] as? String ?? raw
                 let candidates = object["candidates"] as? [[String: Any]] ?? []
-                choices = candidates.prefix(9).enumerated().compactMap { index, item in (item["text"] as? String).map { ($0, index) } }
-                if mode == "pinyin", !raw.isEmpty {
-                    let custom = database().shortcuts(raw)
-                    let seen = Set(custom.map(\.word))
-                    choices = Array((custom.map { ($0.word, nil as Int?) } + choices.filter { !seen.contains($0.text) }).prefix(9))
+                sessionChoices = candidates.prefix(9).enumerated().compactMap { index, item in
+                    (item["text"] as? String).map { ($0, index) }
                 }
             }
         }
-        // 会话没有给出候选（九宫格没有整词条目、或设备上随包词典加载失败）时，
-        // 回退到本地词库：先按整词/前缀取词，再按音节分段组合成整句。
-        if choices.isEmpty, !raw.isEmpty, mode != "en" || session == nil {
-            let direct = database().lookup(raw, kind: mode).map { ($0.word, nil as Int?) }
-            let segmented = direct.isEmpty && ["pinyin", "t9"].contains(mode)
-                ? composer().candidates(raw, kind: mode).map { ($0, nil as Int?) }
-                : []
-            choices = Array((direct + segmented).prefix(9))
+        // 全拼直接可用；双拼用会话 preedit 里的全拼（如 nihc → "ni hao"）去查库。
+        let pinyin = fullPinyin(for: raw, preedit: preedit)
+        var merged: [(text: String, core: Int?)] = []
+        var seen = Set<String>()
+        func add(_ text: String, _ core: Int?) {
+            guard !text.isEmpty, !seen.contains(text) else { return }
+            seen.insert(text)
+            merged.append((text, core))
         }
+        // 1) 本地词库整串精确命中（含用户学习/钉选/快捷词），优先级最高。
+        if !raw.isEmpty {
+            switch mode {
+            case "pinyin", "flypy", "mspy", "zrm":
+                if pinyin.allSatisfy({ $0.isASCII && $0.isLetter }) {
+                    if mode == "pinyin" { for word in database().shortcuts(pinyin) { add(word.word, nil) } }
+                    for word in database().exact(pinyin, kind: "pinyin", limit: 9) { add(word.word, nil) }
+                }
+            case "t9":
+                for word in database().exact(raw, kind: "t9", limit: 9) { add(word.word, nil) }
+            default:
+                break
+            }
+        }
+        // 2) Rust 会话候选（整句、纠错、简拼、词频与学习重排都在会话内完成）。
+        for candidate in sessionChoices { add(candidate.text, candidate.core) }
+        // 3) 分段组合：优先级低于会话；会话已占满 9 个空位时追加也不会进候选栏。
+        if merged.count < 9, !raw.isEmpty {
+            if mode == "t9" {
+                for text in composer().candidates(raw, kind: "t9") { add(text, nil) }
+            } else if ["pinyin", "flypy", "mspy", "zrm"].contains(mode), !pinyin.isEmpty {
+                for text in composer().candidates(pinyin, kind: "pinyin") { add(text, nil) }
+            }
+        }
+        // 4) 兜底：任何合法拼音都要有候选（逐音节取单字）。
+        if merged.isEmpty, !raw.isEmpty, ["pinyin", "t9", "flypy", "mspy", "zrm"].contains(mode) {
+            if let fallback = syllableFallback(pinyin: pinyin, raw: raw) { add(fallback, nil) }
+        }
+        // 五笔/英文保持原来的前缀补全行为。
+        if merged.isEmpty, !raw.isEmpty, mode == "wubi" || (mode == "en" && session == nil) {
+            for word in database().lookup(raw, kind: mode) { add(word.word, nil) }
+        }
+        choices = Array(merged.prefix(9))
         if mode == "t9" {
             // 九宫格内部缓冲是数字串，顶栏只展示可读拼音，避免「顶栏莫名多出数字」。
-            preedit = raw.isEmpty ? "" : (composer().reading(raw, kind: mode) ?? "九宫格")
+            preedit = raw.isEmpty ? "" : (composer().reading(raw, kind: "t9") ?? "九宫格")
         }
         decoded = Snapshot(raw: raw, preedit: preedit, candidates: choices.map(\.text))
+    }
+
+    /// 双拼会话的 preedit 是全拼（Rust 侧保证）；全拼模式直接用 raw。
+    private func fullPinyin(for raw: String, preedit: String) -> String {
+        switch mode {
+        case "pinyin", "t9", "wubi", "en", "handwriting":
+            return raw.lowercased()
+        default:
+            let derived = preedit.lowercased().filter { $0.isASCII && $0.isLetter }
+            if !derived.isEmpty, PinyinSyllables.split(derived, extra: syllableTable()) != nil { return derived }
+            return raw.lowercased()
+        }
+    }
+
+    /// 音节兜底：切音节 → 每个音节取单字最高频候选。
+    private func syllableFallback(pinyin: String, raw: String) -> String? {
+        if mode == "t9" {
+            if let segments = composer().segments(raw, kind: "t9"), !segments.isEmpty,
+               let characters = singleCharacters(for: segments.map(\.bestCode).joined()) {
+                return characters
+            }
+            return raw
+        }
+        if let characters = singleCharacters(for: pinyin) { return characters }
+        return pinyin.isEmpty ? raw : pinyin
+    }
+
+    private func singleCharacters(for pinyin: String) -> String? {
+        guard let syllables = PinyinSyllables.split(pinyin, extra: syllableTable()), !syllables.isEmpty else { return nil }
+        var output = ""
+        for syllable in syllables {
+            if let character = singleCharacter(for: syllable) { output += character }
+        }
+        return output.isEmpty ? nil : output
+    }
+
+    private func singleCharacter(for syllable: String) -> String? {
+        if let cached = singleCharacterCache[syllable] { return cached.isEmpty ? nil : cached }
+        let value = database().singleCharacter(for: syllable) ?? ""
+        if singleCharacterCache.count < 512 { singleCharacterCache[syllable] = value }
+        return value.isEmpty ? nil : value
+    }
+
+    private func syllableTable() -> Set<String> {
+        if let syllableTableCache { return syllableTableCache }
+        let value = Set(database().syllables())
+        syllableTableCache = value
+        return value
     }
 
     private func composer() -> MobilePhraseComposer {
@@ -217,6 +303,7 @@ final class MobileEngine {
             let text = String(cString: pointer); liana_free_string(pointer); refresh(); return text
         }
         database().learn(choice.text, raw: raw)
+        composerCache?.invalidateCache()
         if let session { _ = liana_record_commit(session, choice.text); liana_clear(session) }
         raw = ""; choices = []; externalComposition = false
         return choice.text

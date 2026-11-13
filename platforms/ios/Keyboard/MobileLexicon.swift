@@ -96,6 +96,27 @@ final class MobileLexicon {
         return sorted
     }
 
+    /// 单个音节取单字最高频候选（「永远不会没有候选」的音节兜底用）。
+    func singleCharacter(for code: String) -> String? {
+        exact(code, kind: "pinyin", limit: 8).first(where: { $0.word.count == 1 })?.word
+    }
+
+    /// 词库是否收录该词（诊断/回归测试用；只查索引列）。
+    func contains(word: String, code: String, kind: String = "pinyin") -> Bool {
+        guard !word.isEmpty, !code.isEmpty, code.count <= 64 else { return false }
+        let column = kind == "t9" ? "digits" : "code"
+        let realKind = kind == "t9" ? "pinyin" : kind
+        let layer = hasBase ? " UNION ALL SELECT word FROM base.words WHERE kind=? AND \(column)=? AND word=?" : ""
+        let sql = "SELECT 1 FROM (SELECT word FROM words WHERE kind=? AND \(column)=? AND word=?\(layer)) LIMIT 1"
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else { return false }
+        defer { sqlite3_finalize(statement) }
+        var args = [realKind, code, word]
+        if hasBase { args += [realKind, code, word] }
+        for (i, value) in args.enumerated() { sqlite3_bind_text(statement, Int32(i + 1), value, -1, transient) }
+        return sqlite3_step(statement) == SQLITE_ROW
+    }
+
     /// 分段组合用的精确匹配：本地词库与随包词库中 code（或九宫格 digits）完全相同的词条。
     /// 命中按「学过的次数 → 词频」排序，供整句分段时挑选每个音节的代表词。
     func exact(_ key: String, kind: String, limit: Int = 6) -> [MobileWord] {
