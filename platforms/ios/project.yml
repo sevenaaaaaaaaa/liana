@@ -49,7 +49,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: dev.liana.ime.ios
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         MARKETING_VERSION: 0.9.1
-        CURRENT_PROJECT_VERSION: 10
+        CURRENT_PROJECT_VERSION: 11
         TARGETED_DEVICE_FAMILY: "1,2"
         SWIFT_VERSION: "5.0"
         CODE_SIGN_IDENTITY: "-"
@@ -58,6 +58,11 @@ targets:
   LianaKeyboard:
     type: app-extension
     platform: iOS
+    postBuildScripts:
+      - name: Copy language model
+        script: |
+          cp -f "$SRCROOT/Vendor/LM/base.lm.bin" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/base.lm"
+        basedOnDependencyAnalysis: false
     sources:
       - Keyboard
       - path: ../apple/PetLinkTransport.swift
@@ -93,7 +98,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.liana.ime.ios.keyboard
         MARKETING_VERSION: 0.9.1
-        CURRENT_PROJECT_VERSION: 10
+        CURRENT_PROJECT_VERSION: 11
         TARGETED_DEVICE_FAMILY: "1,2"
         SWIFT_VERSION: "5.0"
         APPLICATION_EXTENSION_API_ONLY: YES
@@ -109,6 +114,11 @@ targets:
   LianaKeyboardTests:
     type: bundle.unit-test
     platform: iOS
+    postBuildScripts:
+      - name: Copy language model
+        script: |
+          cp -f "$SRCROOT/Vendor/LM/base.lm.bin" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/base.lm"
+        basedOnDependencyAnalysis: false
     sources:
       - Keyboard
       - Shared

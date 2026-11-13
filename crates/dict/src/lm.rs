@@ -88,6 +88,46 @@ impl Collocations {
         self.count == 0
     }
 
+    /// 展开全部片段，用于离线剪枝/统计。分数已还原为原始搭配分。
+    pub fn entries(&self) -> Vec<(String, f32)> {
+        let mut out = Vec::with_capacity(self.count);
+        for (b, &(first, start)) in self.blocks.iter().enumerate() {
+            let end = self
+                .blocks
+                .get(b + 1)
+                .map_or(self.data.len(), |(_, o)| *o as usize);
+            let mut pos = start as usize;
+            let mut cur = first;
+            while pos < end {
+                let Some((delta, used)) = read_varint(&self.data[pos..end]) else { break };
+                pos += used;
+                let Some(value) = self.data.get(pos).copied() else { break };
+                pos += 1;
+                cur = cur.wrapping_add(delta);
+                if let Some(text) = self.unpack(cur) {
+                    out.push((text, dequantize(value)));
+                }
+            }
+        }
+        out
+    }
+
+    fn unpack(&self, key: u64) -> Option<String> {
+        let mut chars = Vec::with_capacity(MAX_KEY_CHARS);
+        for i in 0..MAX_KEY_CHARS {
+            let shift = SLOT_BITS * (MAX_KEY_CHARS - 1 - i) as u32;
+            let slot = ((key >> shift) & ((1 << SLOT_BITS) - 1)) as usize;
+            if slot == 0 {
+                break;
+            }
+            chars.push(*self.chars.get(slot - 1)?);
+        }
+        if chars.len() < 2 {
+            return None;
+        }
+        Some(chars.into_iter().collect())
+    }
+
     /// 某个片段的搭配分。
     pub fn get(&self, chars: &[char]) -> Option<f32> {
         let key = pack(&self.index, chars)?;

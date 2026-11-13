@@ -549,6 +549,83 @@ fn import_rime_multi(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+/// `xtask lm prune <in.lm> -o <out.lm> [--min-score S] [--max-entries N]`：
+/// 把桌面整句搭配模型缩到移动端预算（按分数阈值或保留最高分的 N 条）。
+fn lm_prune(args: &[String]) -> Result<(), String> {
+    let mut input: Option<String> = None;
+    let mut output: Option<String> = None;
+    let mut min_score: f32 = 0.0;
+    let mut max_entries: Option<usize> = None;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "-o" => output = Some(it.next().ok_or("-o 缺值")?.clone()),
+            "--min-score" => {
+                min_score = it.next().ok_or("--min-score 缺值")?.parse().map_err(|_| "--min-score 不是数字")?
+            }
+            "--max-entries" => {
+                max_entries = Some(
+                    it.next().ok_or("--max-entries 缺值")?.parse().map_err(|_| "--max-entries 不是数字")?,
+                )
+            }
+            // 下面三项在过滤阶段单独处理，这里只消费参数值。
+            "--len2" | "--len3" | "--len4" => {
+                it.next().ok_or(format!("{arg} 缺值"))?;
+            }
+            other if !other.starts_with('-') => input = Some(other.to_string()),
+            other => return Err(format!("未知参数 {other}")),
+        }
+    }
+    let input = input.ok_or("需要输入 .lm 路径")?;
+    let output = output.ok_or("需要 -o 输出路径")?;
+    let bytes = std::fs::read(&input).map_err(|e| format!("读取 {input}: {e}"))?;
+    let lm = liana_dict::lm::Collocations::from_bytes(&bytes)
+        .map_err(|e| format!("解析 {input}: {e:?}"))?;
+    let total = lm.len();
+    let mut entries = lm.entries();
+    let mut by_len = [0usize; 8];
+    for (text, _) in &entries {
+        by_len[text.chars().count().min(7)] += 1;
+    }
+    println!("原模型 {} 条，按字数: {:?}", total, &by_len[2..=4]);
+    entries.retain(|(_, value)| *value >= min_score);
+    if let Some(max) = max_entries {
+        if entries.len() > max {
+            entries.sort_by(|a, b| b.1.total_cmp(&a.1));
+            entries.truncate(max);
+        }
+    }
+    // --lenN all|COUNT：按片段字数分别保留（2 字通常是交界证据的主体）。
+    for (flag, len) in [("--len2", 2usize), ("--len3", 3), ("--len4", 4)] {
+        if let Some(pos) = args.iter().position(|a| a == flag) {
+            let raw = args.get(pos + 1).ok_or(format!("{flag} 缺值"))?;
+            let keep_all = raw == "all";
+            let cap: usize = if keep_all { usize::MAX } else { raw.parse().map_err(|_| format!("{flag} 不是数字"))? };
+            let mut same: Vec<(String, f32)> = entries.iter().filter(|(t, _)| t.chars().count() == len).cloned().collect();
+            if same.len() > cap {
+                same.sort_by(|a, b| b.1.total_cmp(&a.1));
+                same.truncate(cap);
+            }
+            let keep: std::collections::HashSet<(String, u32)> =
+                same.iter().map(|(t, v)| (t.clone(), v.to_bits())).collect();
+            entries.retain(|(t, v)| t.chars().count() != len || keep.contains(&(t.clone(), v.to_bits())));
+        }
+    }
+    let pruned = liana_dict::lm::Collocations::build(entries);
+    let out = pruned.to_bytes();
+    std::fs::write(&output, &out).map_err(|e| format!("写入 {output}: {e}"))?;
+    println!(
+        "{} -> {}: {} -> {} 条，{:.1} MB -> {:.1} MB",
+        input,
+        output,
+        total,
+        pruned.len(),
+        bytes.len() as f64 / 1e6,
+        out.len() as f64 / 1e6
+    );
+    Ok(())
+}
+
 /// `xtask lm stats <.gram> [词…]`：统计语法模型里的搭配（按字数、按分数段），并查几个搭配自检。
 fn lm_cmd(args: &[String]) -> Result<(), String> {
     match args.first().map(String::as_str) {
@@ -606,7 +683,8 @@ fn lm_cmd(args: &[String]) -> Result<(), String> {
             Ok(())
         }
         Some("build") => lm_build(&args[1..]),
-        _ => Err("用法: xtask lm stats|sample <.gram> [搭配…]\n      xtask lm build <.gram> -o <base.lm> [--max-len 3] [--min-value 0] [--top-chars 6000]".into()),
+        Some("prune") => lm_prune(&args[1..]),
+        _ => Err("用法: xtask lm stats|sample <.gram> [搭配…]\n      xtask lm build <.gram> -o <base.lm> [--max-len 3] [--min-value 0] [--top-chars 6000]\n      xtask lm prune <in.lm> -o <out.lm> [--min-score S] [--max-entries N]".into()),
     }
 }
 

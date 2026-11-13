@@ -120,6 +120,20 @@ cargo run --release -p xtask -- accuracy --hard --cases xtask/data/accuracy-sent
 
 macOS `build.sh` 会自动完成以上步骤（原始模型缓存在 `~/Library/Caches/Liana-build`）。
 
+### iOS 移动端剪枝版（随包分发）
+
+iOS 键盘扩展的内存预算装不下 42 MB 模型，因此另存一份 5.3 MB 剪枝版：
+保留全部 2 字交界片段，并按分数截取 80 万条 3 字、20 万条 4 字片段（共 1,072,121 条）。
+
+```bash
+cargo run --release -p xtask -- lm prune platforms/macos/build/base.lm \
+    -o platforms/ios/Vendor/LM/base.lm.bin --len2 all --len3 800000 --len4 200000
+```
+
+文件以 `.bin` 后缀 vendor 在 `platforms/ios/Vendor/LM/`（避免 Xcode 把 `.lm` 当 Lex 源文件），
+构建时由 target 的 postBuildScripts 复制成键盘 bundle 里的 `base.lm`。许可与来源标注见
+`platforms/ios/Vendor/LM/ATTRIBUTION.md`。
+
 ## `base.tsv`（内置兜底词库）
 
 本项目人工维护的 367 条高频词/短语，供 `cargo test`、无外部词典的兜底场景使用，

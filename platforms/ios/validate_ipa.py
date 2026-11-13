@@ -40,6 +40,7 @@ def validate(app):
     assert any('public.item' in item['LSItemContentTypes'] and item['CFBundleTypeRole'] == 'Viewer' for item in info['CFBundleDocumentTypes'])
     assert attributes['IsASCIICapable'] is True
     assert (extension / 'base.ifd').read_bytes().startswith(b'IFD1')
+    assert (extension / 'base.lm').read_bytes().startswith(b'LMC2'), 'Missing collocation model: sentence ranking degrades to unigram.'
     assert (extension / 'mobile.sqlite').read_bytes().startswith(b'SQLite format 3')
     for resource in ['mmah.json', 'hanzilookup.min.js', 'LICENSE', 'LICENSE-APL', 'LICENSE-Wubi.txt']:
         assert (extension / resource).is_file(), f'Missing offline resource / license: {resource}'
