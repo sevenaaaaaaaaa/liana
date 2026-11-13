@@ -10,12 +10,29 @@ case "$MODE" in device|simulator|all) ;; *) echo 'Usage: ./build.sh [device|simu
 VERSION="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$ROOT/Cargo.toml" | head -1)"
 mkdir -p "$HERE/libs" "$HERE/Resources" "$HERE/build" "$ROOT/dist"
 
-# Bounded dictionary: full desktop dictionaries exceed the keyboard extension's memory budget.
-python3 "$ROOT/tools/build_ios_dict.py" "$ROOT/crates/dict/data/base-large.tsv" "$HERE/build/mobile.tsv"
+# Dictionaries, two tiers:
+#   core: ~100k entries + every single character + 简拼 priors + packs/default,
+#         packed into base.ifd for the Rust session (bounded for the keyboard budget).
+#   full: base-large + packs/default + packs/optional + packs/mobile extras,
+#         packed into mobile.sqlite as the segmentation fallback index.
+# merge_default_packs() reads packs/default next to the input TSV, so build in a
+# scratch directory with a packs symlink instead of writing into crates/dict/data.
+DICT_BUILD="$HERE/build/dict"
+mkdir -p "$DICT_BUILD"
+rm -f "$DICT_BUILD/mobile-core.tsv" "$DICT_BUILD/mobile-full.tsv" "$DICT_BUILD/packs"
+ln -s "$ROOT/crates/dict/data/packs" "$DICT_BUILD/packs"
+CORE_LIMIT="${LIANA_IOS_CORE_LIMIT:-100000}"
+python3 "$ROOT/tools/build_ios_dict.py" "$ROOT/crates/dict/data/base-large.tsv" \
+    "$DICT_BUILD/mobile-core.tsv" --limit "$CORE_LIMIT"
 cargo run --quiet --manifest-path "$ROOT/Cargo.toml" -p xtask -- \
-    dict build "$HERE/build/mobile.tsv" -o "$HERE/Resources/base.ifd" --no-packs
+    dict build "$DICT_BUILD/mobile-core.tsv" -o "$HERE/Resources/base.ifd"
 
-python3 "$ROOT/tools/build_mobile_index.py" "$HERE/build/mobile.tsv" \
+python3 "$ROOT/tools/build_ios_dict.py" "$ROOT/crates/dict/data/base-large.tsv" \
+    "$DICT_BUILD/mobile-full.tsv" --all \
+    --merge-dir "$ROOT/crates/dict/data/packs/default" \
+    --merge-dir "$ROOT/crates/dict/data/packs/optional" \
+    --merge-dir "$ROOT/crates/dict/data/packs/mobile"
+python3 "$ROOT/tools/build_mobile_index.py" "$DICT_BUILD/mobile-full.tsv" \
     "$HERE/Vendor/Wubi86/wubi86.dict.yaml" "$ROOT/crates/en/data/words.txt" "$HERE/Resources/mobile.sqlite"
 
 if [[ "$MODE" == device || "$MODE" == all ]]; then

@@ -1,0 +1,86 @@
+# iOS full 档 SQLite 专供：混合拉丁 / 字母缩写词（不进 base.ifd，Rust 词典只收纯拼音音节）
+# 格式：词<TAB>编码（小写字母/空格）<TAB>词频
+B站	b zhan	8000
+RAG	rag	8000
+LLM	llm	5000
+GPT	gpt	8000
+ChatGPT	chatgpt	12000
+DeepSeek	deepseek	12000
+OpenAI	openai	8000
+Transformer	transformer	8000
+token	token	8000
+AI	ai	12000
+AGI	agi	3000
+AIGC	aigc	3000
+GPU	gpu	8000
+CPU	cpu	8000
+NPU	npu	3000
+CUDA	cuda	3000
+API	api	8000
+SDK	sdk	5000
+App	app	8000
+iOS	ios	8000
+iPad	ipad	8000
+iPhone	iphone	12000
+Mac	mac	8000
+macOS	macos	5000
+Windows	windows	5000
+Android	android	5000
+Linux	linux	5000
+Excel	excel	8000
+Word	word	5000
+PPT	ppt	8000
+PDF	pdf	8000
+WiFi	wifi	8000
+VR	vr	5000
+AR	ar	5000
+MR	mr	3000
+XR	xr	2000
+LPR	lpr	5000
+CPI	cpi	5000
+PPI	ppi	3000
+GDP	gdp	5000
+PMI	pmi	3000
+MLF	mlf	3000
+CT	ct	5000
+B超	b chao	8000
+K线	k xian	5000
+A股	a gu	5000
+H股	h gu	3000
+U盘	u pan	8000
+T恤	t xu	5000
+C位	c wei	3000
+Q弹	q tan	3000
+emo	emo	3000
+yyds	yyds	3000
+xswl	xswl	1000
+vlog	vlog	3000
+plog	plog	2000
+citywalk	citywalk	2000
+cosplay	cosplay	3000
+Soul	soul	2000
+Notion	notion	3000
+Canva	canva	2000
+Gmail	gmail	3000
+Outlook	outlook	3000
+QQ	qq	8000
+WPS	wps	8000
+TikTok	tiktok	5000
+YouTube	youtube	5000
+Instagram	instagram	4000
+Facebook	facebook	3000
+Twitter	twitter	4000
+Google	google	4000
+Microsoft	microsoft	4000
+Apple	apple	4000
+Tesla	tesla	4000
+NVIDIA	nvidia	5000
+AMD	amd	3000
+Intel	intel	3000
+Qualcomm	qualcomm	2000
+Sora	sora	3000
+Midjourney	midjourney	3000
+Llama	llama	2000
+Copilot	copilot	3000
+Kimi	kimi	3000
+栓Q	shuan q	3000

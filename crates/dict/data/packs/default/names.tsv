@@ -1,0 +1,154 @@
+# 松萝官方词包 · names（本项目维护，AGPL-3.0-only）
+# 格式：词<TAB>拼音（空格分隔）<TAB>词频（与 base-large.tsv 同尺度）
+刘洋	liu yang	20000
+张三	zhang san	20000
+张伟	zhang wei	20000
+李四	li si	20000
+李娜	li na	20000
+欧阳娜娜	ou yang na na	20000
+王小明	wang xiao ming	20000
+王芳	wang fang	20000
+陈静	chen jing	20000
+丁磊	ding lei	8000
+乔丹	qiao dan	8000
+任正非	ren zheng fei	8000
+余华	yu hua	8000
+全红婵	quan hong chan	8000
+冰心	bing xin	8000
+刘强东	liu qiang dong	8000
+刘慈欣	liu ci xin	8000
+刘禹锡	liu yu xi	8000
+刘翔	liu xiang	8000
+司马迁	si ma qian	8000
+吴磊	wu lei	8000
+周恩来	zhou en lai	8000
+周杰	zhou jie	8000
+周鸿祎	zhou hong yi	8000
+姚明	yao ming	8000
+孙中山	sun zhong shan	8000
+孙丽	sun li	8000
+孙颖莎	sun ying sha	8000
+孟浩然	meng hao ran	8000
+屈原	qu yuan	8000
+屠呦呦	tu you you	8000
+巴金	ba jin	8000
+张一鸣	zhang yi ming	8000
+张文宏	zhang wen hong	8000
+徐静	xu jing	8000
+曹雪芹	cao xue qin	8000
+李佳琦	li jia qi	8000
+李商隐	li shang yin	8000
+李子柒	li zi qi	8000
+李宁	li ning	8000
+李彦宏	li yan hong	8000
+李清照	li qing zhao	8000
+李白	li bai	8000
+李雷	li lei	8000
+杜牧	du mu	8000
+杜甫	du fu	8000
+杨帆	yang fan	8000
+林丹	lin dan	8000
+梅西	mei xi	8000
+樊振东	fan zhen dong	8000
+毛泽东	mao ze dong	8000
+王传福	wang chuan fu	8000
+王兴	wang xing	8000
+王安石	wang an shi	8000
+王维	wang wei	8000
+白居易	bai ju yi	8000
+科比	ke bi	8000
+罗永浩	luo yong hao	8000
+老舍	lao she	8000
+苏炳添	su bing tian	8000
+苏轼	su shi	8000
+莫言	mo yan	8000
+董宇辉	dong yu hui	8000
+董明珠	dong ming zhu	8000
+袁隆平	yuan long ping	8000
+谷爱凌	gu ai ling	8000
+赵敏	zhao min	8000
+辛弃疾	xin qi ji	8000
+邓小平	deng xiao ping	8000
+邓稼先	deng jia xian	8000
+郎平	lang ping	8000
+金庸	jin yong	8000
+钟南山	zhong nan shan	8000
+钱学森	qian xue sen	8000
+陆游	lu you	8000
+陶渊明	tao yuan ming	8000
+雷军	lei jun	8000
+韩梅梅	han mei mei	8000
+马云	ma yun	8000
+马化腾	ma hua teng	8000
+马龙	ma long	8000
+鲁迅	lu xun	8000
+黄峥	huang zheng	8000
+丁真	ding zhen	3000
+三毛	san mao	3000
+仇英	qiu ying	3000
+何小鹏	he xiao peng	3000
+余承东	yu cheng dong	3000
+刘伯承	liu bo cheng	3000
+刘少奇	liu shao qi	3000
+区楚良	ou chu liang	3000
+华罗庚	hua luo geng	3000
+单田芳	shan tian fang	3000
+卢伟冰	lu wei bing	3000
+古龙	gu long	3000
+叶剑英	ye jian ying	3000
+姆巴佩	mu ba pei	3000
+尉迟	yu chi	3000
+岑参	cen shen	3000
+库里	ku li	3000
+康有为	kang you wei	3000
+张爱玲	zhang ai ling	3000
+张继科	zhang ji ke	3000
+彭德怀	peng de huai	3000
+徐向前	xu xiang qian	3000
+德约科维奇	de yue ke wei qi	3000
+易建联	yi jian lian	3000
+曹德旺	cao de wang	3000
+曾毓群	ceng yu qun	3000
+朱德	zhu de	3000
+朱自清	zhu zi qing	3000
+李书福	li shu fu	3000
+李宗伟	li zong wei	3000
+李想	li xiang	3000
+李政道	li zheng dao	3000
+李斌	li bin	3000
+杨倩	yang qian	3000
+杨振宁	yang zhen ning	3000
+杨绛	yang jiang	3000
+林徽因	lin hui yin	3000
+查良镛	zha liang yong	3000
+梁启超	liang qi chao	3000
+武大靖	wu da jing	3000
+沈从文	shen cong wen	3000
+王之涣	wang zhi huan	3000
+王濛	wang meng	3000
+琼瑶	qiong yao	3000
+竺可桢	zhu ke zhen	3000
+纳达尔	na da er	3000
+罗纳尔多	luo na er duo	3000
+罗荣桓	luo rong huan	3000
+聂荣臻	nie rong zhen	3000
+胡适	hu shi	3000
+苏翊鸣	su yi ming	3000
+茅以升	mao yi sheng	3000
+茅盾	mao dun	3000
+蔡元培	cai yuan pei	3000
+薇娅	wei ya	3000
+詹天佑	zhan tian you	3000
+詹姆斯	zhan mu si	3000
+费德勒	fei de lei	3000
+贺龙	he long	3000
+赵明	zhao ming	3000
+郝景芳	hao jing fang	3000
+郭敬明	guo jing ming	3000
+钟睒睒	zhong shan shan	3000
+钱钟书	qian zhong shu	3000
+陈景润	chen jing run	3000
+陈毅	chen yi	3000
+韩寒	han han	3000
+高适	gao shi	3000
+魏建军	wei jian jun	3000

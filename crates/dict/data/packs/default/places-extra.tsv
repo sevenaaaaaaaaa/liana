@@ -1,29 +1,279 @@
 # 松萝官方词包 · places-extra（本项目维护，AGPL-3.0-only）
 # 格式：词<TAB>拼音（空格分隔）<TAB>词频（与 base-large.tsv 同尺度）
+三亚	san ya	20000
+上海	shang hai	20000
+乌鲁木齐	wu lu mu qi	20000
+兰州	lan zhou	20000
+北京	bei jing	20000
+南京	nan jing	20000
+南宁	nan ning	20000
+南昌	nan chang	20000
+厦门	xia men	20000
+台北	tai bei	20000
+合肥	he fei	20000
+呼和浩特	hu he hao te	20000
+哈尔滨	ha er bin	20000
+大连	da lian	20000
+天安门	tian an men	20000
+天津	tian jin	20000
+太原	tai yuan	20000
+广州	guang zhou	20000
+成都	cheng du	20000
+拉萨	la sa	20000
+故宫	gu gong	20000
+昆明	kun ming	20000
+杭州	hang zhou	20000
+武汉	wu han	20000
+沈阳	shen yang	20000
+济南	ji nan	20000
+海口	hai kou	20000
+深圳	shen zhen	20000
+澳门	ao men	20000
+石家庄	shi jia zhuang	20000
+福州	fu zhou	20000
+苏州	su zhou	20000
+西宁	xi ning	20000
+西安	xi an	20000
+贵阳	gui yang	20000
+郑州	zheng zhou	20000
+重庆	chong qing	20000
+银川	yin chuan	20000
+长城	chang cheng	20000
+长春	chang chun	20000
+长沙	chang sha	20000
+青岛	qing dao	20000
+香港	xiang gang	20000
+高雄	gao xiong	20000
+三星堆	san xing dui	8000
+上饶	shang rao	8000
+东方明珠	dong fang ming zhu	8000
+东莞	dong guan	8000
+中山	zhong shan	8000
+临沂	lin yi	8000
+丹东	dan dong	8000
+乌镇	wu zhen	8000
+乐山大佛	le shan da fu	8000
+九江	jiu jiang	8000
+云南	yun nan	8000
+伊犁	yi li	8000
+佛山	fo shan	8000
+佳木斯	jia mu si	8000
+六盘水	liu pan shui	8000
+兵马俑	bing ma yong	8000
+内蒙古	nei meng gu	8000
+凤凰古城	feng huang gu cheng	8000
+包头	bao tou	8000
+北海	bei hai	8000
+十堰	shi yan	8000
+华山	hua shan	8000
+南充	nan chong	8000
+南通	nan tong	8000
+南阳	nan yang	8000
+台湾	tai wan	8000
+吉安	ji an	8000
+吉林	ji lin	8000
+吐鲁番	tu lu fan	8000
+周口	zhou kou	8000
+呼伦贝尔	hu lun bei er	8000
+哈密	ha mi	8000
+喀什	ka shi	8000
+嘉兴	jia xing	8000
+四川	si chuan	8000
+大庆	da qing	8000
+天坛	tian tan	8000
+天门山	tian men shan	8000
+威海	wei hai	8000
+孝感	xiao gan	8000
+宁夏	ning xia	8000
+宁波	ning bo	8000
+安庆	an qing	8000
+安徽	an hui	8000
+宜宾	yi bin	8000
+宜昌	yi chang	8000
+宜春	yi chun	8000
+宿迁	su qian	8000
+少林寺	shao lin si	8000
+山东	shan dong	8000
+山西	shan xi	8000
+岳阳	yue yang	8000
+峨眉山	e mei shan	8000
+常州	chang zhou	8000
+常德	chang de	8000
+平遥古城	ping yao gu cheng	8000
+广东	guang dong	8000
+广州塔	guang zhou ta	8000
+广西	guang xi	8000
+庐山	lu shan	8000
+开封	kai feng	8000
+徐州	xu zhou	8000
+德阳	de yang	8000
+惠州	hui zhou	8000
+扬州	yang zhou	8000
+抚顺	fu shun	8000
+敦煌莫高窟	dun huang mo gao ku	8000
+新乡	xin xiang	8000
+新疆	xin jiang	8000
+无锡	wu xi	8000
+日喀则	ri ka ze	8000
+日照	ri zhao	8000
+普陀山	pu tuo shan	8000
+曲靖	qu jing	8000
+本溪	ben xi	8000
+林芝	lin zhi	8000
+柳州	liu zhou	8000
+株洲	zhu zhou	8000
+桂林	gui lin	8000
+桂林山水	gui lin shan shui	8000
+武夷山	wu yi shan	8000
+武当山	wu dang shan	8000
+汕头	shan tou	8000
+江苏	jiang su	8000
+江西	jiang xi	8000
+河北	he bei	8000
+河南	he nan	8000
+泰安	tai an	8000
+泰山	tai shan	8000
+泰州	tai zhou	8000
+泸州	lu zhou	8000
+泸沽湖	lu gu hu	8000
+洛阳	luo yang	8000
+济宁	ji ning	8000
+浙江	zhe jiang	8000
+海南	hai nan	8000
+淄博	zi bo	8000
+淮安	huai an	8000
+温州	wen zhou	8000
+湖北	hu bei	8000
+湖南	hu nan	8000
+湖州	hu zhou	8000
+湘潭	xiang tan	8000
+漓江	li jiang	8000
+潍坊	wei fang	8000
+烟台	yan tai	8000
+牡丹江	mu dan jiang	8000
+玉林	yu lin	8000
+玉龙雪山	yu long xue shan	8000
+环球影城	huan qiu ying cheng	8000
+珠海	zhu hai	8000
+甘肃	gan su	8000
+盐城	yan cheng	8000
+福建	fu jian	8000
+绍兴	shao xing	8000
+绵阳	mian yang	8000
+芜湖	wu hu	8000
+荆州	jing zhou	8000
+营口	ying kou	8000
+衡阳	heng yang	8000
+襄阳	xiang yang	8000
+西藏	xi zang	8000
+许昌	xu chang	8000
+贵州	gui zhou	8000
+赣州	gan zhou	8000
+赤峰	chi feng	8000
+辽宁	liao ning	8000
+连云港	lian yun gang	8000
+迪士尼	di shi ni	8000
+通辽	tong liao	8000
+遵义	zun yi	8000
+郴州	chen zhou	8000
+都江堰	du jiang yan	8000
+鄂尔多斯	e er duo si	8000
+金华	jin hua	8000
+锦州	jin zhou	8000
+镇江	zhen jiang	8000
+长隆	zhang long	8000
+阳朔	yang shuo	8000
+陕西	shan xi	8000
+青城山	qing cheng shan	8000
+青海	qing hai	8000
+青海湖	qing hai hu	8000
+鞍山	an shan	8000
+颐和园	yi he yuan	8000
+驻马店	zhu ma dian	8000
+黄山	huang shan	8000
+黄果树瀑布	huang guo shu pu bu	8000
+黄石	huang shi	8000
+黄鹤楼	huang he lou	8000
+黑龙江	hei long jiang	8000
+齐齐哈尔	qi qi ha er	8000
 三里屯	san li tun	3000
+世界之窗	shi jie zhi chuang	3000
 中关村	zhong guan cun	3000
+丹霞山	dan xia shan	3000
 丽江	li jiang	3000
 义乌	yi wu	3000
 九寨沟	jiu zhai gou	3000
+云冈石窟	yun gang shi ku	3000
+井冈山	jing gang shan	3000
+冈仁波齐	gang ren bo qi	3000
+千岛湖	qian dao hu	3000
+千户苗寨	qian hu miao zhai	3000
 南山区	nan shan qu	3000
+南浔	nan xun	3000
+台儿庄古城	tai er zhuang gu cheng	3000
+同里	tong li	3000
+周庄	zhou zhuang	3000
+喀纳斯	ka na si	3000
+四姑娘山	si gu niang shan	3000
 国贸	guo mao	3000
 外滩	wai tan	3000
+大昭寺	da zhao si	3000
+大熊猫繁育研究基地	da xiong mao fan yu yan jiu ji di	3000
 大理	da li	3000
+天山天池	tian shan tian chi	3000
+小蛮腰	xiao man yao	3000
+岳麓山	yue lu shan	3000
+崂山	lao shan	3000
 布达拉宫	bu da la gong	3000
+开平碉楼	kai ping diao lou	3000
 张家界	zhang jia jie	3000
+户部巷	hu bu xiang	3000
+普达措	pu da cuo	3000
 景德镇	jing de zhen	3000
+曲阜	qu fu	3000
+月牙泉	yue ya quan	3000
 望京	wang jing	3000
+杜甫草堂	du fu cao tang	3000
+梅里雪山	mei li xue shan	3000
+楠溪江	nan xi jiang	3000
+橘子洲	ju zi zhou	3000
+欢乐谷	huan le gu	3000
+武侯祠	wu hou ci	3000
+永定土楼	yong ding tu lou	3000
 洱海	er hai	3000
+海洋公园	hai yang gong yuan	3000
+深圳湾	shen zhen wan	3000
+湄洲岛	mei zhou dao	3000
 珠穆朗玛峰	zhu mu lang ma feng	3000
+白马寺	bai ma si	3000
+磁器口	ci qi kou	3000
 福田区	fu tian qu	3000
 科技园	ke ji yuan	3000
+纳木错	na mu cuo	3000
+羊卓雍措	yang zhuo yong cuo	3000
+色达	se da	3000
+芙蓉镇	fu rong zhen	3000
+苍山	cang shan	3000
+茶卡盐湖	cha ka yan hu	3000
+荔波小七孔	li bo xiao qi kong	3000
+蓬莱阁	peng lai ge	3000
+虎跳峡	hu tiao xia	3000
 蚌埠	beng bu	3000
 西双版纳	xi shuang ban na	3000
+西塘	xi tang	3000
 西湖	xi hu	3000
+贡嘎雪山	gong ga xue shan	3000
+锦里	jin li	3000
+长江索道	chang jiang suo dao	3000
 陆家嘴	lu jia zui	3000
+雁荡山	yan dang shan	3000
+雅鲁藏布大峡谷	ya lu cang bu da xia gu	3000
+雨崩	yu beng	3000
 香格里拉	xiang ge li la	3000
+鸣沙山	ming sha shan	3000
 黄浦江	huang pu jiang	3000
 鼓浪屿	gu lang yu	3000
+龙门石窟	long men shi ku	3000
 丽水	li shui	1000
 乐清	yue qing	1000
 五道口	wu dao kou	1000

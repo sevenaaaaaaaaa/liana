@@ -1,0 +1,71 @@
+# 松萝官方词包 · annual（本项目维护，AGPL-3.0-only）
+# 格式：词<TAB>拼音（空格分隔）<TAB>词频（与 base-large.tsv 同尺度）
+两会	liang hui	20000
+人民日报	ren min ri bao	20000
+十大新闻	shi da xin wen	20000
+央视新闻	yang shi xin wen	20000
+年度关键词	nian du guan jian ci	20000
+年度总结	nian du zong jie	20000
+年度报告	nian du bao gao	20000
+年度流行语	nian du liu xing yu	20000
+年度盘点	nian du pan dian	20000
+年终奖	nian zhong jiang	20000
+年终总结	nian zhong zong jie	20000
+政府工作报告	zheng fu gong zuo bao gao	20000
+新华社	xin hua she	20000
+新闻联播	xin wen lian bo	20000
+碳中和	tan zhong he	20000
+三联生活周刊	san lian sheng huo zhou kan	8000
+乡村振兴	xiang cun zhen xing	8000
+党代会	dang dai hui	8000
+共同富裕	gong tong fu yu	8000
+十大事件	shi da shi jian	8000
+十大人物	shi da ren wu	8000
+十大关键词	shi da guan jian ci	8000
+十大流行语	shi da liu xing yu	8000
+南方周末	nan fang zhou mo	8000
+参考消息	can kao xiao xi	8000
+年度事件	nian du shi jian	8000
+年度人物	nian du ren wu	8000
+年度十大	nian du shi da	8000
+年度回顾	nian du hui gu	8000
+年度数据	nian du shu ju	8000
+年度榜单	nian du bang dan	8000
+年度汉字	nian du han zi	8000
+年度热词	nian du re ci	8000
+年度目标	nian du mu biao	8000
+年度考核	nian du kao he	8000
+年度计划	nian du ji hua	8000
+年度词汇	nian du ci hui	8000
+年度财报	nian du cai bao	8000
+年度趋势	nian du qu shi	8000
+年度述职	nian du shu zhi	8000
+年度预算	nian du yu suan	8000
+年终盘点	nian zhong pan dian	8000
+新京报	xin jing bao	8000
+新年贺词	xin nian he ci	8000
+新质生产力	xin zhi sheng chan li	8000
+新闻盘点	xin wen pan dian	8000
+澎湃新闻	peng pai xin wen	8000
+热搜榜	re sou bang	8000
+焦点访谈	jiao dian fang tan	8000
+环球时报	huan qiu shi bao	8000
+界面新闻	jie mian xin wen	8000
+碳达峰	tan da feng	8000
+第一财经	di yi cai jing	8000
+财新	cai xin	8000
+跨年演讲	kua nian yan jiang	8000
+高质量发展	gao zhi liang fa zhan	8000
+世界五百强	shi jie wu bai qiang	3000
+中国新闻周刊	zhong guo xin wen zhou kan	3000
+十五五	shi wu wu	3000
+十四五	shi si wu	3000
+十四五规划	shi si wu gui hua	3000
+双碳	shuang tan	3000
+媒体盘点	mei ti pan dian	3000
+时代周刊	shi dai zhou kan	3000
+流行语榜单	liu xing yu bang dan	3000
+热词榜	re ci bang	3000
+福布斯	fu bu si	3000
+胡润百富	hu run bai fu	3000
+财富五百强	cai fu wu bai qiang	3000

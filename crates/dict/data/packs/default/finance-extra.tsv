@@ -1,0 +1,122 @@
+# 松萝官方词包 · finance-extra（本项目维护，AGPL-3.0-only）
+# 格式：词<TAB>拼音（空格分隔）<TAB>词频（与 base-large.tsv 同尺度）
+个税	ge shui	20000
+估值	gu zhi	20000
+保险	bao xian	20000
+信用卡	xin yong ka	20000
+债券	zhai quan	20000
+公积金	gong ji jin	20000
+养老金	yang lao jin	20000
+分红	fen hong	20000
+利率	li lv	20000
+北向资金	bei xiang zi jin	20000
+原油	yuan you	20000
+基金	ji jin	20000
+央行	yang hang	20000
+存款	cun kuan	20000
+市盈率	shi ying lv	20000
+期货	qi huo	20000
+比特币	bi te bi	20000
+汇率	hui lv	20000
+涨停	zhang ting	20000
+熊市	xiong shi	20000
+牛市	niu shi	20000
+理财	li cai	20000
+社保	she bao	20000
+美联储	mei lian chu	20000
+股票	gu piao	20000
+花呗	hua bei	20000
+财报	cai bao	20000
+货币政策	huo bi zheng ce	20000
+贷款	dai kuan	20000
+跌停	die ting	20000
+通胀	tong zhang	20000
+降准	jiang zhun	20000
+黄金	huang jin	20000
+上证指数	shang zheng zhi shu	8000
+主板	zhu ban	8000
+人民币汇率	ren min bi hui lv	8000
+以太坊	yi tai fang	8000
+余额宝	yu e bao	8000
+信托	xin tuo	8000
+借呗	jie bei	8000
+公募	gong mu	8000
+关税	guan shui	8000
+净值	jing zhi	8000
+减持	jian chi	8000
+创业板	chuang ye ban	8000
+加密货币	jia mi huo bi	8000
+北交所	bei jiao suo	8000
+区块链	qu kuai lian	8000
+医疗险	yi liao xian	8000
+印花税	yin hua shui	8000
+反弹	fan tan	8000
+回调	hui diao	8000
+回购	hui gou	8000
+均线	jun xian	8000
+基准利率	ji zhun li lv	8000
+增值税	zeng zhi shui	8000
+增发	zeng fa	8000
+外汇储备	wai hui chu bei	8000
+套利	tao li	8000
+存款准备金率	cun kuan zhun bei jin lv	8000
+对冲	dui chong	8000
+寿险	shou xian	8000
+市净率	shi jing lv	8000
+恒生指数	heng sheng zhi shu	8000
+意外险	yi wai xian	8000
+成交量	cheng jiao liang	8000
+指数基金	zhi shu ji jin	8000
+换手率	huan shou lv	8000
+数字人民币	shu zi ren min bi	8000
+期权	qi quan	8000
+杠杆	gang gan	8000
+板块	ban kuai	8000
+概念股	gai nian gu	8000
+港股	gang gu	8000
+爆仓	bao cang	8000
+直播电商	zhi bo dian shang	8000
+私募	si mu	8000
+科创板	ke chuang ban	8000
+纳斯达克	na si da ke	8000
+美元指数	mei yuan zhi shu	8000
+美股	mei gu	8000
+股息	gu xi	8000
+虚拟货币	xu ni huo bi	8000
+财政政策	cai zheng zheng ce	8000
+货币基金	huo bi ji jin	8000
+跨境电商	kua jing dian shang	8000
+逆回购	ni hui gou	8000
+通胀率	tong zhang lv	8000
+道琼斯	dao qiong si	8000
+重疾险	zhong ji xian	8000
+量化交易	liang hua jiao yi	8000
+震荡	zhen dang	8000
+龙头股	long tou gu	8000
+下沉市场	xia chen shi chang	3000
+举牌	ju pai	3000
+价值股	jia zhi gu	3000
+企业所得税	qi ye suo de shui	3000
+供应链金融	gong ying lian jin rong	3000
+债券基金	zhai quan ji jin	3000
+做多	zuo duo	3000
+做空	zuo kong	3000
+公开市场操作	gong kai shi chang cao zuo	3000
+养老金融	yang lao jin rong	3000
+加息	jia xi	3000
+央行数字货币	yang hang shu zi huo bi	3000
+平仓	ping cang	3000
+年金	nian jin	3000
+成长股	cheng zhang gu	3000
+新三板	xin san ban	3000
+普惠金融	pu hui jin rong	3000
+欧洲央行	ou zhou yang hang	3000
+消费升级	xiao fei sheng ji	3000
+深证成指	shen zheng cheng zhi	3000
+混合基金	hun he ji jin	3000
+社会融资	she hui rong zi	3000
+科技金融	ke ji jin rong	3000
+绿色金融	lv se jin rong	3000
+股票基金	gu piao ji jin	3000
+蓝筹股	lan chou gu	3000
+降息	jiang xi	1000

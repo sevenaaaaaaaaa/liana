@@ -12,6 +12,9 @@ default/ 里的词包在构建 base.ifd 时合并进基础词库（同词同音�
 
 用法：
     pip install pypinyin
+    # 只重建人工清单（packs/src/*.txt，离线可用）
+    python3 tools/build_vocab_packs.py --curated-only
+    # 连带重建 THUOCL / 成语词包
     git clone --depth 1 https://github.com/thunlp/THUOCL /tmp/THUOCL
     curl -sSL -o /tmp/idiom.json https://raw.githubusercontent.com/pwxcoo/chinese-xinhua/master/data/idiom.json
     python3 tools/build_vocab_packs.py --thuocl /tmp/THUOCL/data --idioms /tmp/idiom.json
@@ -31,8 +34,22 @@ DATA = ROOT / "crates/dict/data"
 PACKS = DATA / "packs"
 
 TIERS = {"A": 20000, "B": 8000, "C": 3000, "D": 1000, "E": 300}
-# 人工清单 → 词包文件名
-CURATED = {"apps": "apps", "companies": "companies", "slang": "slang", "places": "places-extra"}
+# 人工清单 → (词包文件名, 是否默认开启)
+# 默认词包会合并进 base.ifd（iOS core 档）；人工清单都放 default，保证常见词在核心词库就有候选。
+CURATED = {
+    "apps": ("apps", True),
+    "companies": ("companies", True),
+    "slang": ("slang", True),
+    "places": ("places-extra", True),
+    "office": ("office", True),
+    "life": ("life", True),
+    "ai": ("ai", True),
+    "medical": ("medical-extra", True),
+    "finance": ("finance-extra", True),
+    "poem": ("poem-extra", True),
+    "names": ("names", True),
+    "annual": ("annual", True),
+}
 # THUOCL 领域 → (词包, 是否默认开启)
 THUOCL = {
     "IT": ("it", True),
@@ -105,14 +122,18 @@ def write_pack(path, header, entries):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--thuocl", required=True, help="THUOCL 的 data 目录")
-    ap.add_argument("--idioms", required=True, help="chinese-xinhua 的 idiom.json")
+    ap.add_argument("--thuocl", help="THUOCL 的 data 目录（与 --idioms 一起用于重建 THUOCL/成语词包）")
+    ap.add_argument("--idioms", help="chinese-xinhua 的 idiom.json")
+    ap.add_argument("--curated-only", action="store_true", help="只重建 packs/src/*.txt 人工清单，不碰 THUOCL/成语词包")
     args = ap.parse_args()
+    if not args.curated_only and not (args.thuocl and args.idioms):
+        ap.error("重建 THUOCL/成语词包需要 --thuocl 与 --idioms；只改人工清单时用 --curated-only")
     base, pairs, syllables = load_base()
 
     # 人工清单
-    for src, name in CURATED.items():
+    for src, (name, default) in CURATED.items():
         entries = []
+        seen = set()
         for line in open(PACKS / "src" / f"{src}.txt", encoding="utf-8"):
             line = line.strip()
             if not line or line.startswith("#"):
@@ -122,9 +143,20 @@ def main():
             if not HAN.match(word):
                 continue
             py = " ".join(parts[2:]) if len(parts) > 2 else pinyin(word)
+            if len(py.split()) != len(word):
+                raise SystemExit(f"{src}.txt: {word} 的拼音音节数与字数不符: {py}")
+            bad = [s for s in py.split() if s not in syllables]
+            if bad:
+                raise SystemExit(f"{src}.txt: {word} 含基础词库没有的音节 {bad}: {py}")
+            if (word, py) in seen:
+                continue
+            seen.add((word, py))
             entries.append((word, py, TIERS[tier]))
-        write_pack(PACKS / "default" / f"{name}.tsv",
+        write_pack(PACKS / ("default" if default else "optional") / f"{name}.tsv",
                    [f"松萝官方词包 · {name}（本项目维护，AGPL-3.0-only）"], entries)
+
+    if args.curated_only:
+        return
 
     # 成语：新华成语全量 + THUOCL 成语频次；已有成语按频次抬到合理位置
     thuocl_dir = Path(args.thuocl)

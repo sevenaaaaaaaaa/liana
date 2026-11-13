@@ -1,0 +1,113 @@
+# 松萝官方词包 · ai（本项目维护，AGPL-3.0-only）
+# 格式：词<TAB>拼音（空格分隔）<TAB>词频（与 base-large.tsv 同尺度）
+人工智能	ren gong zhi neng	20000
+参数	can shu	20000
+向量数据库	xiang liang shu ju ku	20000
+图像生成	tu xiang sheng cheng	20000
+多模态	duo mo tai	20000
+大模型	da mo xing	20000
+大语言模型	da yu yan mo xing	20000
+幻觉	huan jue	20000
+强化学习	qiang hua xue xi	20000
+微调	wei tiao	20000
+微调	wei diao	20000
+推理	tui li	20000
+推理成本	tui li cheng ben	20000
+提示词	ti shi ci	20000
+显卡	xian ka	20000
+智能体	zhi neng ti	20000
+机器学习	ji qi xue xi	20000
+深度学习	shen du xue xi	20000
+知识库	zhi shi ku	20000
+神经网络	shen jing wang luo	20000
+算力	suan li	20000
+自动驾驶	zi dong jia shi	20000
+自然语言处理	zi ran yu yan chu li	20000
+英伟达	ying wei da	20000
+视频生成	shi pin sheng cheng	20000
+计算机视觉	ji suan ji shi jue	20000
+训练集	xun lian ji	20000
+语言模型	yu yan mo xing	20000
+语音合成	yu yin he cheng	20000
+语音识别	yu yin shi bie	20000
+预训练	yu xun lian	20000
+上下文窗口	shang xia wen chuang kou	8000
+云原生	yun yuan sheng	8000
+人形机器人	ren xing ji qi ren	8000
+令牌	ling pai	8000
+具身智能	ju shen zhi neng	8000
+剪枝	jian zhi	8000
+卷积神经网络	juan ji shen jing wang luo	8000
+反向传播	fan xiang chuan bo	8000
+向量	xiang liang	8000
+图灵测试	tu ling ce shi	8000
+基准测试	ji zhun ce shi	8000
+多智能体	duo zhi neng ti	8000
+大模型幻觉	da mo xing huan jue	8000
+对齐	dui qi	8000
+嵌入	qian ru	8000
+开源模型	kai yuan mo xing	8000
+循环神经网络	xun huan shen jing wang luo	8000
+思维链	si wei lian	8000
+扩散模型	kuo san mo xing	8000
+损失函数	sun shi han shu	8000
+推理延迟	tui li yan chi	8000
+推荐系统	tui jian xi tong	8000
+提示工程	ti shi gong cheng	8000
+数字人	shu zi ren	8000
+数据中心	shu ju zhong xin	8000
+数据标注	shu ju biao zhu	8000
+数据清洗	shu ju qing xi	8000
+文生图	wen sheng tu	8000
+文生视频	wen sheng shi pin	8000
+无人驾驶	wu ren jia shi	8000
+无监督学习	wu jian du xue xi	8000
+显存	xian cun	8000
+智能客服	zhi neng ke fu	8000
+梯度下降	ti du xia jiang	8000
+检索增强生成	jian suo zeng qiang sheng cheng	8000
+模型权重	mo xing quan zhong	8000
+模型评测	mo xing ping ce	8000
+模型部署	mo xing bu shu	8000
+欠拟合	qian ni he	8000
+注意力机制	zhu yi li ji zhi	8000
+测试集	ce shi ji	8000
+深度学习框架	shen du xue xi kuang jia	8000
+激活函数	ji huo han shu	8000
+生成对抗网络	sheng cheng dui kang wang luo	8000
+生成式人工智能	sheng cheng shi ren gong zhi neng	8000
+监督学习	jian du xue xi	8000
+知识图谱	zhi shi tu pu	8000
+联邦学习	lian bang xue xi	8000
+蒸馏	zheng liu	8000
+虚拟人	xu ni ren	8000
+训练成本	xun lian cheng ben	8000
+语料库	yu liao ku	8000
+超参数	chao can shu	8000
+边缘计算	bian yuan ji suan	8000
+迁移学习	qian yi xue xi	8000
+过拟合	guo ni he	8000
+量化	liang hua	8000
+隐私计算	yin si ji suan	8000
+验证集	yan zheng ji	8000
+上下文学习	shang xia wen xue xi	3000
+图生视频	tu sheng shi pin	3000
+对齐税	dui qi shui	3000
+张量	zhang liang	3000
+张量计算	zhang liang ji suan	3000
+提示词工程	ti shi ci gong cheng	3000
+搜索排序	sou suo pai xu	3000
+摩尔定律	mo er ding lv	3000
+智算中心	zhi suan zhong xin	3000
+智能座舱	zhi neng zuo cang	3000
+机器学习框架	ji qi xue xi kuang jia	3000
+模型压缩	mo xing ya suo	3000
+涌现能力	yong xian neng li	3000
+知识蒸馏	zhi shi zheng liu	3000
+算力中心	suan li zhong xin	3000
+缩放定律	suo fang ding lv	3000
+自注意力	zi zhu yi li	3000
+自监督学习	zi jian du xue xi	3000
+词元	ci yuan	3000
+通用人工智能	tong yong ren gong zhi neng	3000
+闭源模型	bi yuan mo xing	3000

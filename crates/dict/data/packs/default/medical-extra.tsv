@@ -1,0 +1,191 @@
+# 松萝官方词包 · medical-extra（本项目维护，AGPL-3.0-only）
+# 格式：词<TAB>拼音（空格分隔）<TAB>词频（与 base-large.tsv 同尺度）
+上火	shang huo	20000
+中药	zhong yao	20000
+人参	ren shen	20000
+低血糖	di xue tang	20000
+住院	zhu yuan	20000
+体检	ti jian	20000
+便秘	bian mi	20000
+免疫力	mian yi li	20000
+养生	yang sheng	20000
+冠心病	guan xin bing	20000
+刮痧	gua sha	20000
+医保	yi bao	20000
+发烧	fa shao	20000
+口腔溃疡	kou qiang kui yang	20000
+咳嗽	ke sou	20000
+咽炎	yan yan	20000
+太极拳	tai ji quan	20000
+失眠	shi mian	20000
+头晕	tou yun	20000
+头痛	tou tong	20000
+心理咨询	xin li zi xun	20000
+心电图	xin dian tu	20000
+急诊	ji zhen	20000
+感冒	gan mao	20000
+手术	shou shu	20000
+抑郁症	yi yu zheng	20000
+抗生素	kang sheng su	20000
+拔罐	ba guan	20000
+挂号	gua hao	20000
+按摩	an mo	20000
+推拿	tui na	20000
+新冠	xin guan	20000
+枸杞	gou qi	20000
+核酸	he suan	20000
+气血	qi xue	20000
+泡脚	pao jiao	20000
+流感	liu gan	20000
+消炎药	xiao yan yao	20000
+焦虑症	jiao lv zheng	20000
+熬夜	ao ye	20000
+牙疼	ya teng	20000
+瑜伽	yu jia	20000
+疫苗	yi miao	20000
+糖尿病	tang niao bing	20000
+胃炎	wei yan	20000
+胃疼	wei teng	20000
+腰椎	yao zhui	20000
+腹泻	fu xie	20000
+艾灸	ai jiu	20000
+蜂蜜	feng mi	20000
+西药	xi yao	20000
+调理	tiao li	20000
+过敏	guo min	20000
+近视	jin shi	20000
+针灸	zhen jiu	20000
+门诊	men zhen	20000
+颈椎	jing zhui	20000
+高血压	gao xue ya	20000
+高血糖	gao xue tang	20000
+高血脂	gao xue zhi	20000
+鼻炎	bi yan	20000
+三七	san qi	8000
+中成药	zhong cheng yao	8000
+中耳炎	zhong er yan	8000
+中风	zhong feng	8000
+丹参	dan shen	8000
+乏力	fa li	8000
+乙流	yi liu	8000
+亚健康	ya jian kang	8000
+体检报告	ti jian bao gao	8000
+体温计	ti wen ji	8000
+作息	zuo xi	8000
+偏头痛	pian tou tong	8000
+八段锦	ba duan jin	8000
+关节炎	guan jie yan	8000
+冥想	ming xiang	8000
+创可贴	chuang ke tie	8000
+剂量	ji liang	8000
+副作用	fu zuo yong	8000
+化验	hua yan	8000
+医保卡	yi bao ka	8000
+处方	chu fang	8000
+复查	fu cha	8000
+姜茶	jiang cha	8000
+尿常规	niao chang gui	8000
+山楂	shan zha	8000
+山药	shan yao	8000
+带状疱疹	dai zhuang pao zhen	8000
+强迫症	qiang po zheng	8000
+当归	dang gui	8000
+彩超	cai chao	8000
+心梗	xin geng	8000
+心理健康	xin li jian kang	8000
+情绪管理	qing xu guan li	8000
+感冒药	gan mao yao	8000
+手足口病	shou zu kou bing	8000
+打针	da zhen	8000
+抗原	kang yuan	8000
+抵抗力	di kang li	8000
+拔火罐	ba huo guan	8000
+排毒	pai du	8000
+支原体	zhi yuan ti	8000
+早睡早起	zao shui zao qi	8000
+核桃	he tao	8000
+核磁共振	he ci gong zhen	8000
+桂圆	gui yuan	8000
+止痛药	zhi tong yao	8000
+正念	zheng nian	8000
+气血不足	qi xue bu zu	8000
+湿疹	shi zhen	8000
+滋补	zi bu	8000
+灵芝	ling zhi	8000
+燕窝	yan wo	8000
+甘草	gan cao	8000
+生姜	sheng jiang	8000
+甲流	jia liu	8000
+疲劳	pi lao	8000
+痔疮	zhi chuang	8000
+痘痘	dou dou	8000
+痛风	tong feng	8000
+痤疮	cuo chuang	8000
+白内障	bai nei zhang	8000
+百合	bai he	8000
+皮炎	pi yan	8000
+睡眠质量	shui mian zhi liang	8000
+碘伏	dian fu	8000
+祛湿	qu shi	8000
+神经衰弱	shen jing shuai ruo	8000
+禁忌	jin ji	8000
+红枣	hong zao	8000
+红糖	hong tang	8000
+纱布	sha bu	8000
+绷带	beng dai	8000
+老花眼	lao hua yan	8000
+肝硬化	gan ying hua	8000
+肠镜	chang jing	8000
+肾结石	shen jie shi	8000
+胃镜	wei jing	8000
+胆结石	dan jie shi	8000
+脂肪肝	zhi fang gan	8000
+脑梗	nao geng	8000
+脾胃	pi wei	8000
+艾条	ai tiao	8000
+艾草	ai cao	8000
+茯苓	fu ling	8000
+荨麻疹	xun ma zhen	8000
+药方	yao fang	8000
+药膳	yao shan	8000
+莲子	lian zi	8000
+菊花茶	ju hua cha	8000
+薏米	yi mi	8000
+血压计	xue ya ji	8000
+血常规	xue chang gui	8000
+血糖仪	xue tang yi	8000
+西洋参	xi yang shen	8000
+贫血	pin xue	8000
+足浴	zu yu	8000
+输液	shu ye	8000
+退烧药	tui shao yao	8000
+金银花	jin yin hua	8000
+银耳	yin er	8000
+阑尾炎	lan wei yan	8000
+阿胶	e jiao	8000
+陈皮	chen pi	8000
+青光眼	qing guang yan	8000
+静脉曲张	jing mai qu zhang	8000
+面瘫	mian tan	8000
+风湿	feng shi	8000
+食疗	shi liao	8000
+骨质疏松	gu zhi shu song	8000
+黄芪	huang qi	8000
+黑芝麻	hei zhi ma	8000
+五禽戏	wu qin xi	3000
+冬虫夏草	dong chong xia cao	3000
+决明子	jue ming zi	3000
+刮痧板	gua sha ban	3000
+听诊器	ting zhen qi	3000
+多梦	duo meng	3000
+川芎	chuan qiong	3000
+挂号费	gua hao fei	3000
+早醒	zao xing	3000
+汤药	tang yao	3000
+熟地	shu di	3000
+甲亢	jia kang	3000
+甲减	jia jian	3000
+白术	bai zhu	3000
+白芍	bai shao	3000
+赤小豆	chi xiao dou	3000
+酒精棉	jiu jing mian	3000

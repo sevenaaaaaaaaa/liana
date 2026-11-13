@@ -1,54 +1,137 @@
 # 松萝官方词包 · slang（本项目维护，AGPL-3.0-only）
 # 格式：词<TAB>拼音（空格分隔）<TAB>词频（与 base-large.tsv 同尺度）
 人工智能	ren gong zhi neng	20000
+元宇宙	yuan yu zhou	20000
+无人机	wu ren ji	20000
+演唱会	yan chang hui	20000
+热搜	re sou	20000
+短视频	duan shi pin	20000
+碳中和	tan zhong he	20000
+自动驾驶	zi dong jia shi	20000
+乡村振兴	xiang cun zhen xing	8000
+二次元	er ci yuan	8000
+人形机器人	ren xing ji qi ren	8000
+低空经济	di kong jing ji	8000
+储能	chu neng	8000
+光伏	guang fu	8000
+共同富裕	gong tong fu yu	8000
 内卷	nei juan	8000
+出圈	chu quan	8000
+刷屏	shua ping	8000
+副业	fu ye	8000
 双十一	shuang shi yi	8000
+反转	fan zhuan	8000
+塌房	ta fang	8000
+增强现实	zeng qiang xian shi	8000
+多模态	duo mo tai	8000
 大模型	da mo xing	8000
+实锤	shi chui	8000
+小品	xiao pin	8000
+居家办公	ju jia ban gong	8000
+弹幕	dan mu	8000
+徒步	tu bu	8000
+手办	shou ban	8000
 打卡	da ka	8000
 打工人	da gong ren	8000
 摆烂	bai lan	8000
+播客	bo ke	8000
+数字人	shu zi ren	8000
+文生图	wen sheng tu	8000
+文生视频	wen sheng shi pin	8000
 新能源	xin neng yuan	8000
+新质生产力	xin zhi sheng chan li	8000
+无人驾驶	wu ren jia shi	8000
 无语	wu yu	8000
+氢能	qing neng	8000
+直播带货	zhi bo dai huo	8000
+相声	xiang sheng	8000
+知识付费	zhi shi fu fei	8000
+知识图谱	zhi shi tu pu	8000
+破圈	po quan	8000
 破防	po fang	8000
+碳达峰	tan da feng	8000
 社恐	she kong	8000
 离谱	li pu	8000
 种草	zhong cao	8000
 绝了	jue le	8000
 考研	kao yan	8000
+脑机接口	nao ji jie kou	8000
+脱口秀	tuo kou xiu	8000
+自媒体	zi mei ti	8000
+自由职业	zi you zhi ye	8000
+虚拟现实	xu ni xian shi	8000
 躺平	tang ping	8000
+远程办公	yuan cheng ban gong	8000
+露营	lu ying	8000
+音乐节	yin yue jie	8000
+顶流	ding liu	8000
+骑行	qi xing	8000
+高质量发展	gao zhi liang fa zhan	8000
+三次元	san ci yuan	3000
 上头	shang tou	3000
 上岸	shang an	3000
+中视频	zhong shi pin	3000
 仪式感	yi shi gan	3000
+修仙	xiu xian	3000
 充电宝	chong dian bao	3000
 充电桩	chong dian zhuang	3000
 内耗	nei hao	3000
 剧本杀	ju ben sha	3000
 双十二	shuang shi er	3000
+双碳	shuang tan	3000
 吃瓜	chi gua	3000
+固态电池	gu tai dian chi	3000
+图生视频	tu sheng shi pin	3000
+城市漫步	cheng shi man bu	3000
 外卖员	wai mai yuan	3000
+大小周	da xiao zhou	3000
+天水麻辣烫	tian shui ma la tang	3000
 天花板	tian hua ban	3000
 好家伙	hao jia huo	3000
+尔滨	er bin	3000
 干饭	gan fan	3000
+弹性工作	tan xing gong zuo	3000
 快递员	kuai di yuan	3000
 情绪价值	qing xu jia zhi	3000
 懂了	dong le	3000
 拉胯	la kua	3000
 拔草	ba cao	3000
+换电站	huan dian zhan	3000
 提示词	ti shi ci	3000
 搭子	da zi	3000
+数字游民	shu zi you min	3000
+数字藏品	shu zi cang pin	3000
 整活	zheng huo	3000
+斜杠青年	xie gang qing nian	3000
+早八	zao ba	3000
 智能体	zhi neng ti	3000
+智能座舱	zhi neng zuo cang	3000
+村超	cun chao	3000
 氛围感	fen wei gan	3000
+淄博烧烤	zi bo shao kao	3000
+混合现实	hun he xian shi	3000
+漫展	man zhan	3000
+爆肝	bao gan	3000
+特种兵旅游	te zhong bing lv you	3000
 真的假的	zhen de jia de	3000
 社死	she si	3000
 社牛	she niu	3000
+私域流量	si yu liu liang	3000
+端到端	duan dao duan	3000
 笑死	xiao si	3000
 算力	suan li	3000
 绝绝子	jue jue zi	3000
 网约车	wang yue che	3000
 考公	kao gong	3000
+虚拟主播	xu ni zhu bo	3000
+谷子	gu zi	3000
 起飞	qi fei	3000
+蹭热度	ceng re du	3000
+钠离子电池	na li zi dian chi	3000
+长视频	zhang shi pin	3000
+霸榜	ba bang	3000
 预制菜	yu zhi cai	3000
+飞盘	fei pan	3000
 骑手	qi shou	3000
 下头	xia tou	1000
 不明觉厉	bu ming jue li	1000

@@ -1,0 +1,97 @@
+# 松萝官方词包 · poem-extra（本项目维护，AGPL-3.0-only）
+# 格式：词<TAB>拼音（空格分隔）<TAB>词频（与 base-large.tsv 同尺度）
+一览众山小	yi lan zhong shan xiao	20000
+举头望明月	ju tou wang ming yue	20000
+床前明月光	chuang qian ming yue guang	20000
+春眠不觉晓	chun mian bu jue xiao	20000
+欲穷千里目	yu qiong qian li mu	20000
+海内存知己	hai nei cun zhi ji	20000
+白日依山尽	bai ri yi shan jin	20000
+众里寻他千百度	zhong li xun ta qian bai du	8000
+会当凌绝顶	hui dang ling jue ding	8000
+但愿人长久	dan yuan ren chang jiu	8000
+低头思故乡	di tou si gu xiang	8000
+停车坐爱枫林晚	ting che zuo ai feng lin wan	8000
+千山鸟飞绝	qian shan niao fei jue	8000
+处处闻啼鸟	chu chu wen ti niao	8000
+夜来风雨声	ye lai feng yu sheng	8000
+大江东去	da jiang dong qu	8000
+天涯若比邻	tian ya ruo bi lin	8000
+天生我材必有用	tian sheng wo cai bi you yong	8000
+山重水复疑无路	shan chong shui fu yi wu lu	8000
+明月几时有	ming yue ji shi you	8000
+春江水暖鸭先知	chun jiang shui nuan ya xian zhi	8000
+更上一层楼	geng shang yi ceng lou	8000
+每逢佳节倍思亲	mei feng jia jie bei si qin	8000
+清明时节雨纷纷	qing ming shi jie yu fen fen	8000
+独在异乡为异客	du zai yi xiang wei yi ke	8000
+疑是地上霜	yi shi di shang shuang	8000
+花落知多少	hua luo zhi duo shao	8000
+谁知盘中餐	shui zhi pan zhong can	8000
+采菊东篱下	cai ju dong li xia	8000
+锄禾日当午	chu he ri dang wu	8000
+长风破浪会有时	chang feng po lang hui you shi	8000
+黄河入海流	huang he ru hai liu	8000
+万径人踪灭	wan jing ren zong mie	3000
+不要人夸好颜色	bu yao ren kua hao yan se	3000
+不识庐山真面目	bu shi lu shan zhen mian mu	3000
+两情若是久长时	liang qing ruo shi jiu chang shi	3000
+为伊消得人憔悴	wei yi xiao de ren qiao cui	3000
+书山有路勤为径	shu shan you lu qin wei jing	3000
+人有悲欢离合	ren you bei huan li he	3000
+人生自古谁无死	ren sheng zi gu shei wu si	3000
+似曾相识燕归来	si ceng xiang shi yan gui lai	3000
+位卑未敢忘忧国	wei bei wei gan wang you guo	3000
+借问酒家何处有	jie wen jiu jia he chu you	3000
+关关雎鸠	guan guan ju jiu	3000
+化作春泥更护花	hua zuo chun ni geng hu hua	3000
+十年生死两茫茫	shi nian sheng si liang mang mang	3000
+千古风流人物	qian gu feng liu ren wu	3000
+千里共婵娟	qian li gong chan juan	3000
+千金散尽还复来	qian jin san jin hai fu lai	3000
+又岂在朝朝暮暮	you qi zai chao zhao mu mu	3000
+只留清气满乾坤	zhi liu qing qi man qian kun	3000
+只缘身在此山中	zhi yuan shen zai ci shan zhong	3000
+君子好逑	jun zi hao qiu	3000
+吾将上下而求索	wu jiang shang xia er qiu suo	3000
+在水一方	zai shui yi fang	3000
+在河之洲	zai he zhi zhou	3000
+孤舟蓑笠翁	gu zhou suo li weng	3000
+学海无涯苦作舟	xue hai wu ya ku zuo zhou	3000
+宝剑锋从磨砺出	bao jian feng cong mo li chu	3000
+少壮不努力	shao zhuang bu nu li	3000
+岂因祸福避趋之	qi yin huo fu bi qu zhi	3000
+恰似一江春水向东流	qia si yi jiang chun shui xiang dong liu	3000
+悠然见南山	you ran jian nan shan	3000
+所谓伊人	suo wei yi ren	3000
+把酒问青天	ba jiu wen qing tian	3000
+无可奈何花落去	wu ke nai he hua luo qu	3000
+月有阴晴圆缺	yue you yin qing yuan que	3000
+柳暗花明又一村	liu an hua ming you yi cun	3000
+梅花香自苦寒来	mei hua xiang zi ku han lai	3000
+汗滴禾下土	han di he xia tu	3000
+浪淘尽	lang tao jin	3000
+牧童遥指杏花村	mu tong yao zhi xing hua cun	3000
+独钓寒江雪	du diao han jiang xue	3000
+留取丹心照汗青	liu qu dan xin zhao han qing	3000
+白露为霜	bai lu wei shuang	3000
+白首方悔读书迟	bai shou fang hui du shu chi	3000
+直挂云帆济沧海	zhi gua yun fan ji cang hai	3000
+窈窕淑女	yao tiao shu nv	3000
+粉身碎骨浑不怕	fen shen sui gu hun bu pa	3000
+粒粒皆辛苦	li li jie xin ku	3000
+老大徒伤悲	lao da tu shang bei	3000
+苟利国家生死以	gou li guo jia sheng si yi	3000
+落红不是无情物	luo hong bu shi wu qing wu	3000
+蒹葭苍苍	jian jia cang cang	3000
+蓦然回首	mo ran hui shou	3000
+衣带渐宽终不悔	yi dai jian kuan zhong bu hui	3000
+要留清白在人间	yao liu qing bai zai ren jian	3000
+路上行人欲断魂	lu shang xing ren yu duan hun	3000
+路漫漫其修远兮	lu man man qi xiu yuan xi	3000
+遍插茱萸少一人	bian cha zhu yu shao yi ren	3000
+遥知兄弟登高处	yao zhi xiong di deng gao chu	3000
+那人却在灯火阑珊处	na ren que zai deng huo lan shan chu	3000
+问君能有几多愁	wen jun neng you ji duo chou	3000
+霜叶红于二月花	shuang ye hong yu er yue hua	3000
+黑发不知勤学早	hei fa bu zhi qin xue zao	3000

@@ -1,0 +1,155 @@
+# 松萝官方词包 · life（本项目维护，AGPL-3.0-only）
+# 格式：词<TAB>拼音（空格分隔）<TAB>词频（与 base-large.tsv 同尺度）
+书桌	shu zhuo	20000
+保温杯	bao wen bei	20000
+保鲜膜	bao xian mo	20000
+充电宝	chong dian bao	20000
+冰箱	bing xiang	20000
+加湿器	jia shi qi	20000
+卷纸	juan zhi	20000
+口罩	kou zhao	20000
+吹风机	chui feng ji	20000
+垃圾桶	la ji tong	20000
+垃圾袋	la ji dai	20000
+床单	chuang dan	20000
+床垫	chuang dian	20000
+微波炉	wei bo lu	20000
+抽纸	chou zhi	20000
+插线板	cha xian ban	20000
+数据线	shu ju xian	20000
+枕套	zhen tao	20000
+毛巾	mao jin	20000
+水杯	shui bei	20000
+沐浴露	mu yu lu	20000
+沙发	sha fa	20000
+洗发水	xi fa shui	20000
+洗洁精	xi jie jing	20000
+洗衣机	xi yi ji	20000
+洗衣液	xi yi ye	20000
+烤箱	kao xiang	20000
+热水壶	re shui hu	20000
+牙刷	ya shua	20000
+牙膏	ya gao	20000
+电热水壶	dian re shui hu	20000
+电磁炉	dian ci lu	20000
+电风扇	dian feng shan	20000
+电饭煲	dian fan bao	20000
+电饭锅	dian fan guo	20000
+空气炸锅	kong qi zha guo	20000
+空调	kong tiao	20000
+窗帘	chuang lian	20000
+筷子	kuai zi	20000
+衣柜	yi gui	20000
+被套	bei tao	20000
+被子	bei zi	20000
+雨伞	yu san	20000
+餐桌	can zhuo	20000
+体温计	ti wen ji	8000
+体重秤	ti zhong cheng	8000
+保鲜盒	bao xian he	8000
+保鲜袋	bao xian dai	8000
+养生壶	yang sheng hu	8000
+净水器	jing shui qi	8000
+凉席	liang xi	8000
+剃须刀	ti xu dao	8000
+卫生巾	wei sheng jin	8000
+双肩包	shuang jian bao	8000
+吸尘器	xi chen qi	8000
+咖啡机	ka fei ji	8000
+围巾	wei jin	8000
+地毯	di tan	8000
+帽子	mao zi	8000
+平底锅	ping di guo	8000
+手套	shou tao	8000
+扫地机器人	sao di ji qi ren	8000
+扫把	sao ba	8000
+护发素	hu fa su	8000
+抹布	ma bu	8000
+抽油烟机	chou you yan ji	8000
+拖把	tuo ba	8000
+指甲刀	zhi jia dao	8000
+收纳箱	shou na xiang	8000
+晾衣架	liang yi jia	8000
+暖手宝	nuan shou bao	8000
+枕芯	zhen xin	8000
+柔顺剂	rou shun ji	8000
+棉签	mian qian	8000
+榨汁机	zha zhi ji	8000
+毛毯	mao tan	8000
+洁厕灵	jie ce ling	8000
+洗手液	xi shou ye	8000
+洗碗机	xi wan ji	8000
+洗衣粉	xi yi fen	8000
+洗面奶	xi mian nai	8000
+浴巾	yu jin	8000
+消毒柜	xiao du gui	8000
+消毒液	xiao du ye	8000
+湿巾	shi jin	8000
+炒锅	chao guo	8000
+热水袋	re shui dai	8000
+熨斗	yun dou	8000
+燃气灶	ran qi zao	8000
+玻璃杯	bo li bei	8000
+电压力锅	dian ya li guo	8000
+电吹风	dian chui feng	8000
+电热毯	dian re tan	8000
+电饼铛	dian bing cheng	8000
+砂锅	sha guo	8000
+砧板	zhen ban	8000
+破壁机	po bi ji	8000
+碗碟	wan die	8000
+空气净化器	kong qi jing hua qi	8000
+纸尿裤	zhi niao ku	8000
+置物架	zhi wu jia	8000
+背包	bei bao	8000
+脸盆	lian pen	8000
+茶几	cha ji	8000
+茶杯	cha bei	8000
+菜刀	cai dao	8000
+蚊帐	wen zhang	8000
+血压计	xue ya ji	8000
+血糖仪	xue tang yi	8000
+行李箱	xing li xiang	8000
+衣架	yi jia	8000
+豆浆机	dou jiang ji	8000
+钱包	qian bao	8000
+雨衣	yu yi	8000
+鞋柜	xie gui	8000
+餐椅	can yi	8000
+饭盒	fan he	8000
+饮水机	yin shui ji	8000
+香皂	xiang zao	8000
+马克杯	ma ke bei	8000
+高压锅	gao ya guo	8000
+保温饭盒	bao wen fan he	3000
+刀架	dao jia	3000
+卷发棒	juan fa bang	3000
+吸管杯	xi guan bei	3000
+密封罐	mi feng guan	3000
+手提包	shou ti bao	3000
+挂烫机	gua tang ji	3000
+水桶	shui tong	3000
+汤勺	tang shao	3000
+汤锅	tang guo	3000
+沥水架	li shui jia	3000
+油壶	you hu	3000
+洗碗布	xi wan bu	3000
+漏勺	lou shao	3000
+漱口杯	shu kou bei	3000
+焖烧杯	men shao bei	3000
+电蚊香	dian wen xiang	3000
+眼镜盒	yan jing he	3000
+簸箕	bo ji	3000
+米桶	mi tong	3000
+缝纫机	feng ren ji	3000
+蒸锅	zheng guo	3000
+蚊香	wen xiang	3000
+调料盒	tiao liao he	3000
+针线盒	zhen xian he	3000
+钢丝球	gang si qiu	3000
+钥匙扣	yao shi kou	3000
+锅铲	guo chan	3000
+除湿机	chu shi ji	3000
+餐盘	can pan	3000
+马桶刷	ma tong shua	3000
+驱蚊器	qu wen qi	3000
