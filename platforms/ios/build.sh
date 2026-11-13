@@ -33,7 +33,10 @@ python3 "$ROOT/tools/build_ios_dict.py" "$ROOT/crates/dict/data/base-large.tsv" 
     --merge-dir "$ROOT/crates/dict/data/packs/optional" \
     --merge-dir "$ROOT/crates/dict/data/packs/mobile"
 python3 "$ROOT/tools/build_mobile_index.py" "$DICT_BUILD/mobile-full.tsv" \
-    "$HERE/Vendor/Wubi86/wubi86.dict.yaml" "$ROOT/crates/en/data/words.txt" "$HERE/Resources/mobile.sqlite"
+    "$HERE/Vendor/Wubi86/wubi86.dict.yaml" "$ROOT/crates/en/data/words.txt" "$HERE/Resources/mobile.sqlite" \
+    --tag "place=$ROOT/crates/dict/data/packs/default/places.tsv,$ROOT/crates/dict/data/packs/default/places-extra.tsv" \
+    --tag "person=$ROOT/crates/dict/data/packs/default/names.tsv,$ROOT/crates/dict/data/packs/optional/people.tsv" \
+    --person-surnames
 
 if [[ "$MODE" == device || "$MODE" == all ]]; then
     echo '==> Building Rust for iPhone (arm64)'
