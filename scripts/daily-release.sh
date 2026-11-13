@@ -216,7 +216,28 @@ fi
 # The `nightly` tag does not match CI's `v*` trigger (.github/workflows/release.yml), so CI stays idle.
 log "移动 tag $NIGHTLY_TAG → $SHORT_SHA"
 git tag -f -a "$NIGHTLY_TAG" -m "Nightly $VERSION" HEAD >/dev/null || die "git tag nightly failed"
-git push --quiet --force origin "refs/tags/$NIGHTLY_TAG" || die "push nightly tag failed"
+# github.com's git transport occasionally stalls ("Empty reply from server"). Bound the push,
+# then fall back to the REST API, which has stayed reliable on the same network.
+push_nightly_tag() {
+    git -c http.version=HTTP/1.1 -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=20 \
+        push --quiet --force origin "refs/tags/$NIGHTLY_TAG" &
+    local pid=$! waited=0
+    while kill -0 "$pid" 2>/dev/null && [[ $waited -lt 20 ]]; do sleep 3; waited=$((waited + 1)); done
+    if kill -0 "$pid" 2>/dev/null; then kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; return 1; fi
+    wait "$pid"
+}
+if ! push_nightly_tag; then
+    warn "git push 失败或超时，改用 GitHub API 更新 tag"
+    local_slug="$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)"
+    tag_object="$(git rev-parse "$NIGHTLY_TAG")"
+    if [[ -n "$local_slug" ]]; then
+        gh api --method PATCH "repos/$local_slug/git/refs/tags/$NIGHTLY_TAG" \
+            -f sha="$tag_object" -F force=true >/dev/null 2>&1 \
+            || die "push nightly tag failed (API fallback failed)"
+    else
+        die "push nightly tag failed (no repo slug for API fallback)"
+    fi
+fi
 
 NOTES="$(mktemp)"
 {
