@@ -120,6 +120,7 @@ VoiceOver 替代路径：清空用删除键的自定义动作「清空当前输�
 
 - **core（`Resources/base.ifd`）**：从 `base-large.tsv` 按词频选 10 万条，保留全部单字与常用简拼先验，并合并 `packs/default/*` 人工词包。当前 135,113 词条 / 2.53 MB，供 Rust 会话做整句候选。
 - **full（`Resources/mobile.sqlite`）**：合并 `base-large.tsv`（199,776 条）+ `packs/default` + `packs/optional` + `packs/mobile` 的混合拉丁词，同词同音取最大词频去重，生成拼音/五笔/英文回退索引。当前 236,317 条拼音词条 + `tags` 表 27,666 行（place 3,550 / person 24,116），SQLite 40.4 MiB。
+- **LM（`Resources/base.lm`）**：桌面整句搭配模型（万象 LMDG，CC BY 4.0）剪枝到 5.3 MB / 107 万条（保留全部 2 字交界片段 + 高分 3/4 字片段），由 `Vendor/LM/base.lm.bin` 在构建后复制进键盘扩展，和 `base.ifd` 同目录，Rust 会话自动加载。没有它时整句只按词频打分。
 
 词包覆盖常见字词、词组、诗歌名句、人名、地名、生活用品、学科、办公用品、软件/App、AI 词汇、医疗养生、金融、年度媒体盘点与网络流行语；多音字读音逐条校对（银行 hang、重庆 chong、长城 chang、重量 zhong、长大 zhang 等）。不打包桌面神经模型。SQLite 按磁盘页读取，不整体常驻；base.ifd 常驻内存。实体设备内存、不同 App 中的切换与长期使用仍需验证。
 
@@ -130,7 +131,9 @@ VoiceOver 替代路径：清空用删除键的自定义动作「清空当前输�
 3. **分段组合**：还有空位时用 `MobilePhraseComposer` 把输入切成词，按「段数最少 → 词频最高」补候选。
 4. **音节兜底**：以上都没有时，用内置合法音节表做 DP 切分，逐音节取单字最高频候选，任何合法拼音输入都不会空白。
 
-分层实现见 `Keyboard/MobileEngine.swift` 的 `refresh()` 与 `PinyinSyllables.swift`；只查本地词库与用户词库，不内置特例词、不联网；九宫格与全拼共用同一套词条。覆盖回归语料 97 条真实输入（生活用品／学科／办公／App／AI／医疗／金融／诗歌／人名／地名／流行语等）：候选空白 0 条，已收录词首候选零错位。
+分层实现见 `Keyboard/MobileEngine.swift` 的 `refresh()` 与 `PinyinSyllables.swift`；只查本地词库与用户词库，不内置特例词、不联网；九宫格与全拼共用同一套词条。候选上限 24 个（会话原始索引仍只保留前 9），候选条可横向滚动；多音节输入若被切成全单字（例如把 nene 切成「呢／呢」）不会占用候选位。覆盖回归语料 97 条真实输入（生活用品／学科／办公／App／AI／医疗／金融／诗歌／人名／地名／流行语等）：候选空白 0 条，已收录词首候选零错位。
+
+整句解码依赖 `base.lm` 的 2–4 字搭配分：在 147 句整句评测里，不带 LM 首选 62% / 前 k 75%，带桌面全量 42 MB 模型 79% / 88%，随包的 5.3 MB 剪枝模型 72% / 84%；iOS 控制器内的 10 句整句语料从 6/10 提升到 10/10。
 
 首选排序在四层之上再叠加两类信号，规则见 `MobileEngine.refresh()` 与 `RankingBehaviorTests`：
 
