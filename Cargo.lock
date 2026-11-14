@@ -21,36 +21,36 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "liana-ai"
-version = "0.10.0"
+version = "0.10.1"
 
 [[package]]
 name = "liana-core"
-version = "0.10.0"
+version = "0.10.1"
 
 [[package]]
 name = "liana-dict"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "liana-core",
 ]
 
 [[package]]
 name = "liana-emoji"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "liana-core",
 ]
 
 [[package]]
 name = "liana-en"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "liana-core",
 ]
 
 [[package]]
 name = "liana-engine"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "chinese-ime-lm",
  "liana-core",
@@ -66,7 +66,7 @@ dependencies = [
 
 [[package]]
 name = "liana-ffi"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "liana-ai",
  "liana-core",
@@ -77,14 +77,14 @@ dependencies = [
 
 [[package]]
 name = "liana-ja"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "liana-core",
 ]
 
 [[package]]
 name = "liana-pinyin"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "liana-core",
  "liana-dict",
@@ -92,29 +92,29 @@ dependencies = [
 
 [[package]]
 name = "liana-plugin"
-version = "0.10.0"
+version = "0.10.1"
 
 [[package]]
 name = "liana-radix"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "liana-core",
 ]
 
 [[package]]
 name = "liana-symbol"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "liana-core",
 ]
 
 [[package]]
 name = "liana-sync"
-version = "0.10.0"
+version = "0.10.1"
 
 [[package]]
 name = "liana-zhconv"
-version = "0.10.0"
+version = "0.10.1"
 
 [[package]]
 name = "memchr"
@@ -222,7 +222,7 @@ checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
 
 [[package]]
 name = "xtask"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "liana-core",
  "liana-dict",
