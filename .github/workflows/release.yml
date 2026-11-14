@@ -164,6 +164,10 @@ jobs:
         with:
           targets: x86_64-pc-windows-msvc
 
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: windows-tsf
+
       - name: 准备 MSVC 环境（cl.exe 与 Windows SDK）
         uses: ilammy/msvc-dev-cmd@v1
         with:

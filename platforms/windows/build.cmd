@@ -32,6 +32,16 @@ cargo run --quiet --release -p xtask --manifest-path "%ROOT%\Cargo.toml" -- ^
     dict build "%ROOT%\crates\dict\data\base-large.tsv" -o "%HERE%build\base.ifd"
 if errorlevel 1 goto :fail
 
+REM msctf.lib 是 TSF 的导入库，位于 Windows SDK 的 Lib\<ver>\um\x64；
+REM 有些 runner 的 vcvarsall 没有把它带进 LIB，链接会报 LNK1181，这里显式找出来补上。
+set "TSF_LIB_DIR="
+for /d %%d in ("%ProgramFiles(x86)%\Windows Kits\10\Lib\*") do (
+    if exist "%%d\um\x64\msctf.lib" set "TSF_LIB_DIR=%%d\um\x64"
+)
+if defined TSF_LIB_DIR set "LIB=%LIB%;%TSF_LIB_DIR%"
+if defined TSF_LIB_DIR echo     SDK 库目录: %TSF_LIB_DIR%
+if not defined TSF_LIB_DIR echo     ⚠ 未找到 msctf.lib，若链接失败需安装 Windows SDK
+
 echo ==^> 3/3 MSVC 编译 TSF DLL
 cl /nologo /W4 /EHsc /O2 /LD /I"%ROOT%\crates\ffi\include" ^
     "%HERE%textservice.cpp" ^
