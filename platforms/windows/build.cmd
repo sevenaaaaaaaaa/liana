@@ -46,7 +46,7 @@ echo ==^> 3/3 MSVC 编译 TSF DLL
 cl /nologo /W4 /EHsc /O2 /LD /I"%ROOT%\crates\ffi\include" ^
     "%HERE%textservice.cpp" ^
     /Fe"%HERE%build\liana_tsf.dll" ^
-    /link "%HERE%build\liana_ffi.lib" user32.lib advapi32.lib %TSF_IMPORTLIB%
+    /link "%HERE%build\liana_ffi.lib" user32.lib advapi32.lib ntdll.lib Synchronization.lib %TSF_IMPORTLIB%
 if errorlevel 1 goto :fail
 
 echo.
