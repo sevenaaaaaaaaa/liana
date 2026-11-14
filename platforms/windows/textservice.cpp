@@ -10,6 +10,12 @@
 
 #include <new>  // std::nothrow（工厂 CreateInstance 用它做不抛异常的 new）
 
+// textservice.h 里的 DEFINE_GUID 只是声明；这里给出唯一实体，否则链接报
+// LNK2019: unresolved external symbol CLSID_LianaTextService。不用 INITGUID，
+// 那会让 msctf.h 的 IID 也在本 TU 定义，与 midl 生成的 msctf_i.obj 重复。
+const GUID CLSID_LianaTextService =
+    {0xb8a9f9a0, 0x1c2d, 0x4e3f, {0x9a, 0x5b, 0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6}};
+
 static HINSTANCE g_hInst = nullptr;
 static ULONG g_cLock = 0;
 
