@@ -59,6 +59,13 @@
 - 修复修复命令写完立即自我回滚：以前把 CFPreferencesAppSynchronize 的返回值当成败依据，本机常返回 false；现在只以「回读两张表的实际内容」判成败，失败才回滚。
 - 安装自检的 7 项现在全部通过（安装副本、持久化唯一性、系统可选输入模式、旧版输入源、容器启用、注册状态、本地数据），安装脚本退出码恢复为 0。
 
+### 0.10.1 — 2026-11-14  修复：Windows 构建进入 CI，四端产物齐备。
+
+- 新增 Windows 构建任务（windows-latest）：`platforms/windows/build.cmd` 在 MSVC 下编译 TSF DLL 与词典，产物打成 `liana-<版本>-windows-x64.zip` 并附 sha256。TSF 的注册表写入与候选窗仍未实现，包里写明它只供开发联调、不能 `regsvr32`。
+- 修好 Windows 侧三个真实编译/链接问题：析构函数多余的 `override`（`ITfTextInputProcessor` 没有虚析构）、缺 `<new>` 导致 `std::nothrow` 未声明、`CLSID_LianaTextService` 只有声明没有实体。
+- Windows SDK 10.0.26100 起不再附带 `msctf.lib`：改为从 SDK 自带的 `msctf.idl` 用 midl 生成 `msctf_i.obj` 参与链接；并补上 Rust 静态库需要的 `ntdll.lib` 与 `Synchronization.lib`。
+- `build.cmd` 统一为 CRLF 换行（LF 下带括号的 `for` 块会被 cmd 解析错），发版说明补上 iOS 重签与 Windows 产物的安装说明。
+
 ## 0.9.1 — 2026-11-12 · Android 构建修复
 
 - 修复 Android release 包构建失败：首次安装引导页把 `lineSpacing(...)` 当成 TextView 的方法调用，Kotlin 编译报 `Unresolved reference 'lineSpacing'`；改为 `setLineSpacing(...)`。v0.9.0 的 macOS / Linux 产物不受影响，Android 请用 0.9.1 的 APK。
