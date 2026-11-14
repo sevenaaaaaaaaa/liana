@@ -1,0 +1,105 @@
+# 多语对照表：中文 → 英/日/韩/法/德/西/俄。
+# 格式：中文<TAB>en<TAB>ja<TAB>ko<TAB>fr<TAB>de<TAB>es<TAB>ru
+# 空单元格表示虚词（的/了），翻译时直接省略；空格子只在 en 为空时出现。
+我家的	my home	私の家の	우리 집	chez moi	mein Zuhause	mi casa	мой дом
+我们家	our home	私たちの家	우리 집	notre maison	unser Zuhause	nuestra casa	наш дом
+密码是	password is	パスワードは	비밀번호는	le mot de passe est	das Passwort ist	la contraseña es	пароль
+密码	password	パスワード	비밀번호	mot de passe	Passwort	contraseña	пароль
+用户名	username	ユーザー名	사용자 이름	nom d'utilisateur	Benutzername	nombre de usuario	имя пользователя
+账号	account	アカウント	계정	compte	Konto	cuenta	аккаунт
+是	is	は	은	est	ist	es	это
+我是	I am	私は	저는	je suis	ich bin	soy	я
+你是	you are	あなたは	당신은	vous êtes	du bist	eres	ты
+今天	today	今日	오늘	aujourd'hui	heute	hoy	сегодня
+明天	tomorrow	明日	내일	demain	morgen	mañana	завтра
+昨天	yesterday	昨日	어제	hier	gestern	ayer	вчера
+现在	now	今	지금	maintenant	jetzt	ahora	сейчас
+天气	weather	天気	날씨	météo	Wetter	tiempo	погода
+下雨	rain	雨	비	pluie	Regen	lluvia	дождь
+晴天	sunny	晴れ	맑음	ensoleillé	sonnig	soleado	солнечно
+开会	meeting	会議	회의	réunion	Besprechung	reunión	встреча
+会议	meeting	会議	회의	réunion	Meeting	reunión	совещание
+项目	project	プロジェクト	프로젝트	projet	Projekt	proyecto	проект
+需求	requirement	要件	요구 사항	exigence	Anforderung	requisito	требование
+方案	plan	プラン	계획	plan	Plan	plan	план
+文档	document	文書	문서	document	Dokument	documento	документ
+报告	report	レポート	보고서	rapport	Bericht	informe	отчёт
+邮件	email	メール	이메일	e-mail	E-Mail	correo	почта
+发送	send	送信	보내기	envoyer	senden	enviar	отправить
+收到	received	受信	받음	reçu	erhalten	recibido	получено
+确认	confirm	確認	확인	confirmer	bestätigen	confirmar	подтвердить
+完成	done	完了	완료	terminé	fertig	hecho	готово
+开始	start	開始	시작	commencer	starten	empezar	начать
+结束	end	終了	종료	terminer	beenden	terminar	закончить
+谢谢	thanks	ありがとう	감사합니다	merci	danke	gracias	спасибо
+对不起	sorry	すみません	죄송합니다	désolé	entschuldige	perdón	извините
+请问	excuse me	すみません	실례합니다	excusez-moi	entschuldigen Sie	disculpe	извините
+好的	okay	はい	네	d'accord	okay	vale	хорошо
+可以	okay	できます	가능	possible	möglich	posible	можно
+不行	no	だめ	안 됩니다	impossible	geht nicht	no se puede	нельзя
+需要	need	必要	필요	besoin	brauchen	necesitar	нужно
+帮我	help me	手伝って	도와주세요	aidez-moi	hilf mir	ayúdame	помогите
+看一下	take a look	見てください	봐 주세요	regarde	schau mal	mira	посмотри
+改一下	change it	直してください	고쳐 주세요	modifie	ändere es	cámbialo	измени
+马上	right away	すぐ	곧	tout de suite	sofort	en seguida	сейчас
+等一下	wait a moment	ちょっと待って	잠시만	un instant	warte kurz	un momento	подождите
+没问题	no problem	問題ない	문제없어요	pas de problème	kein Problem	sin problema	нет проблем
+多少钱	how much	いくら	얼마예요	combien	wie viel	cuánto	сколько
+吃饭	eat	ご飯	식사	manger	essen	comer	есть
+喝水	drink water	水を飲む	물 마시기	boire de l'eau	Wasser trinken	beber agua	пить воду
+咖啡	coffee	コーヒー	커피	café	Kaffee	café	кофе
+外卖	takeout	出前	배달	livraison	Lieferung	comida a domicilio	доставка
+回家	go home	帰る	집에 가다	rentrer	nach Hause	ir a casa	домой
+出发	set off	出発	출발	partir	losfahren	salir	выезжать
+到了	arrived	着いた	도착	arrivé	angekommen	llegué	прибыл
+手机	phone	携帯	휴대폰	téléphone	Handy	teléfono	телефон
+电脑	computer	パソコン	컴퓨터	ordinateur	Computer	ordenador	компьютер
+充电	charge	充電	충전	charger	laden	cargar	заряжать
+没电	out of battery	電池切れ	배터리 없음	plus de batterie	Akku leer	sin batería	разряжен
+网络	network	ネットワーク	네트워크	réseau	Netzwerk	red	сеть
+信号	signal	電波	신호	signal	Signal	señal	сигнал
+设置	settings	設定	설정	réglages	Einstellungen	ajustes	настройки
+打开	open	開く	열기	ouvrir	öffnen	abrir	открыть
+关闭	close	閉じる	닫기	fermer	schließen	cerrar	закрыть
+安装	install	インストール	설치	installer	installieren	instalar	установить
+更新	update	更新	업데이트	mise à jour	Update	actualizar	обновить
+下载	download	ダウンロード	다운로드	télécharger	herunterladen	descargar	скачать
+文件	file	ファイル	파일	fichier	Datei	archivo	файл
+图片	picture	画像	사진	image	Bild	imagen	фото
+视频	video	動画	동영상	vidéo	Video	vídeo	видео
+语音	voice	音声	음성	voix	Stimme	voz	голос
+翻译	translate	翻訳	번역	traduire	übersetzen	traducir	перевод
+英文	English	英語	영어	anglais	Englisch	inglés	английский
+中文	Chinese	中国語	중국어	chinois	Chinesisch	chino	китайский
+日语	Japanese	日本語	일본어	japonais	Japanisch	japonés	японский
+韩语	Korean	韓国語	한국어	coréen	Koreanisch	coreano	корейский
+法语	French	フランス語	프랑스어	français	Französisch	francés	французский
+德语	German	ドイツ語	독일어	allemand	Deutsch	alemán	немецкий
+西班牙语	Spanish	スペイン語	스페인어	espagnol	Spanisch	español	испанский
+俄语	Russian	ロシア語	러시아어	russe	Russisch	ruso	русский
+地址	address	住所	주소	adresse	Adresse	dirección	адрес
+公司	company	会社	회사	entreprise	Firma	empresa	компания
+电话	phone number	電話番号	전화번호	numéro	Telefonnummer	teléfono	телефон
+名字	name	名前	이름	nom	Name	nombre	имя
+时间	time	時間	시간	heure	Zeit	hora	время
+周一	Monday	月曜日	월요일	lundi	Montag	lunes	понедельник
+周五	Friday	金曜日	금요일	vendredi	Freitag	viernes	пятница
+早上	morning	朝	아침	matin	Morgen	mañana	утро
+晚上	evening	夜	저녁	soir	Abend	noche	вечер
+一起	together	一緒に	함께	ensemble	zusammen	juntos	вместе
+为什么	why	なぜ	왜	pourquoi	warum	por qué	почему
+怎么	how	どう	어떻게	comment	wie	cómo	как
+什么	what	何	무엇	quoi	was	qué	что
+好的谢谢	ok thanks	はいありがとう	네 감사합니다	merci	danke	gracias	спасибо
+我要	I want	ほしい	원해요	je veux	ich will	quiero	я хочу
+一个	a	ひとつ	하나	un	ein	un	один
+用	use	使う	사용	utiliser	benutzen	usar	использовать
+打卡	check in	打刻	출근 기록	pointer	stempeln	fichar	отметиться
+工作	work	仕事	일	travail	Arbeit	trabajo	работа
+联系	contact	連絡	연락	contacter	kontaktieren	contactar	связаться
+安排	arrange	手配	준비	organiser	organisieren	organizar	организовать
+建议	suggest	提案	제안	proposer	vorschlagen	sugerir	предложить
+同意	agree	同意	동의	d'accord	zustimmen	estar de acuerdo	согласен
+的							
+了							
+吗	?	か	?	?	?	?	?

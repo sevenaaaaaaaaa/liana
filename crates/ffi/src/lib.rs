@@ -444,6 +444,23 @@ pub unsafe extern "C" fn liana_composition_json(session: *mut LianaSession) -> *
     })
 }
 
+/// 把中文候选翻成一行目标语言（en/ja/ko/fr/de/es/ru）。
+/// 返回的字符串由调用方用 `liana_free_string` 释放；语言码不认识或文本为空时返回空串。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn liana_translate(text: *const c_char, lang: *const c_char) -> *mut c_char {
+    if text.is_null() || lang.is_null() {
+        return std::ptr::null_mut();
+    }
+    guard_ptr(|| {
+        let text = unsafe { std::ffi::CStr::from_ptr(text) }.to_string_lossy();
+        let code = unsafe { std::ffi::CStr::from_ptr(lang) }.to_string_lossy();
+        match liana_gloss::Lang::from_code(&code) {
+            Some(lang) => into_c(liana_gloss::Glossary::shared().translate(&text, lang)),
+            None => into_c(String::new()),
+        }
+    })
+}
+
 /// 把第 `index` 个候选提到第一位（同层内换位，不改学习记录）；返回 1 表示换了位置。
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn liana_promote(session: *mut LianaSession, index: u32) -> i32 {

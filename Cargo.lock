@@ -72,8 +72,13 @@ dependencies = [
  "liana-core",
  "liana-dict",
  "liana-engine",
+ "liana-gloss",
  "liana-plugin",
 ]
+
+[[package]]
+name = "liana-gloss"
+version = "0.10.1"
 
 [[package]]
 name = "liana-ja"

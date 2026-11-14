@@ -58,6 +58,8 @@ def main():
     parser.add_argument('output', type=Path)
     parser.add_argument('--tag', action='append', default=[], metavar='NAME=PATH[,PATH...]',
                         help='给词条打类别标签（可重复），例如 place=a.tsv,b.tsv')
+    parser.add_argument('--multilang', type=Path, default=None,
+                        help='多语对照表：中文 → en/ja/ko/fr/de/es/ru')
     parser.add_argument('--glossary', type=Path, default=None,
                         help='中英对照表：把本地翻译行的词条一并建进索引')
     parser.add_argument('--person-surnames', action='store_true',
@@ -145,6 +147,21 @@ def main():
             fields = line.split('\t')
             if len(fields) >= 2 and fields[0].strip():
                 glossary.append((fields[0].strip(), fields[1].strip()))
+    # 多语一行：每个中文词一行，七列对应七种输出语言（本地即时出结果，不联网）。
+    multi = []
+    if args.multilang is not None:
+        if not args.multilang.exists():
+            raise SystemExit(f'multilang missing: {args.multilang}')
+        for line in args.multilang.read_text(encoding='utf-8').splitlines():
+            if not line or line.startswith('#'):
+                continue
+            fields = line.split('\t')
+            if len(fields) >= 8 and fields[0].strip():
+                multi.append(tuple([fields[0].strip()] + [f.strip() for f in fields[1:8]]))
+    db.execute('CREATE TABLE gloss(word TEXT PRIMARY KEY, en TEXT, ja TEXT, ko TEXT, fr TEXT, de TEXT, es TEXT, ru TEXT)')
+    if multi:
+        db.executemany('INSERT OR REPLACE INTO gloss VALUES(?,?,?,?,?,?,?,?)', multi)
+
     db.execute('CREATE TABLE en_glossary(word TEXT PRIMARY KEY, en TEXT)')
     if glossary:
         db.executemany('INSERT OR REPLACE INTO en_glossary VALUES(?,?)', glossary)
@@ -156,6 +173,7 @@ def main():
     print('Mobile index:',dict(db.execute('SELECT kind,COUNT(*) FROM words GROUP BY kind')))
     print('Mobile tags:',dict(db.execute('SELECT tag,COUNT(*) FROM tags GROUP BY tag')))
     print('Mobile glossary:',db.execute('SELECT COUNT(*) FROM en_glossary').fetchone()[0])
+    print('Mobile multilang:',db.execute('SELECT COUNT(*) FROM gloss').fetchone()[0])
     db.close()
 
 

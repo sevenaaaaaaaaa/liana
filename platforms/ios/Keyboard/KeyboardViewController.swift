@@ -102,7 +102,13 @@ class KeyboardViewController: UIInputViewController {
     private var englishStrip: UIStackView!
     private var englishButton: LianaPressButton!
     private var englishText = ""
-    private lazy var englishTranslator = MixedEnglishLine(lexicon: MobileLexicon(bundle: .main))
+    private var englishLanguageButton: LianaPressButton!
+    private lazy var englishTranslator: MixedLanguageLine = {
+        let line = MixedLanguageLine(lexicon: MobileLexicon(bundle: .main))
+        if let saved = UserDefaults.standard.string(forKey: "keyboard.translateLanguage"),
+           let lang = TranslateLanguage(rawValue: saved) { line.language = lang }
+        return line
+    }()
     private var hapticsEnabled = UserDefaults.standard.object(forKey: "keyboard.haptics") as? Bool ?? true
     private var modeButton: UIButton!
     private var tradButton: UIButton!
@@ -355,6 +361,17 @@ class KeyboardViewController: UIInputViewController {
             enStrip.bottomAnchor.constraint(equalTo: enScroll.contentLayoutGuide.bottomAnchor),
             enStrip.heightAnchor.constraint(equalTo: enScroll.frameLayoutGuide.heightAnchor),
         ])
+        let enLang = LianaPressButton(frame: .zero)
+        enLang.surface = .plain
+        enLang.rounded = 8
+        enLang.contentEdgeInsets = UIEdgeInsets(top: 3, left: 8, bottom: 3, right: 8)
+        enLang.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
+        enLang.accessibilityIdentifier = "english.language"
+        enLang.accessibilityLabel = "切换翻译语言"
+        enLang.addAction(UIAction { [weak self] _ in self?.cycleTranslateLanguage() }, for: .touchUpInside)
+        enStrip.addArrangedSubview(enLang)
+        englishLanguageButton = enLang
+
         let enButton = LianaPressButton(frame: .zero)
         enButton.surface = .plain
         enButton.rounded = 8
@@ -1433,7 +1450,24 @@ class KeyboardViewController: UIInputViewController {
         englishText = englishTranslator.translate(top) ?? ""
         englishScroll?.isHidden = englishText.isEmpty
         guard !englishText.isEmpty else { return }
-        englishButton?.setTitle("EN · " + englishText, for: .normal)
+        englishLanguageButton?.setTitle(englishTranslator.language.title, for: .normal)
+        englishButton?.setTitle(englishText, for: .normal)
+    }
+
+    /// 点语言芯片：EN → 日 → 한 → FR → DE → ES → RU 循环，选择会记住。
+    private func cycleTranslateLanguage() {
+        englishTranslator.language = englishTranslator.language.next
+        UserDefaults.standard.set(englishTranslator.language.rawValue, forKey: "keyboard.translateLanguage")
+        let top = candidates.first ?? ""
+        if rawInput.isEmpty || top.isEmpty {
+            englishText = ""
+            englishScroll?.isHidden = true
+            return
+        }
+        englishText = englishTranslator.translate(top) ?? ""
+        englishScroll?.isHidden = englishText.isEmpty
+        englishLanguageButton?.setTitle(englishTranslator.language.title, for: .normal)
+        englishButton?.setTitle(englishText, for: .normal)
     }
 
     /// 点按英文一行：放弃中文候选，改为上屏英文（这就是「确认输入的是英文」）。

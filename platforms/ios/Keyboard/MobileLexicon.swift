@@ -124,6 +124,36 @@ final class MobileLexicon {
         return text(statement, 0)
     }
 
+    /// 多语对照：中文词 → 七列译文（en,ja,ko,fr,de,es,ru）。旧包没有 gloss 表时返回 nil。
+    func gloss(_ word: String) -> [String]? {
+        guard !word.isEmpty, word.count <= 32, hasBase else { return nil }
+        var statement: OpaquePointer?
+        let sql = "SELECT en,ja,ko,fr,de,es,ru FROM base.gloss WHERE word = ? LIMIT 1"
+        guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else { return nil }
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_text(statement, 1, word, -1, transient)
+        guard sqlite3_step(statement) == SQLITE_ROW else { return nil }
+        return (0..<7).map { text(statement, Int32($0)) }
+    }
+
+    /// 多语对照表里最长的中文词长度。
+    private var cachedGlossMaxLength: Int?
+    func glossMaxLength() -> Int {
+        if let cachedGlossMaxLength { return cachedGlossMaxLength }
+        var value = 1
+        if hasBase {
+            var statement: OpaquePointer?
+            if sqlite3_prepare_v2(database, "SELECT MAX(LENGTH(word)) FROM base.gloss", -1, &statement, nil) == SQLITE_OK {
+                defer { sqlite3_finalize(statement) }
+                if sqlite3_step(statement) == SQLITE_ROW, sqlite3_column_type(statement, 0) != SQLITE_NULL {
+                    value = max(1, Int(sqlite3_column_int64(statement, 0)))
+                }
+            }
+        }
+        cachedGlossMaxLength = value
+        return value
+    }
+
     /// 对照表里最长的词有多长（翻译行按长度倒序做最长匹配）。
     private var cachedGlossaryMaxLength: Int?
     func glossaryMaxLength() -> Int {

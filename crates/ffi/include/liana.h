@@ -174,6 +174,11 @@ void liana_evolution_forget_all(LianaEvolution *memory);
 int32_t liana_set_evolution_context(LianaSession *session, const char *app,
                                         uint32_t hour, int32_t enabled, uint64_t now);
 
+/* 把中文候选翻成一行目标语言：lang 取 "en"/"ja"/"ko"/"fr"/"de"/"es"/"ru"。
+ * 离线对照表 + 最长匹配，拉丁片段原样保留；不认识的语言码返回空串。
+ * 返回值由调用方用 liana_free_string 释放。 */
+char *liana_translate(const char *text, const char *lang);
+
 /* 确认一次选词：必须在 liana_select 成功后调用。alt_rank 非 0 表示
  * 数字键选了第 2+ 候选（+0.6），否则 +1.0；删除后的窗口内重选自动记 +1.5。 */
 int32_t liana_evolution_note_selection(LianaSession *session, int32_t alt_rank,

@@ -1,0 +1,9 @@
+[package]
+name = "liana-gloss"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "松萝多语对照：中文 → 英/日/韩/法/德/西/俄，最长匹配（零依赖）"
+
+[dependencies]
