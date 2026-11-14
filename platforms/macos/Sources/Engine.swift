@@ -213,6 +213,16 @@ final class LianaEngine {
     }
 
     @discardableResult
+    /// 把一句话翻成目标语言（en/ja/ko/fr/de/es/ru）：离线对照表 + 最长匹配，不联网。
+    /// 与 iOS 共用同一套规则（内核 liana-gloss），差别只在调用方怎么展示。
+    func translate(_ text: String, lang: String) -> String {
+        text.withCString { textPointer in
+            lang.withCString { langPointer in
+                takeString(liana_translate(textPointer, langPointer)) ?? ""
+            }
+        }
+    }
+
     func importUserModel(_ tsv: String) -> Int {
         guard let h = handle else { return -1 }
         let n = Int(tsv.withCString { liana_user_import(h, $0) })
