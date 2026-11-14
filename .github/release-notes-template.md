@@ -25,7 +25,16 @@ sudo ./install.sh          # 装到 /usr/local/lib/liana + ibus 组件声明
 ibus restart               # ibus-setup → 输入法 → 添加 → 中文 → 松萝
 ```
 
-iOS / Windows / HarmonyOS 尚在骨架阶段，暂不提供安装包。
+### iOS 15+（未签名设备包）
+下载 `Liana-iOS-*-unsigned.ipa`。它没有签名，需要用你自己的签名工具（Xcode、Sideloadly 等）
+重签主 App **和** 内嵌的键盘扩展后安装；免费账号可用 7 天，开发者账号按证书有效期。
+
+### Windows（x64 · 构建产物，骨架阶段）
+下载 `liana-*-windows-x64.zip`，内含 `liana_tsf.dll`、`base.ifd` 与说明。
+TSF 文本服务的注册表写入与候选窗还是 TODO，`regsvr32` 会失败，这个包只供开发联调，
+还不能当输入法安装。
+
+HarmonyOS 尚在骨架阶段，暂不提供构建产物（需要 DevEco Studio 与 ohos SDK）。
 
 ## 校验和（SHA-256）
 ```

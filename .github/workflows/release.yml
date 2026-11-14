@@ -152,10 +152,65 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
+  # ────────────────────────── Windows ──────────────────────────
+  # TSF 集成仍是骨架：DLL 能编出来，但 DllRegisterServer 还是 E_NOTIMPL、也没有导出表，
+  # 所以这里只出「构建产物包」，不冒充可安装的输入法。等注册与候选窗补完再改成安装包。
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: 准备 MSVC 环境（cl.exe 与 Windows SDK）
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: 构建 TSF DLL 与词典
+        shell: cmd
+        run: platforms\windows\build.cmd
+
+      - name: 归档命名 + 校验和
+        shell: pwsh
+        run: |
+          $raw = '${{ github.ref_name }}'
+          $version = if ($raw -match '^v?\d+\.\d+\.\d+') { $raw -replace '^v', '' } else { '0.0.0-dev' }
+          New-Item -ItemType Directory -Force dist | Out-Null
+          $stage = "dist/liana-$version-windows-x64"
+          New-Item -ItemType Directory -Force $stage | Out-Null
+          Copy-Item platforms/windows/build/liana_tsf.dll $stage -ErrorAction Stop
+          Copy-Item platforms/windows/build/base.ifd $stage -ErrorAction Stop
+          Copy-Item platforms/windows/README.md $stage
+          @'
+          松萝 Liana · Windows 构建产物（骨架阶段）
+
+          包含文件：
+            liana_tsf.dll  TSF 文本服务 DLL（x64）
+            base.ifd       基础词库（xtask 构建）
+            README.md      Windows 端现状与后续步骤
+
+          这个包还不能当输入法安装：textservice.cpp 的 DllRegisterServer 仍返回
+          E_NOTIMPL，DLL 也还没有导出表，regsvr32 会失败。它只用于继续开发与联调。
+          '@ | Set-Content -Path "$stage/构建产物说明.txt" -Encoding UTF8
+          $zip = "dist/liana-$version-windows-x64.zip"
+          Compress-Archive -Path $stage -DestinationPath $zip -Force
+          "$((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower())  $(Split-Path $zip -Leaf)" |
+            Set-Content "$zip.sha256" -Encoding ASCII
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+          if-no-files-found: error
+
   # ────────────────────────── 发 Release ──────────────────────────
   release:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [macos, android, linux]
+    needs: [macos, android, linux, windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
