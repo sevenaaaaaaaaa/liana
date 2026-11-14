@@ -173,6 +173,13 @@ jobs:
         with:
           arch: x64
 
+      - name: 诊断：SDK 里的 TSF 导入库与 IDL
+        shell: cmd
+        run: |
+          echo SDK=%WindowsSdkDir% VER=%WindowsSDKLibVersion%
+          dir /b "%WindowsSdkDir%Lib\%WindowsSDKLibVersion%um\x64\msctf*.lib" 2>nul || echo 没有 msctf*.lib
+          dir /b "%WindowsSdkDir%Lib\%WindowsSDKLibVersion%um\x64\*tsf*" 2>nul || echo 没有 *tsf* 库
+          dir /b "%WindowsSdkDir%Include\%WindowsSDKLibVersion%um\msctf.idl" 2>nul || echo 没有 msctf.idl
       - name: 构建 TSF DLL 与词典
         shell: cmd
         run: platforms\windows\build.cmd
