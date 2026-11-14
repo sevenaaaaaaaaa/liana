@@ -32,21 +32,21 @@ cargo run --quiet --release -p xtask --manifest-path "%ROOT%\Cargo.toml" -- ^
     dict build "%ROOT%\crates\dict\data\base-large.tsv" -o "%HERE%build\base.ifd"
 if errorlevel 1 goto :fail
 
-REM msctf.lib 是 TSF 的导入库，位于 Windows SDK 的 Lib\<ver>\um\x64。
-REM 有些 runner 的 vcvarsall 没把它带进 LIB，链接会报 LNK1181，这里显式找出来补上。
-REM 用 where /r 单行查找：带括号的 for /d 块在 LF 换行下会被 cmd 解析错。
-set "TSF_LIB_DIR="
-for /f "delims=" %%i in ('where /r "%ProgramFiles(x86)%\Windows Kits\10\Lib" msctf.lib 2^>nul') do if not defined TSF_LIB_DIR set "TSF_LIB_DIR=%%~dpi"
-if defined TSF_LIB_DIR set "TSF_LIB_DIR=%TSF_LIB_DIR:~0,-1%"
-if defined TSF_LIB_DIR set "LIB=%LIB%;%TSF_LIB_DIR%"
-if defined TSF_LIB_DIR echo     SDK 库目录: %TSF_LIB_DIR%
-if not defined TSF_LIB_DIR echo     ! 未找到 msctf.lib，LIB=%LIB%
+REM TSF 的 IID/CLSID 定义：Windows SDK 10.0.26100 起不再随附 msctf.lib，
+REM 优先用旧版导入库；没有就从 msctf.idl 用 midl 生成 msctf_i.c 并编译成 .obj 一起链接。
+set "TSF_IMPORTLIB=msctf.lib"
+set "TSF_IDL=%WindowsSdkDir%Include\%WindowsSDKLibVersion%um\msctf.idl"
+for /f "delims=" %%i in ('where /r "%ProgramFiles(x86)%\Windows Kits\10\Lib" msctf.lib 2^>nul') do if not defined TSF_OLD_LIB set "TSF_OLD_LIB=%%i"
+if defined TSF_OLD_LIB set "TSF_IMPORTLIB=%TSF_OLD_LIB%"
+if not defined TSF_OLD_LIB if exist "%TSF_IDL%" call :gen_tsf_iid
+echo     TSF 接口定义来源: %TSF_IMPORTLIB%
+
 
 echo ==^> 3/3 MSVC 编译 TSF DLL
 cl /nologo /W4 /EHsc /O2 /LD /I"%ROOT%\crates\ffi\include" ^
     "%HERE%textservice.cpp" ^
     /Fe"%HERE%build\liana_tsf.dll" ^
-    /link "%HERE%build\liana_ffi.lib" user32.lib advapi32.lib msctf.lib
+    /link "%HERE%build\liana_ffi.lib" user32.lib advapi32.lib %TSF_IMPORTLIB%
 if errorlevel 1 goto :fail
 
 echo.
@@ -58,6 +58,16 @@ echo   · 没有导出表（缺 .def / __declspec(dllexport)），regsvr32 找�
 echo   想验证导出（应能看到 DllRegisterServer 等）：
 echo       dumpbin /exports "%HERE%build\liana_tsf.dll"
 echo   等这两项补完后，才轮到「管理员 regsvr32」以及语言栏里添加「松萝」。
+exit /b 0
+
+:gen_tsf_iid
+if not exist "%HERE%build\tsf" mkdir "%HERE%build\tsf"
+echo     从 SDK 的 msctf.idl 生成接口定义（SDK 不再附带 msctf.lib）
+midl /nologo /env x64 /out "%HERE%build\tsf" /h "%HERE%build\tsf\msctf_i.h" /iid "%HERE%build\tsf\msctf_i.c" /proxy "%HERE%build\tsf\msctf_p.c" /dlldata "%HERE%build\tsf\dlldata.c" "%TSF_IDL%"
+if errorlevel 1 goto :fail
+cl /nologo /O2 /c /I"%WindowsSdkDir%Include\%WindowsSDKLibVersion%um" /I"%HERE%build\tsf" "%HERE%build\tsf\msctf_i.c" /Fo"%HERE%build\tsf\msctf_i.obj"
+if errorlevel 1 goto :fail
+set "TSF_IMPORTLIB=%HERE%build\tsf\msctf_i.obj"
 exit /b 0
 
 :fail
