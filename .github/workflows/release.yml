@@ -205,7 +205,8 @@ jobs:
 
           这个包还不能当输入法安装：textservice.cpp 的 DllRegisterServer 仍返回
           E_NOTIMPL，DLL 也还没有导出表，regsvr32 会失败。它只用于继续开发与联调。
-          '@ | Set-Content -Path "$stage/构建产物说明.txt" -Encoding UTF8
+          # ASCII 文件名：Zip 里带中文名在 Windows 资源管理器里会显示成乱码
+          '@ | Set-Content -Path "$stage/BUILD-NOTES.txt" -Encoding UTF8
           $zip = "dist/liana-$version-windows-x64.zip"
           Compress-Archive -Path $stage -DestinationPath $zip -Force
           Remove-Item $stage -Recurse -Force
