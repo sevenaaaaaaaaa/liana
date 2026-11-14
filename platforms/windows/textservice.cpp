@@ -8,6 +8,8 @@
 // 需在 Windows 机器上配合微软 TextService 样板逐段调试；引擎调用部分已完整。
 #include "textservice.h"
 
+#include <new>  // std::nothrow（工厂 CreateInstance 用它做不抛异常的 new）
+
 static HINSTANCE g_hInst = nullptr;
 static ULONG g_cLock = 0;
 

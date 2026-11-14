@@ -22,7 +22,7 @@ class CTextService final
     , public ITfKeyEventSink {
 public:
     CTextService();
-    ~CTextService() override;
+    ~CTextService();
 
     // IUnknown
     STDMETHODIMP QueryInterface(REFIID riid, void **ppv) override;
