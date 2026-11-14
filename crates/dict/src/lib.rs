@@ -3,6 +3,7 @@
 pub mod binary;
 pub mod import;
 pub mod lm;
+pub mod policy;
 
 use std::collections::HashMap;
 use std::fmt;
