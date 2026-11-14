@@ -1,0 +1,96 @@
+# 中英混合词包：英文/技术词的音节码就是它自己的字母（wifi → Wi-Fi），
+# 这样 wojiadewifimimashi 能被切成 wo / jia / de / wifi / mi / ma / shi。
+# 格式：词<TAB>码（小写字母，不含空格）<TAB>词频（与 base-large.tsv 同尺度）
+Wi-Fi	wifi	20000
+Wi-Fi 6	wifi6	3000
+Wi-Fi 7	wifi7	2000
+App	app	20000
+App Store	appstore	4000
+iOS	ios	20000
+iPhone	iphone	20000
+iPad	ipad	12000
+iCloud	icloud	8000
+iMessage	imessage	4000
+Mac	mac	12000
+MacBook	macbook	8000
+macOS	macos	6000
+AirPods	airpods	5000
+Apple	apple	6000
+Google	google	5000
+Android	android	9000
+Windows	windows	7000
+Linux	linux	5000
+Excel	excel	9000
+Word	word	7000
+PowerPoint	powerpoint	3000
+PPT	ppt	9000
+PDF	pdf	9000
+TXT	txt	3000
+CSV	csv	2500
+Markdown	markdown	2500
+USB	usb	8000
+HDMI	hdmi	4000
+Type-C	typec	5000
+Lightning	lightning	2500
+CPU	cpu	7000
+GPU	gpu	5000
+RAM	ram	4000
+SSD	ssd	4000
+HDD	hdd	2000
+U 盘	upan	6000
+API	api	7000
+SDK	sdk	4000
+JSON	json	3500
+HTTP	http	4000
+HTTPS	https	3000
+URL	url	4000
+DNS	dns	3000
+VPN	vpn	5000
+IP	ip	5000
+IP 地址	ipdizhi	3000
+OK	ok	12000
+ID	id	7000
+AI	ai	9000
+AR	ar	2500
+VR	vr	2500
+CEO	ceo	4000
+HR	hr	3000
+KPI	kpi	4000
+OKR	okr	2500
+GPS	gps	6000
+NFC	nfc	4000
+SIM	sim	4000
+eSIM	esim	2500
+OTP	otp	2000
+4G	4g	5000
+5G	5g	9000
+QQ	qq	9000
+WeChat	wechat	6000
+Alipay	alipay	5000
+Taobao	taobao	5000
+JD	jd	3000
+Gmail	gmail	4000
+Python	python	5000
+Java	java	4000
+Kotlin	kotlin	2500
+Swift	swift	3000
+Rust	rust	3000
+GitHub	github	6000
+Git	git	5000
+npm	npm	3000
+Docker	docker	3500
+bug	bug	6000
+log	log	5000
+token	token	4000
+cache	cache	3000
+Pro	pro	6000
+Max	max	5000
+Plus	plus	4000
+Mini	mini	3000
+Air	air	4000
+C 盘	cpan	4000
+D 盘	dpan	2500
+T 恤	txu	3000
+A 股	agu	4000
+B 站	bzhan	5000
+C 位	cwei	2500

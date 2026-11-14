@@ -58,6 +58,8 @@ def main():
     parser.add_argument('output', type=Path)
     parser.add_argument('--tag', action='append', default=[], metavar='NAME=PATH[,PATH...]',
                         help='给词条打类别标签（可重复），例如 place=a.tsv,b.tsv')
+    parser.add_argument('--glossary', type=Path, default=None,
+                        help='中英对照表：把本地翻译行的词条一并建进索引')
     parser.add_argument('--person-surnames', action='store_true',
                         help='用常见姓氏规则补齐人名标签（覆盖词包漏收的姓名）')
     args = parser.parse_args()
@@ -131,12 +133,29 @@ def main():
         for word in known:
             if _is_person_name(word):
                 tags.add((word, 'person'))
+    # 本地翻译行：中文 → 英文对照。只用于「候选的英文一行」，
+    # 与输入候选无关；查不到的词由调用方保留原文。
+    glossary = []
+    if args.glossary is not None:
+        if not args.glossary.exists():
+            raise SystemExit(f'glossary missing: {args.glossary}')
+        for line in args.glossary.read_text(encoding='utf-8').splitlines():
+            if not line or line.startswith('#'):
+                continue
+            fields = line.split('\t')
+            if len(fields) >= 2 and fields[0].strip():
+                glossary.append((fields[0].strip(), fields[1].strip()))
+    db.execute('CREATE TABLE en_glossary(word TEXT PRIMARY KEY, en TEXT)')
+    if glossary:
+        db.executemany('INSERT OR REPLACE INTO en_glossary VALUES(?,?)', glossary)
+
     db.execute('CREATE TABLE tags(word TEXT, tag TEXT, PRIMARY KEY(word, tag))')
     if tags:
         db.executemany('INSERT OR IGNORE INTO tags VALUES(?,?)', sorted(tags))
     db.commit()
     print('Mobile index:',dict(db.execute('SELECT kind,COUNT(*) FROM words GROUP BY kind')))
     print('Mobile tags:',dict(db.execute('SELECT tag,COUNT(*) FROM tags GROUP BY tag')))
+    print('Mobile glossary:',db.execute('SELECT COUNT(*) FROM en_glossary').fetchone()[0])
     db.close()
 
 

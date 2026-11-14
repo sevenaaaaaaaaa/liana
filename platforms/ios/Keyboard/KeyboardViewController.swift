@@ -97,6 +97,12 @@ class KeyboardViewController: UIInputViewController {
     private var stripsInline = false
     private var candidateScroll: UIScrollView!
     private var idleScroll: UIScrollView!
+    /// 英文一行：候选下方实时显示当前候选的英文；点按即上屏英文。
+    private var englishScroll: UIScrollView!
+    private var englishStrip: UIStackView!
+    private var englishButton: LianaPressButton!
+    private var englishText = ""
+    private lazy var englishTranslator = MixedEnglishLine(lexicon: MobileLexicon(bundle: .main))
     private var hapticsEnabled = UserDefaults.standard.object(forKey: "keyboard.haptics") as? Bool ?? true
     private var modeButton: UIButton!
     private var tradButton: UIButton!
@@ -325,6 +331,41 @@ class KeyboardViewController: UIInputViewController {
         ])
         root.addArrangedSubview(scroll)
         root.setCustomSpacing(4, after: scroll)
+
+        // 英文一行（中英混合输入）：候选下方单独一行，隐藏时不占高度。
+        let enScroll = UIScrollView()
+        englishScroll = enScroll
+        enScroll.isHidden = true
+        enScroll.contentInsetAdjustmentBehavior = .never
+        enScroll.showsHorizontalScrollIndicator = false
+        enScroll.translatesAutoresizingMaskIntoConstraints = false
+        enScroll.heightAnchor.constraint(equalToConstant: 34).isActive = true
+        let enStrip = UIStackView()
+        englishStrip = enStrip
+        enStrip.translatesAutoresizingMaskIntoConstraints = false
+        enStrip.axis = .horizontal
+        enStrip.spacing = 8
+        enStrip.layoutMargins = UIEdgeInsets(top: 1, left: 8, bottom: 1, right: 8)
+        enStrip.isLayoutMarginsRelativeArrangement = true
+        enScroll.addSubview(enStrip)
+        NSLayoutConstraint.activate([
+            enStrip.leadingAnchor.constraint(equalTo: enScroll.contentLayoutGuide.leadingAnchor),
+            enStrip.trailingAnchor.constraint(equalTo: enScroll.contentLayoutGuide.trailingAnchor),
+            enStrip.topAnchor.constraint(equalTo: enScroll.contentLayoutGuide.topAnchor),
+            enStrip.bottomAnchor.constraint(equalTo: enScroll.contentLayoutGuide.bottomAnchor),
+            enStrip.heightAnchor.constraint(equalTo: enScroll.frameLayoutGuide.heightAnchor),
+        ])
+        let enButton = LianaPressButton(frame: .zero)
+        enButton.surface = .plain
+        enButton.rounded = 8
+        enButton.contentEdgeInsets = UIEdgeInsets(top: 3, left: 10, bottom: 3, right: 10)
+        enButton.titleLabel?.font = .systemFont(ofSize: 14, weight: .regular)
+        enButton.accessibilityIdentifier = "english.line"
+        enButton.accessibilityLabel = "英文候选，点按上屏英文"
+        enButton.addAction(UIAction { [weak self] _ in self?.commitEnglishLine() }, for: .touchUpInside)
+        enStrip.addArrangedSubview(enButton)
+        englishButton = enButton
+        root.addArrangedSubview(enScroll)
 
         let idle = UIScrollView(); idleScroll = idle
         idle.contentInsetAdjustmentBehavior = .never; idle.showsHorizontalScrollIndicator = false
@@ -1365,6 +1406,7 @@ class KeyboardViewController: UIInputViewController {
         updateGeometry()
         clearButton?.isHidden = rawInput.isEmpty || clearSuppressed
         for button in returnButtons { button.accessibilityLabel = rawInput.isEmpty ? "换行" : "确认候选" }
+        updateEnglishLine()
         guard renderedCandidates != candidates || renderedCandidateFont != preferences.candidateFont else { return }
         renderedCandidates = candidates; renderedCandidateFont = preferences.candidateFont
         while candidateButtons.count < candidates.count {
@@ -1378,6 +1420,34 @@ class KeyboardViewController: UIInputViewController {
                 button.titleLabel?.font = .systemFont(ofSize: CGFloat(preferences.candidateFont), weight: i == 0 ? .semibold : .regular)
             }
         }
+    }
+
+    /// 中英混合输入的「英文一行」：把当前首选候选翻成英文显示在候选下方。
+    /// 没有输入、没有候选或翻不出内容时整行隐藏，不占高度。
+    private func updateEnglishLine() {
+        guard !rawInput.isEmpty, let top = candidates.first, !top.isEmpty else {
+            englishText = ""
+            englishScroll?.isHidden = true
+            return
+        }
+        englishText = englishTranslator.translate(top) ?? ""
+        englishScroll?.isHidden = englishText.isEmpty
+        guard !englishText.isEmpty else { return }
+        englishButton?.setTitle("EN · " + englishText, for: .normal)
+    }
+
+    /// 点按英文一行：放弃中文候选，改为上屏英文（这就是「确认输入的是英文」）。
+    private func commitEnglishLine() {
+        guard !englishText.isEmpty else { return }
+        let text = englishText
+        englishText = ""
+        englishScroll?.isHidden = true
+        rawInput = ""
+        candidates = []
+        renderedCandidates = []
+        send(.clear)
+        insertText(text)
+        renderCandidates()
     }
 
     /// 候选条目：点击选中；上滑 ≥ 24pt 直接着该候选上屏（§3.2）。

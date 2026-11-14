@@ -111,6 +111,38 @@ final class MobileLexicon {
         exact(code, kind: "pinyin", limit: 8).first(where: { $0.word.count == 1 })?.word
     }
 
+    /// 本地翻译行：中文词 → 英文。库里没有对照表（旧包）时返回 nil，调用方保留原文。
+    func glossary(_ word: String) -> String? {
+        guard !word.isEmpty, word.count <= 32 else { return nil }
+        var sql = "SELECT en FROM en_glossary WHERE word = ? LIMIT 1"
+        if hasBase { sql = "SELECT en FROM base.en_glossary WHERE word = ? LIMIT 1" }
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else { return nil }
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_text(statement, 1, word, -1, transient)
+        guard sqlite3_step(statement) == SQLITE_ROW else { return nil }
+        return text(statement, 0)
+    }
+
+    /// 对照表里最长的词有多长（翻译行按长度倒序做最长匹配）。
+    private var cachedGlossaryMaxLength: Int?
+    func glossaryMaxLength() -> Int {
+        if let cachedGlossaryMaxLength { return cachedGlossaryMaxLength }
+        let sql = hasBase
+            ? "SELECT MAX(LENGTH(word)) FROM base.en_glossary"
+            : "SELECT MAX(LENGTH(word)) FROM en_glossary"
+        var statement: OpaquePointer?
+        var value = 1
+        if sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK {
+            defer { sqlite3_finalize(statement) }
+            if sqlite3_step(statement) == SQLITE_ROW, sqlite3_column_type(statement, 0) != SQLITE_NULL {
+                value = max(1, Int(sqlite3_column_int64(statement, 0)))
+            }
+        }
+        cachedGlossaryMaxLength = value
+        return value
+    }
+
     /// 类别标签（place/person）：数据缺失或旧库没有 tags 表时返回 false。
     func hasTag(_ word: String, tag: String) -> Bool {
         guard hasTags, !word.isEmpty, !tag.isEmpty, word.count <= 64 else { return false }

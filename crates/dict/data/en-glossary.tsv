@@ -1,0 +1,198 @@
+# 中英对照表（本地翻译行）：长词优先匹配，用于把当前候选翻成英文一行。
+# 格式：中文<TAB>英文（留空表示虚词，翻译时直接省略）
+# 只收高频日常词与短语；未收录的词保留原文，交给在线 API 兜底。
+我家的	my
+我们家	our
+你的	your
+他的	his
+她的	her
+密码是	password is
+密码	password
+用户名	username
+账号	account
+账户	account
+是	is
+不是	is not
+我是	I am
+你是	you are
+请问	excuse me
+谢谢	thanks
+对不起	sorry
+今天	today
+明天	tomorrow
+昨天	yesterday
+现在	now
+刚才	just now
+以后	later
+之前	before
+天气	weather
+下雨	rain
+下雪	snow
+晴天	sunny
+温度	temperature
+很冷	very cold
+很热	very hot
+上班	go to work
+下班	get off work
+开会	meeting
+会议	meeting
+项目	project
+需求	requirement
+方案	plan
+文档	document
+报告	report
+邮件	email
+附件	attachment
+发送	send
+收到	received
+确认	confirm
+完成	done
+开始	start
+结束	end
+明天见	see you tomorrow
+稍等	one moment
+帮我	help me
+看一下	take a look
+改一下	change it
+试一下	try it
+没问题	no problem
+可以	okay
+多少钱	how much
+便宜	cheap
+贵	expensive
+买	buy
+卖	sell
+付款	pay
+发票	invoice
+吃饭	eat
+喝水	drink water
+咖啡	coffee
+奶茶	milk tea
+外卖	takeout
+餐厅	restaurant
+回家	go home
+出发	set off
+到了	arrived
+在路上	on the way
+堵车	traffic jam
+地铁	subway
+打车	take a taxi
+手机	phone
+电脑	computer
+充电	charge
+没电	out of battery
+信号	signal
+网络	network
+流量	data
+键盘	keyboard
+输入法	input method
+设置	settings
+打开	open
+关闭	close
+安装	install
+卸载	uninstall
+更新	update
+版本	version
+下载	download
+上传	upload
+文件	file
+文件夹	folder
+图片	picture
+视频	video
+语音	voice
+录音	recording
+翻译	translate
+英文	English
+中文	Chinese
+日语	Japanese
+地址	address
+公司	company
+电话	phone number
+名字	name
+几点	what time
+时间	time
+日期	date
+周一	Monday
+周二	Tuesday
+周三	Wednesday
+周四	Thursday
+周五	Friday
+周六	Saturday
+周日	Sunday
+早上	morning
+中午	noon
+下午	afternoon
+晚上	evening
+睡	sleep
+起床	get up
+加班	work overtime
+好的	okay
+行	okay
+不行	no
+要不要	do you want
+需要	need
+不用	no need
+已经	already
+还没	not yet
+这个	this
+那个	that
+这里	here
+那里	there
+什么	what
+为什么	why
+怎么	how
+多少	how many
+因为	because
+所以	so
+但是	but
+而且	and
+如果	if
+然后	then
+还是	or
+一起	together
+我	I
+你	you
+他	he
+她	she
+我们	we
+他们	they
+大家	everyone
+的	
+了	
+吗	?
+呢	
+吧	
+啊	
+嗯	
+好	good
+对	right
+不	not
+有	have
+没有	no
+要	want
+要一个	want a
+一个	a
+两个	two
+给我	give me
+发我	send me
+打卡	check in
+上班打卡	clock in
+用	use
+使用	use
+打开文件	open the file
+可以吗	is that ok
+行不行	is it ok
+怎么弄	how to do it
+怎么办	what should we do
+好的谢谢	ok thanks
+没问题吧	no problem right
+马上	right away
+等一下	wait a moment
+马上到	arriving soon
+我在忙	I am busy
+见面	meet
+明天开会	meeting tomorrow
+改天	another day
+回头	later
+先这样	that is it for now
+就这样	that is it
