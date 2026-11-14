@@ -52,11 +52,35 @@ struct InputSourceRegistration {
 
     func isCanonical(hitoolbox: [Entry], thirdParty: [Entry]) -> Bool {
         !hitoolbox.contains(where: owns)
-            && Self.equal(thirdParty.filter(owns), canonicalEntries)
+            && Self.equalIgnoringOrder(thirdParty.filter(owns), canonicalEntries)
     }
 
     static func equal(_ left: [Entry], _ right: [Entry]) -> Bool {
         NSArray(array: left).isEqual(to: right)
+    }
+
+    /// 系统会按自己的顺序持久化第三方表（实测把模式行写在容器行之前），
+    /// 所以"内容是否一致"不能依赖数组顺序，否则自检与写入回读核对会永远失败。
+    static func equalIgnoringOrder(_ left: [Entry], _ right: [Entry]) -> Bool {
+        left.map(stableKey).sorted() == right.map(stableKey).sorted()
+    }
+
+    private static func stableKey(_ entry: Entry) -> String {
+        entry.keys.sorted().map { $0 + "=" + stableValue(entry[$0]) }.joined(separator: "\u{1F}")
+    }
+
+    private static func stableValue(_ value: Any?) -> String {
+        switch value {
+        case .none: return "n"
+        case let v as String: return "s:" + v
+        case let v as Bool: return "b:" + (v ? "1" : "0")
+        case let v as Int: return "i:" + String(v)
+        case let v as Double: return "d:" + String(v)
+        case let v as [Any]: return "a:[" + v.map { stableValue($0) }.joined(separator: ",") + "]"
+        case let v as [String: Any]:
+            return "o:{" + v.keys.sorted().map { $0 + "=" + stableValue(v[$0]) }.joined(separator: ",") + "}"
+        case let v?: return "x:" + String(describing: v)
+        }
     }
 
     /// 只接受 Info.plist 声明且可见的模式，防止把历史或临时构建模式再次启用。

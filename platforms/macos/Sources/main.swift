@@ -96,15 +96,21 @@ private func normalizeInputSourcePersistence(enable: Bool?) throws -> Bool {
         try PropertyListSerialization.data(fromPropertyList: rows, format: .xml, options: 0).write(to: file, options: .atomic)
         try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
     }
-    func write(_ rows: [[String: Any]], _ domain: String, _ key: String) -> Bool {
+    func write(_ rows: [[String: Any]], _ domain: String, _ key: String) {
         CFPreferencesSetAppValue(key as CFString, rows as CFArray, domain as CFString)
-        return CFPreferencesAppSynchronize(domain as CFString)
+        _ = CFPreferencesAppSynchronize(domain as CFString)
     }
-    guard write(result.thirdParty, tpDomain, tpKey), write(result.hitoolbox, hbDomain, hbKey),
-          InputSourceRegistration.equal(try registrationRows(hbDomain, hbKey), result.hitoolbox),
-          InputSourceRegistration.equal(try registrationRows(tpDomain, tpKey), result.thirdParty) else {
-        _ = write(tp, tpDomain, tpKey)
-        _ = write(hb, hbDomain, hbKey)
+    // CFPreferencesAppSynchronize 的返回值只是"已提交"的提示，系统侧仍会重排数组；
+    // 成败只看回读内容，并且按无序比较：macOS 会把模式行持久化在容器行之前。
+    write(result.thirdParty, tpDomain, tpKey)
+    write(result.hitoolbox, hbDomain, hbKey)
+    let hitoolboxBelongs = InputSourceRegistration.equalIgnoringOrder(
+        try registrationRows(hbDomain, hbKey), result.hitoolbox)
+    let thirdPartyBelongs = InputSourceRegistration.equalIgnoringOrder(
+        try registrationRows(tpDomain, tpKey), result.thirdParty)
+    guard hitoolboxBelongs, thirdPartyBelongs else {
+        write(tp, tpDomain, tpKey)
+        write(hb, hbDomain, hbKey)
         throw NSError(domain: "Liana.Install", code: 3,
             userInfo: [NSLocalizedDescriptionKey: "输入源持久化校验失败，已尝试恢复；备份：" + backup.path])
     }

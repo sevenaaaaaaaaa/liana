@@ -28,6 +28,14 @@ struct InputSourceRegistrationTests {
         precondition(!policy.hasModeRegistration(hitoolbox: [parent], thirdParty: []))
         precondition(!policy.hasModeRegistration(hitoolbox: [], thirdParty: []))
         precondition(policy.hasModeRegistration(hitoolbox: [], thirdParty: [parent, mode]))
+        // 系统持久化时会重排数组（实测模式行在容器行之前）：内容相同即视为规范，不按顺序判失败。
+        precondition(policy.isCanonical(hitoolbox: [], thirdParty: [mode, parent]))
+        precondition(InputSourceRegistration.equalIgnoringOrder([parent, mode], [mode, parent]))
+        precondition(InputSourceRegistration.equalIgnoringOrder([unrelated, parent, mode], [mode, parent, unrelated]))
+        precondition(!InputSourceRegistration.equalIgnoringOrder([parent, mode], [mode]))
+        precondition(!InputSourceRegistration.equalIgnoringOrder([parent, mode], [parent, parent]))
+        precondition(!InputSourceRegistration.equalIgnoringOrder(
+            [["Bundle ID": id, "InputSourceKind": "Keyboard Input Method", "custom": ["keep", 7]]], [parent]))
         let info: [String: Any] = ["ComponentInputModeDict": [
             "tsVisibleInputModeOrderedArrayKey": [id + ".zh", id + ".zh", "old.mode", id + ".hidden"],
             "tsInputModeListKey": [id + ".zh": ["TISInputSourceID": id + ".zh"],
