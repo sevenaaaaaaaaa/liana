@@ -208,6 +208,7 @@ jobs:
           '@ | Set-Content -Path "$stage/构建产物说明.txt" -Encoding UTF8
           $zip = "dist/liana-$version-windows-x64.zip"
           Compress-Archive -Path $stage -DestinationPath $zip -Force
+          Remove-Item $stage -Recurse -Force
           "$((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower())  $(Split-Path $zip -Leaf)" |
             Set-Content "$zip.sha256" -Encoding ASCII
           Get-ChildItem dist | Format-Table Name, Length
@@ -252,6 +253,8 @@ jobs:
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             existing="$(gh release view "$GITHUB_REF_NAME" --json assets -q '.assets[].name')"
             for f in release/*; do
+              # download-artifact 会把目录也带下来（例如 Windows 的打包目录），只传文件
+              [ -f "$f" ] || continue
               if grep -qxF "$(basename "$f")" <<<"$existing"; then
                 echo "skip (already on release): $(basename "$f")"
               else
