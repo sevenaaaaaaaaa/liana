@@ -24,6 +24,10 @@ name = "liana-ai"
 version = "0.10.1"
 
 [[package]]
+name = "liana-card"
+version = "0.10.1"
+
+[[package]]
 name = "liana-core"
 version = "0.10.1"
 

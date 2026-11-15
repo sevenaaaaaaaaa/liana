@@ -12,6 +12,7 @@ members = [
     "crates/sync",
     "crates/zhconv",
     "crates/gloss",
+    "crates/card",
     "crates/engine",
     "crates/ai",
     "crates/plugin",
@@ -40,6 +41,7 @@ liana-radix = { path = "crates/radix" }
 liana-sync = { path = "crates/sync" }
 liana-zhconv = { path = "crates/zhconv" }
 liana-gloss = { path = "crates/gloss" }
+liana-card = { path = "crates/card" }
 liana-engine = { path = "crates/engine" }
 liana-ai = { path = "crates/ai" }
 liana-plugin = { path = "crates/plugin" }

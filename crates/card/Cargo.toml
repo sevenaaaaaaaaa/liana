@@ -1,0 +1,11 @@
+[package]
+name = "liana-card"
+description = "Structured card layout shared by every Liana platform: one layout tree, many exports"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
