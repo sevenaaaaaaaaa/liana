@@ -1136,4 +1136,102 @@ final class KeyboardBehaviorTests: XCTestCase {
         XCTAssertNotNil(try button("key.123", qwerty), "QWERTY 仍有 123")
     }
 
+    // MARK: - 命令台（一个键 + 当前对象 + 算子）
+
+    /// 长按「输入工具」进命令台；短按仍是旧面板。
+    private func openCommands(_ keyboard: FixtureKeyboard) {
+        let press = SimulatedLongPress()
+        keyboard.perform(NSSelectorFromString("openCommandsLongPress:"), with: press)
+        keyboard.view.setNeedsLayout()
+        keyboard.view.layoutIfNeeded()
+    }
+
+    private func commandLabel(_ id: String, _ keyboard: FixtureKeyboard) -> UILabel? {
+        allViews(keyboard.view).compactMap { $0 as? UILabel }.first { $0.accessibilityIdentifier == id }
+    }
+
+    private func commandOp(_ id: String, _ keyboard: FixtureKeyboard) -> UIButton? {
+        allViews(keyboard.view).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "command.op." + id }
+    }
+
+    func testLongPressOpensCommandSheetBesideTheOldPanel() throws {
+        let keyboard = fixture()
+        openCommands(keyboard)
+        XCTAssertNotNil(commandLabel("command.title", keyboard), "长按应打开命令台")
+        XCTAssertNil(try? button("tools.section", keyboard), "短按面板不该同时存在")
+        try tap("command.close", keyboard)
+        XCTAssertNil(commandLabel("command.title", keyboard), "返回后命令台应关闭")
+        // 短按仍然是旧面板：并存阶段的核心约定。
+        try tap("tools.open", keyboard)
+        XCTAssertNotNil(try? button("tools.section", keyboard), "短按应仍打开旧面板")
+    }
+
+    func testCommandSheetPutsCurrentTextOnTop() throws {
+        let keyboard = fixture()
+        keyboard.document.text = "今天先注册广告后台"
+        openCommands(keyboard)
+        XCTAssertEqual(commandLabel("command.context", keyboard)?.text, "今天先注册广告后台")
+        XCTAssertEqual(commandOp("copy", keyboard)?.isEnabled, true, "有文字时「复制这段」应可用")
+        let ops = allViews(keyboard.view).compactMap { $0 as? UIButton }
+            .filter { $0.accessibilityIdentifier?.hasPrefix("command.op.") == true }
+        XCTAssertEqual(ops.first?.accessibilityIdentifier, "command.op.copy", "可用的文字算子应排在最前")
+    }
+
+    func testCommandSheetDisablesTextOperatorsWhenEmpty() throws {
+        let keyboard = fixture()
+        openCommands(keyboard)
+        XCTAssertEqual(commandLabel("command.context", keyboard)?.text, "这里还没有可以处理的文字")
+        XCTAssertEqual(commandOp("copy", keyboard)?.isEnabled, false, "没文字时不该允许复制")
+        XCTAssertEqual(commandOp("feel", keyboard)?.isEnabled, true, "不需要文字的算子始终可用")
+        let ops = allViews(keyboard.view).compactMap { $0 as? UIButton }
+            .filter { $0.accessibilityIdentifier?.hasPrefix("command.op.") == true }
+        XCTAssertEqual(ops.first?.accessibilityIdentifier, "command.op.traditional", "没文字时应先列不需要文字的算子")
+    }
+
+    func testCommandCopyWritesTheCurrentText() throws {
+        UIPasteboard.general.string = ""
+        let keyboard = fixture()
+        keyboard.document.text = "要被复制的一段话"
+        openCommands(keyboard)
+        try tap("command.op.copy", keyboard)
+        XCTAssertEqual(UIPasteboard.general.string, "要被复制的一段话")
+        XCTAssertFalse(commandLabel("command.status", keyboard)?.text?.isEmpty ?? true, "复制后应给出状态提示")
+    }
+
+    func testCommandMoreToolsFallsBackToTheOldPanel() throws {
+        let keyboard = fixture()
+        openCommands(keyboard)
+        try tap("command.op.toolbox", keyboard)
+        XCTAssertNotNil(try? button("tools.section", keyboard), "「更多工具」应落到旧面板")
+        XCTAssertNil(commandLabel("command.title", keyboard), "命令台应已收起")
+    }
+
+    func testCommandOrderingIsStableAndComplete() {
+        for hasText in [true, false] {
+            let first = CommandCatalog.ordered(hasText: hasText).map(\.id)
+            let second = CommandCatalog.ordered(hasText: hasText).map(\.id)
+            XCTAssertEqual(first, second, "同一输入必须给出同一顺序")
+            XCTAssertEqual(Set(first), Set(CommandCatalog.catalog.map(\.id)), "排序不该丢算子")
+            let lead = CommandCatalog.ordered(hasText: hasText).prefix { $0.needsText == hasText }
+            XCTAssertFalse(lead.isEmpty, "应有一段与当前状态匹配的算子排在最前")
+        }
+    }
+
+    func testCommandSnippetKeepsTheTail() {
+        let long = String(repeating: "甲", count: 80)
+        let snippet = CommandCatalog.snippet(long, limit: 10)
+        XCTAssertTrue(snippet.hasPrefix("…"))
+        XCTAssertEqual(snippet.count, 11)
+        XCTAssertEqual(CommandCatalog.snippet("  短文  "), "短文")
+    }
+
+}
+
+/// 长按手势的 state 是只读的，测试里用子类把它变成可写的。
+private final class SimulatedLongPress: UILongPressGestureRecognizer {
+    var phase: UIGestureRecognizer.State = .began
+    override var state: UIGestureRecognizer.State {
+        get { phase }
+        set { phase = newValue }
+    }
 }

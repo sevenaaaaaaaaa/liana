@@ -39,6 +39,8 @@ class KeyboardViewController: UIInputViewController {
     private var renderedCandidateFont: Double = 0
     private var handwritingPanel: HandwritingPanel?
     private var featurePanel: KeyboardToolsPanel?
+    /// 命令台：入口收敛的第一步，和旧面板并存（长按「输入工具」进入）。
+    private var commandSheet: KeyboardCommandSheet?
     private var clipboardSender: PetLinkSender?
     private var glidePoints: [CGPoint] = []
     private var candidates: [String] = []
@@ -291,6 +293,11 @@ class KeyboardViewController: UIInputViewController {
             UIAccessibilityCustomAction(name: "降低键盘", target: self, selector: #selector(decreaseHeight)),
         ]
         tools.addAction(UIAction { [weak self] _ in self?.toggleTools() }, for: .touchUpInside)
+        // 长按进入命令台。cancelsTouchesInView 默认为真，所以长按松手不会
+        // 再触发上面那个短按回调——两种手势互不干扰。
+        let commandPress = UILongPressGestureRecognizer(target: self, action: #selector(openCommandsLongPress(_:)))
+        commandPress.minimumPressDuration = 0.4
+        tools.addGestureRecognizer(commandPress)
         entryDock.addArrangedSubview(tools)
         let settings = toolbarButton("slider.horizontal.3", label: "布局与手感", id: "layout.settings")
         layoutEntry = settings
@@ -1700,6 +1707,52 @@ extension KeyboardViewController {
         panel.onCursor = { [weak self] delta in self?.moveCursor(delta) }
         panel.onClipboardSend = { [weak self] in self?.clipboardToMac(pull: false) }
         panel.onClipboardReceive = { [weak self] in self?.clipboardToMac(pull: true) }
+    }
+    @objc private func openCommandsLongPress(_ gesture: UILongPressGestureRecognizer) {
+        guard gesture.state == .began else { return }
+        toggleCommands()
+    }
+    /// 命令台：先摆「当前对象」，再列对它可用的算子。
+    /// 与旧面板并存，短按「输入工具」仍然是旧面板。
+    private func toggleCommands() {
+        closeGesturePanel()
+        if let sheet = commandSheet {
+            commandSheet = nil; syncToolbarState(); LianaMotion.dismiss(sheet); return
+        }
+        featurePanel?.removeFromSuperview(); featurePanel = nil
+        adjustmentPanel?.removeFromSuperview(); adjustmentPanel = nil
+        devicePanel?.stop(); devicePanel?.removeFromSuperview(); devicePanel = nil
+        let sheet = KeyboardCommandSheet(); commandSheet = sheet; installPanel(sheet)
+        sheet.currentText = { [weak self] in self?.textDocumentProxy.documentContextBeforeInput }
+        sheet.onClose = { [weak self] in self?.toggleCommands() }
+        sheet.onAction = { [weak self] id, text in self?.runCommand(id, text: text) }
+        sheet.refresh()
+    }
+    private func dismissCommands() {
+        guard let sheet = commandSheet else { return }
+        commandSheet = nil; sheet.removeFromSuperview(); syncToolbarState()
+    }
+    /// 算子分发。每条都必须真的落到既有能力上——命令台只是换了个入口，
+    /// 不新增功能，所以这里不应该出现「占位」。
+    private func runCommand(_ id: String, text: String) {
+        switch id {
+        case "copy":
+            guard !text.isEmpty else { commandSheet?.status("这里没有可复制的文字。"); return }
+            UIPasteboard.general.string = text
+            commandSheet?.status("已复制 \(text.count) 个字。")
+        case "traditional":
+            onTraditionalToggle()
+            commandSheet?.status(traditional ? "输出字形：繁体" : "输出字形：简体")
+        case "cursor.left": moveCursor(-1)
+        case "cursor.right": moveCursor(1)
+        case "phrase": dismissCommands(); showPhraseStrip()
+        case "receive":
+            commandSheet?.status("正在接收…")
+            receiveHostContent()
+        case "feel": dismissCommands(); toggleAdjustments()
+        case "toolbox": dismissCommands(); toggleTools()
+        default: break
+        }
     }
     /// 顶栏快捷入口：打开输入工具面板并选中分类；面板已打开时只切分类。
     private func openTools(section: Int) {
