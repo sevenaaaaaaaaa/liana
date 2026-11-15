@@ -287,17 +287,18 @@ class KeyboardViewController: UIInputViewController {
         entryDock.addArrangedSubview(faces)
         let tools = toolbarButton("square.grid.2x2", label: "输入工具", id: "tools.open")
         toolEntry = tools
-        tools.accessibilityHint = "拖动此工具组可调整键盘高度与入口位置"
+        tools.accessibilityHint = "点按打开命令台；长按直达工具面板；拖动可调整键盘高度与入口位置"
         tools.accessibilityCustomActions = [
             UIAccessibilityCustomAction(name: "增高键盘", target: self, selector: #selector(increaseHeight)),
             UIAccessibilityCustomAction(name: "降低键盘", target: self, selector: #selector(decreaseHeight)),
         ]
-        tools.addAction(UIAction { [weak self] _ in self?.toggleTools() }, for: .touchUpInside)
-        // 长按进入命令台。cancelsTouchesInView 默认为真，所以长按松手不会
-        // 再触发上面那个短按回调——两种手势互不干扰。
-        let commandPress = UILongPressGestureRecognizer(target: self, action: #selector(openCommandsLongPress(_:)))
-        commandPress.minimumPressDuration = 0.4
-        tools.addGestureRecognizer(commandPress)
+        // 短按进命令台（一个键 + 当前对象 + 算子）；长按直达旧的四格工具面板。
+        // 命令台是主路径，旧面板降级成它里面的「更多工具」。
+        tools.addAction(UIAction { [weak self] _ in self?.toggleCommands() }, for: .touchUpInside)
+        // cancelsTouchesInView 默认为真，所以长按松手不会再触发上面那个短按回调。
+        let legacyPress = UILongPressGestureRecognizer(target: self, action: #selector(openLegacyToolsLongPress(_:)))
+        legacyPress.minimumPressDuration = 0.4
+        tools.addGestureRecognizer(legacyPress)
         entryDock.addArrangedSubview(tools)
         let settings = toolbarButton("slider.horizontal.3", label: "布局与手感", id: "layout.settings")
         layoutEntry = settings
@@ -1689,6 +1690,8 @@ extension KeyboardViewController {
     }
     private func toggleTools(section: Int? = nil) {
         closeGesturePanel()
+        // 命令台和旧面板是同一块区域的两种视图，不能同时挂着。
+        if commandSheet != nil { dismissCommands() }
         if let panel = featurePanel {
             if let section, section != panel.section { panel.select(section: section); return }
             featurePanel = nil; syncToolbarState(); LianaMotion.dismiss(panel); return
@@ -1708,12 +1711,12 @@ extension KeyboardViewController {
         panel.onClipboardSend = { [weak self] in self?.clipboardToMac(pull: false) }
         panel.onClipboardReceive = { [weak self] in self?.clipboardToMac(pull: true) }
     }
-    @objc private func openCommandsLongPress(_ gesture: UILongPressGestureRecognizer) {
+    @objc private func openLegacyToolsLongPress(_ gesture: UILongPressGestureRecognizer) {
         guard gesture.state == .began else { return }
-        toggleCommands()
+        toggleTools()
     }
-    /// 命令台：先摆「当前对象」，再列对它可用的算子。
-    /// 与旧面板并存，短按「输入工具」仍然是旧面板。
+    /// 命令台：先摆「当前对象」，再列对它可用的算子。短按「输入工具」进这里；
+    /// 旧的四格面板从本面板的「更多工具」进，或长按「输入工具」直达。
     private func toggleCommands() {
         closeGesturePanel()
         if let sheet = commandSheet {

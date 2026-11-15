@@ -448,7 +448,7 @@ final class KeyboardBehaviorTests: XCTestCase {
     }
     func testToolsContainRealActionsAndKaomojiInserts() throws {
         let keyboard=fixture()
-        try tap("tools.open",keyboard)
+        try openLegacyTools(keyboard)
         XCTAssertNotNil(try button("tools.receive",keyboard))
         let tabs = try XCTUnwrap(allViews(keyboard.view).compactMap { $0 as? UISegmentedControl }.first { $0.accessibilityIdentifier == "tools.section" })
         tabs.selectedSegmentIndex = 3; tabs.sendActions(for:.valueChanged)
@@ -460,7 +460,7 @@ final class KeyboardBehaviorTests: XCTestCase {
         XCTAssertFalse(keyboard.document.text.isEmpty)
         try tap("tools.close",keyboard)
         XCTAssertNotNil(try button("key.q",keyboard))
-        try tap("tools.open",keyboard)
+        try openLegacyTools(keyboard)
         try tap("method.wubi",keyboard)
         try typePinyin("wqiy",keyboard)
         XCTAssertEqual(try button("candidate.0",keyboard).title(for:.normal),"你")
@@ -569,7 +569,7 @@ final class KeyboardBehaviorTests: XCTestCase {
             }
             fit(375); try typePinyin("shuru",keyboard)
             attachScreenshot("keyboard-\(style.rawValue)-phone",keyboard)
-            try tap("tools.open",keyboard); attachScreenshot("tools-\(style.rawValue)-phone",keyboard); try tap("tools.close",keyboard)
+            try openLegacyTools(keyboard); attachScreenshot("tools-\(style.rawValue)-phone",keyboard); try tap("tools.close",keyboard)
             if #available(iOS 17.0,*) { keyboard.traitOverrides.horizontalSizeClass = .regular }
             fit(1024); try visibleKeys(1024); attachScreenshot("keyboard-\(style.rawValue)-tablet",keyboard)
             if #available(iOS 17.0,*) { keyboard.traitOverrides.verticalSizeClass = .compact }
@@ -1074,7 +1074,7 @@ final class KeyboardBehaviorTests: XCTestCase {
         XCTAssertEqual(cleaned.filter { $0 == "好的" }.count, 1)
         XCTAssertFalse(cleaned.contains { $0.count > MobilePhrases.maxLength })
         let keyboard = fixture()
-        try tap("tools.open", keyboard)
+        try openLegacyTools(keyboard)
         let tabs = try XCTUnwrap(allViews(keyboard.view).compactMap { $0 as? UISegmentedControl }.first { $0.accessibilityIdentifier == "tools.section" })
         tabs.selectedSegmentIndex = 3; tabs.sendActions(for: .valueChanged)
         XCTAssertNotNil(try button("tools.phrases", keyboard))
@@ -1097,7 +1097,7 @@ final class KeyboardBehaviorTests: XCTestCase {
             preferences.save()
             let keyboard = fixture()
             XCTAssertFalse(allViews(keyboard.view).compactMap { $0 as? UIButton }.contains { $0.accessibilityIdentifier == "key.工具" || $0.title(for: .normal) == "工具" }, "\(layout) 仍有工具键")
-            try tap("tools.open", keyboard)
+            try openLegacyTools(keyboard)
             XCTAssertNotNil(try button("tools.close", keyboard), "\(layout) 顶栏工具入口失效")
             try tap("tools.close", keyboard)
             XCTAssertNotNil(try button("key.5 JKL", keyboard))
@@ -1106,7 +1106,7 @@ final class KeyboardBehaviorTests: XCTestCase {
         UserDefaults.standard.set("handwriting", forKey: "keyboard.method")
         let hand = fixture()
         XCTAssertFalse(allViews(hand.view).compactMap { $0 as? UIButton }.contains { $0.accessibilityIdentifier == "key.工具" })
-        try tap("tools.open", hand)
+        try openLegacyTools(hand)
         XCTAssertNotNil(try button("tools.close", hand))
     }
 
@@ -1138,10 +1138,18 @@ final class KeyboardBehaviorTests: XCTestCase {
 
     // MARK: - 命令台（一个键 + 当前对象 + 算子）
 
-    /// 长按「输入工具」进命令台；短按仍是旧面板。
+    /// 短按「输入工具」现在直接进命令台——这是主路径。
     private func openCommands(_ keyboard: FixtureKeyboard) {
-        let press = SimulatedLongPress()
-        keyboard.perform(NSSelectorFromString("openCommandsLongPress:"), with: press)
+        try? tap("tools.open", keyboard)
+        keyboard.view.setNeedsLayout()
+        keyboard.view.layoutIfNeeded()
+    }
+
+    /// 旧的四格工具面板：短按进命令台，再从「更多工具」下去。
+    /// 之前所有直接点「输入工具」就期待旧面板的用例，都改走这里。
+    private func openLegacyTools(_ keyboard: FixtureKeyboard) throws {
+        openCommands(keyboard)
+        try tap("command.op.toolbox", keyboard)
         keyboard.view.setNeedsLayout()
         keyboard.view.layoutIfNeeded()
     }
@@ -1154,16 +1162,21 @@ final class KeyboardBehaviorTests: XCTestCase {
         allViews(keyboard.view).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "command.op." + id }
     }
 
-    func testLongPressOpensCommandSheetBesideTheOldPanel() throws {
+    func testToolEntryOpensCommandSheetAndLongPressReachesLegacyPanel() throws {
         let keyboard = fixture()
+        // 短按：命令台，接管原来的「输入工具」入口。
         openCommands(keyboard)
-        XCTAssertNotNil(commandLabel("command.title", keyboard), "长按应打开命令台")
-        XCTAssertNil(try? button("tools.section", keyboard), "短按面板不该同时存在")
+        XCTAssertNotNil(commandLabel("command.title", keyboard), "短按应打开命令台")
+        XCTAssertNil(try? button("tools.section", keyboard), "命令台打开时旧面板不该同时存在")
         try tap("command.close", keyboard)
         XCTAssertNil(commandLabel("command.title", keyboard), "返回后命令台应关闭")
-        // 短按仍然是旧面板：并存阶段的核心约定。
-        try tap("tools.open", keyboard)
-        XCTAssertNotNil(try? button("tools.section", keyboard), "短按应仍打开旧面板")
+        XCTAssertNotNil(try? button("key.a", keyboard), "关闭后应回到键盘")
+        // 长按：直达旧的四格面板，作为熟练用户的捷径保留。
+        let press = SimulatedLongPress()
+        keyboard.perform(NSSelectorFromString("openLegacyToolsLongPress:"), with: press)
+        keyboard.view.layoutIfNeeded()
+        XCTAssertNotNil(try? button("tools.section", keyboard), "长按应直达旧面板")
+        XCTAssertNil(commandLabel("command.title", keyboard), "长按不该同时打开命令台")
     }
 
     func testCommandSheetPutsCurrentTextOnTop() throws {
