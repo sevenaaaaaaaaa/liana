@@ -225,6 +225,14 @@ void liana_nutrition_forget_all(LianaSession *session);
 char *liana_nutrition_export(LianaSession *session);
 int32_t liana_nutrition_import(LianaSession *session, const char *tsv);
 
+/* 卡片：把一段文字排成卡片，返回自包含 HTML（内联 CSS、亮暗跟随系统）。
+ * meta 可为 NULL。不需要模型：编号行拆成事项，其余原文进转写区。
+ * 返回字符串由调用方用 liana_free_string 释放。 */
+char *liana_card_html(const char *text, const char *meta);
+
+/* 卡片：同一棵排版树导出的 Markdown，由调用方释放。 */
+char *liana_card_markdown(const char *text, const char *meta);
+
 /* 版本字符串（静态，勿释放）。 */
 const char *liana_version(void);
 

@@ -1766,3 +1766,76 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
+
+/// 卡片：把一段文字排成卡片，返回自包含的 HTML（内联 CSS、亮暗跟随系统）。
+///
+/// 不需要任何模型：规则拆分（编号行 → 事项），所以录完一段话就能出一张卡。
+/// 返回的字符串由调用方用 liana_free_string 释放；文本为空时返回空串。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn liana_card_html(text: *const c_char, meta: *const c_char) -> *mut c_char {
+    let text = unsafe { cstr(text) };
+    let meta = unsafe { cstr(meta) };
+    guard_ptr(|| {
+        let Some(text) = text else {
+            return std::ptr::null_mut();
+        };
+        let card = liana_card::Card::from_transcript(&text, meta.as_deref());
+        into_c(card.to_html())
+    })
+}
+
+/// 卡片：同一棵树导出的 Markdown。由调用方用 liana_free_string 释放。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn liana_card_markdown(
+    text: *const c_char,
+    meta: *const c_char,
+) -> *mut c_char {
+    let text = unsafe { cstr(text) };
+    let meta = unsafe { cstr(meta) };
+    guard_ptr(|| {
+        let Some(text) = text else {
+            return std::ptr::null_mut();
+        };
+        let card = liana_card::Card::from_transcript(&text, meta.as_deref());
+        into_c(card.to_markdown())
+    })
+}
+
+
+#[cfg(test)]
+mod card_ffi_tests {
+    use super::*;
+    use std::ffi::CString;
+
+    #[test]
+    fn card_html_round_trips_through_the_c_abi() {
+        let text = CString::new("今晚对账\n1. 先注册广告后台\n2. 清点票据").unwrap();
+        let meta = CString::new("2026-11-16").unwrap();
+        let ptr = unsafe { liana_card_html(text.as_ptr(), meta.as_ptr()) };
+        assert!(!ptr.is_null());
+        let html = unsafe { CStr::from_ptr(ptr) }.to_str().unwrap().to_string();
+        unsafe { liana_free_string(ptr) };
+        assert!(html.starts_with("<!doctype html>"));
+        assert!(html.contains("今晚对账"));
+        assert!(html.contains("清点票据"));
+        assert!(html.contains("2026-11-16"));
+    }
+
+    #[test]
+    fn card_markdown_round_trips_through_the_c_abi() {
+        let text = CString::new("周会\n- 登录\n- 支付").unwrap();
+        let ptr = unsafe { liana_card_markdown(text.as_ptr(), std::ptr::null()) };
+        assert!(!ptr.is_null());
+        let md = unsafe { CStr::from_ptr(ptr) }.to_str().unwrap().to_string();
+        unsafe { liana_free_string(ptr) };
+        assert!(md.contains("# 周会"));
+        assert!(md.contains("## 01 登录"));
+        assert!(md.contains("## 02 支付"));
+    }
+
+    #[test]
+    fn null_text_is_rejected_without_crashing() {
+        let ptr = unsafe { liana_card_html(std::ptr::null(), std::ptr::null()) };
+        assert!(ptr.is_null());
+    }
+}

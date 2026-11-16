@@ -21,3 +21,4 @@ liana-engine = { workspace = true }
 liana-ai = { workspace = true }
 liana-plugin = { workspace = true }
 liana-gloss = { workspace = true }
+liana-card = { workspace = true }

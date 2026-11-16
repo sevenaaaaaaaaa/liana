@@ -460,6 +460,147 @@ fn escape_html(text: &str) -> String {
     }
     out
 }
+
+impl Card {
+    /// 从一段转写原文直接构造卡片，不需要任何模型。
+    ///
+    /// 规则刻意简单——它是兜底路径：模型版接进来之后，这个函数可以整体被
+    /// 替换，而现在它保证「录完一段话就能出一张卡」，不依赖任何下载。
+    ///
+    /// - 第一个非空行是标题，除非它自己就带着编号；
+    /// - 带编号前缀（1. / 1、 / 1) / ① / - / • / ·）的行各成为一个事项；
+    /// - 没有编号时，标题之外的每个非空行各成一个事项；
+    /// - 原始文本全部进转写区，一个字都不丢。
+    pub fn from_transcript(text: &str, meta: Option<&str>) -> Card {
+        let meta = meta.map(str::to_string).filter(|m| !m.trim().is_empty());
+        let lines: Vec<&str> = text
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .collect();
+        if lines.is_empty() {
+            return Card { meta, ..Card::default() };
+        }
+
+        let first_is_item = split_marker(lines[0]).is_some();
+        let title = if first_is_item {
+            "语音记录".to_string()
+        } else {
+            short_title(lines[0])
+        };
+        let body = if first_is_item { &lines[..] } else { &lines[1..] };
+
+        // 整段都没有编号时，每行本身就是一件事；只要出现过编号，没有编号的
+        // 前置行就按导语处理，避免把开场白硬塞成一件事项。
+        let body_has_markers = body.iter().any(|line| split_marker(line).is_some());
+
+        let mut items: Vec<Item> = Vec::new();
+        let mut lead: Vec<&str> = Vec::new();
+        let mut index: u8 = 0;
+        for line in body {
+            let push_item = |items: &mut Vec<Item>, index: u8, text: &str| {
+                items.push(Item {
+                    index,
+                    title: short_item(text),
+                    ..Item::default()
+                });
+            };
+            match split_marker(line) {
+                Some((number, rest)) => {
+                    index = if number > 0 { number } else { index.saturating_add(1) };
+                    push_item(&mut items, index, rest);
+                }
+                None if !body_has_markers => {
+                    index = index.saturating_add(1);
+                    push_item(&mut items, index, line);
+                }
+                None => {
+                    if items.is_empty() {
+                        lead.push(line);
+                    } else {
+                        index = index.saturating_add(1);
+                        push_item(&mut items, index, line);
+                    }
+                }
+            }
+        }
+
+        let lead_text = {
+            let joined = lead.join(" ");
+            if joined.trim().is_empty() { None } else { Some(joined) }
+        };
+
+        Card {
+            kicker: Some("语音记录".into()),
+            title,
+            lead: lead_text,
+            items,
+            transcript: lines.iter().map(|line| (*line).to_string()).collect(),
+            meta,
+        }
+    }
+}
+
+/// 标题最多这么多个字符，超出用省略号收尾。
+const TITLE_LIMIT: usize = 40;
+/// 单个事项最多这么多个字符。
+const ITEM_LIMIT: usize = 60;
+
+fn short_title(text: &str) -> String {
+    let trimmed = text.trim();
+    if trimmed.chars().count() <= TITLE_LIMIT {
+        return trimmed.to_string();
+    }
+    let head: String = trimmed.chars().take(TITLE_LIMIT).collect();
+    format!("{head}…")
+}
+
+fn short_item(text: &str) -> String {
+    let trimmed = text.trim().trim_end_matches(['。', '；', ';', '，', ',']).trim();
+    if trimmed.chars().count() <= ITEM_LIMIT {
+        return trimmed.to_string();
+    }
+    let head: String = trimmed.chars().take(ITEM_LIMIT).collect();
+    format!("{head}…")
+}
+
+/// 识别行首编号：返回（序号，去掉编号后的正文）。序号 0 表示项目符号。
+fn split_marker(line: &str) -> Option<(u8, &str)> {
+    let line = line.trim_start();
+    if let Some(first) = line.chars().next() {
+        if let Some(number) = circled_digit(first) {
+            return Some((number, line[first.len_utf8()..].trim_start()));
+        }
+    }
+    let digits: String = line.chars().take_while(|c| c.is_ascii_digit()).collect();
+    if !digits.is_empty() {
+        let rest = &line[digits.len()..];
+        if let Some(tail) = rest.strip_prefix(['.', '、', ')', '）', '．']) {
+            if let Ok(number) = digits.parse::<u8>() {
+                if number > 0 {
+                    return Some((number, tail.trim_start()));
+                }
+            }
+        }
+    }
+    for marker in ["- ", "• ", "· ", "* ", "— ", "– "] {
+        if let Some(tail) = line.strip_prefix(marker) {
+            return Some((0, tail.trim_start()));
+        }
+    }
+    None
+}
+
+/// ①–⑳ 映射到 1–20。
+fn circled_digit(c: char) -> Option<u8> {
+    let code = c as u32;
+    match code {
+        0x2460..=0x2473 => Some((code - 0x2460 + 1) as u8),
+        0x2474..=0x2487 => Some((code - 0x2474 + 1) as u8),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -594,3 +735,104 @@ mod tests {
     }
 }
 
+#[cfg(test)]
+mod transcript_tests {
+    use super::*;
+
+    const SAMPLE: &str = "今晚对账\n1. 先注册广告后台\n2. 清点 8-10 月票据\n3. 盘点日韩投放计划";
+
+    #[test]
+    fn numbered_lines_become_items() {
+        let card = Card::from_transcript(SAMPLE, Some("2026-11-16 · 3 分"));
+        assert_eq!(card.title, "今晚对账");
+        assert_eq!(card.items.len(), 3);
+        assert_eq!(card.items[0].index, 1);
+        assert_eq!(card.items[0].title, "先注册广告后台");
+        assert_eq!(card.items[2].title, "盘点日韩投放计划");
+        assert_eq!(card.meta.as_deref(), Some("2026-11-16 · 3 分"));
+        assert_eq!(card.kicker.as_deref(), Some("语音记录"));
+    }
+
+    #[test]
+    fn original_text_survives_in_transcript() {
+        let card = Card::from_transcript(SAMPLE, None);
+        assert_eq!(card.transcript.len(), 4);
+        assert!(card.transcript.iter().any(|line| line == "今晚对账"));
+        assert!(card.transcript.iter().any(|line| line.contains("清点")));
+    }
+
+    #[test]
+    fn bullet_lines_get_running_index() {
+        let card = Card::from_transcript("周会\n- 登录\n- 支付\n- 通知", None);
+        assert_eq!(card.title, "周会");
+        let titles: Vec<&str> = card.items.iter().map(|i| i.title.as_str()).collect();
+        assert_eq!(titles, vec!["登录", "支付", "通知"]);
+        let indexes: Vec<u8> = card.items.iter().map(|i| i.index).collect();
+        assert_eq!(indexes, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn circled_numbers_are_understood() {
+        let card = Card::from_transcript("三件事\n① 甲\n② 乙", None);
+        assert_eq!(card.items.len(), 2);
+        assert_eq!(card.items[1].index, 2);
+        assert_eq!(card.items[1].title, "乙");
+    }
+
+    #[test]
+    fn plain_lines_each_become_an_item() {
+        let card = Card::from_transcript("标题\n第一件事\n第二件事", None);
+        assert_eq!(card.title, "标题");
+        assert_eq!(card.items.len(), 2);
+        assert_eq!(card.lead, None);
+    }
+
+    #[test]
+    fn leading_prose_becomes_the_lead() {
+        let card = Card::from_transcript("标题\n先说一句背景\n1. 甲\n2. 乙", None);
+        assert_eq!(card.lead.as_deref(), Some("先说一句背景"));
+        assert_eq!(card.items.len(), 2);
+    }
+
+    #[test]
+    fn empty_text_gives_an_empty_card() {
+        let card = Card::from_transcript("   \n\n  ", None);
+        assert!(card.title.is_empty());
+        assert!(card.items.is_empty());
+        assert!(card.transcript.is_empty());
+    }
+
+    #[test]
+    fn long_title_and_item_are_truncated() {
+        let long = "很".repeat(80);
+        let card = Card::from_transcript(&format!("{long}\n1. {long}"), None);
+        assert!(card.title.ends_with('…'));
+        assert_eq!(card.title.chars().count(), TITLE_LIMIT + 1);
+        assert!(card.items[0].title.ends_with('…'));
+        assert_eq!(card.items[0].title.chars().count(), ITEM_LIMIT + 1);
+        // 转写区保留全文，不被截断。
+        assert_eq!(card.transcript[0].chars().count(), 80);
+    }
+
+    #[test]
+    fn transcript_card_exports_carry_every_block() {
+        let card = Card::from_transcript(SAMPLE, Some("2026-11-16"));
+        let blocks = card.blocks();
+        assert!(!blocks.is_empty());
+        let html = card.to_html();
+        assert!(html.contains("今晚对账"));
+        assert!(html.contains("盘点日韩投放计划"));
+        assert!(html.contains("转写原文"));
+        let md = card.to_markdown();
+        assert!(md.contains("# 今晚对账"));
+        assert!(md.contains("## 03 盘点日韩投放计划"));
+    }
+
+    #[test]
+    fn numbering_restarts_are_kept_verbatim() {
+        // 用户口述里编号跳号时，尊重用户写的数字，不自己重排。
+        let card = Card::from_transcript("标题\n1. 甲\n5. 乙", None);
+        let indexes: Vec<u8> = card.items.iter().map(|i| i.index).collect();
+        assert_eq!(indexes, vec![1, 5]);
+    }
+}

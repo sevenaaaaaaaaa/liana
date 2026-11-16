@@ -54,6 +54,11 @@ targets:
         SWIFT_VERSION: "5.0"
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGNING_ALLOWED: "NO"
+        # 卡片导出要走内核的排版树，宿主 App 也要接 liana.h。
+        SWIFT_OBJC_BRIDGING_HEADER: Host/bridge.h
+        HEADER_SEARCH_PATHS: "$(SRCROOT)/../../crates/ffi/include"
+        OTHER_LDFLAGS: "$(SRCROOT)/libs/libliana_ffi_device.a"
+        OTHER_LDFLAGS[sdk=iphonesimulator*]: "$(SRCROOT)/libs/libliana_ffi_sim.a"
 
   LianaKeyboard:
     type: app-extension
@@ -133,6 +138,7 @@ targets:
       - path: Host/VoiceTranscript.swift
       - path: Host/VoiceTranslation.swift
       - path: Host/VoiceLogicTests.swift
+      - path: Host/CardExport.swift
       - path: Host/MobilePhraseBook.swift
       - path: Host/ViewController.swift
       - path: Host/PetLinkViewController.swift

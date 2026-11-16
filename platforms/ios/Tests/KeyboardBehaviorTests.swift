@@ -537,6 +537,10 @@ final class KeyboardBehaviorTests: XCTestCase {
         XCTAssertNotNil(pairing[KeyboardPayload.pasteboardType])
     }
     func testHostVoiceCopyIsAvailableAfterEditingWithoutRecording() throws {
+        let cardTools=MobileToolsViewController(); cardTools.loadViewIfNeeded()
+        let cardExport=allViews(cardTools.view).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "voice.card" }
+        XCTAssertNotNil(cardExport, "语音页应有「导出卡片」入口")
+        XCTAssertEqual(cardExport?.isEnabled, false, "没有文字时「导出卡片」不该可点")
         let tools=MobileToolsViewController(); tools.loadViewIfNeeded()
         let text=try XCTUnwrap(allViews(tools.view).compactMap { $0 as? UITextView }.first)
         let copy=try XCTUnwrap(allViews(tools.view).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier=="voice.copy" })

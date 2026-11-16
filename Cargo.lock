@@ -73,6 +73,7 @@ name = "liana-ffi"
 version = "0.10.1"
 dependencies = [
  "liana-ai",
+ "liana-card",
  "liana-core",
  "liana-dict",
  "liana-engine",

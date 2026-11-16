@@ -60,6 +60,17 @@ final class MobileToolsViewController:UIViewController,UIDocumentPickerDelegate,
     private lazy var voiceCopy=LianaUI.button("复制文字",icon:"doc.on.doc",role:.utility,id:"voice.copy") { [weak self] in
         guard let self else { return }; self.copy(KeyboardPayload(kind:"text",text:self.copyText),in:.voice)
     }
+    private lazy var voiceCard=LianaUI.button("导出卡片",icon:"doc.richtext",role:.utility,id:"voice.card") { [weak self] in
+        guard let self else { return }
+        let text=self.editor.text.trimmingCharacters(in:.whitespacesAndNewlines)
+        guard !text.isEmpty else { self.setStatus("先录一段，或者直接写几行，再导出卡片。",in:.voice); return }
+        let meta=LianaCard.stamp()
+        guard let html=LianaCard.html(from:text,meta:meta) else {
+            self.setStatus("卡片生成失败，稍后再试。",in:.voice); return
+        }
+        CardExporter.shared.export(html:html,from:self)
+        self.setStatus("卡片已生成。分享面板里选「存储到文件」可以放进 iCloud。",in:.voice)
+    }
     private lazy var clearDraft=LianaUI.button("清空",role:.plain,id:"voice.clear") { [weak self] in
         guard let self,self.voice.state == .idle else { return }
         self.editor.resignFirstResponder(); self.lastClearedDraft=self.editor.text; self.editor.text=""; self.clearTranslation(); self.saveDraft(); self.updateVoiceControls()
@@ -147,7 +158,7 @@ final class MobileToolsViewController:UIViewController,UIDocumentPickerDelegate,
         switch section {
         case .voice:
             content.addArrangedSubview(LianaUI.label("把想说的，变成文字。",size:24,weight:.semibold))
-            content.addArrangedSubview(LianaUI.card([languageRow(),editorHeaderRow(),meter,undoClear,editor,voiceHint,settingsButton,translationRow(),translationCaption,translationText,translationHint,recordButton,voiceCopy],spacing:12))
+            content.addArrangedSubview(LianaUI.card([languageRow(),editorHeaderRow(),meter,undoClear,editor,voiceHint,settingsButton,translationRow(),translationCaption,translationText,translationHint,recordButton,voiceCopy,voiceCard],spacing:12))
             content.addArrangedSubview(LianaUI.label("识别与译文都留在本机。复制后直接粘贴，也可回松萝接收。",size:13,muted:true))
             refreshOnDeviceStatus(); updateTranslationViews(); updateVoiceControls()
         case .dictionary:
@@ -188,6 +199,7 @@ final class MobileToolsViewController:UIViewController,UIDocumentPickerDelegate,
         recordButton.setImage(UIImage(systemName:recording ? "stop.fill" : "mic.fill"),for:.normal)
         recordButton.isEnabled=voice.state == .idle || recording
         voiceCopy.isEnabled=voice.state == .idle && !editor.text.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty
+        voiceCard.isEnabled=voice.state == .idle && !editor.text.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty
         editor.isEditable=voice.state == .idle; editor.isSelectable=voice.state == .idle
         clearDraft.isEnabled=voice.state == .idle && !editor.text.isEmpty
         undoClear.isHidden=lastClearedDraft == nil || voice.state != .idle
