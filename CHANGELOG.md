@@ -6,6 +6,10 @@
 
 （下一次改动写在这里。发版前整理成 `## X.Y.0 — 日期 · 主题` 小节。）
 
+### 修复
+
+- Android 构建脚本按宿主选择 NDK 工具链目录（macOS `darwin-x86_64` / Linux `linux-x86_64`），修掉 0.11.0 CI 上 android 任务「找不到 NDK clang」的失败。
+
 ## 0.11.0 — 2026-11-17 · iOS 导出卡片与候选对译行、Android 内核补齐
 
 ### iOS 键盘：候选对译行
@@ -26,7 +30,7 @@
 
 ### 工程与质量
 
-- **Android 的内核追上当前提交**：签入仓库的 `libliana_jni.so` 停在 10-13，而 gradle 只打包、不重建它，所以 0.10.1 的 APK 缺 10 个 C ABI 入口（`liana_translate`、`liana_card_html`/`liana_card_markdown`、`liana_pin_candidate`、`liana_ban_candidate`、`liana_promote`、`liana_new_with_layers` 等），11 月 13 日以来的移动词库扩充、候选排序与整句模型一条都没进 Android。三个 ABI 已重建到 64/64 符号，本版的 Android 包会真正带上这些改进。
+- **Android 的内核追上当前提交**：签入仓库的 `libliana_jni.so` 停在 10-13，而 gradle 只打包、不重建它，所以 0.10.1 的 APK 缺 10 个 C ABI 入口（`liana_translate`、`liana_card_html`/`liana_card_markdown`、`liana_pin_candidate`、`liana_ban_candidate`、`liana_promote`、`liana_new_with_layers` 等），11 月 13 日以来的移动词库扩充、候选排序与整句模型一条都没进 Android。三个 ABI 已重建到 64/64 符号。**0.11.0 的 Android 包没有随版发布**：CI 的 android 任务挂在 `build_native.sh` 把 NDK 工具链目录写死成 `darwin-x86_64`（runner 是 Linux），修复已进主干，Android 包在 0.11.1 补上。
 - **新增每次 push 与 PR 都跑的 CI**（`.github/workflows/ci.yml`）：内核测试、整句准确率闸门（120 句固定语料 + 仓库内模型，基线 51.7% / 70.0% / 92.0%）、原生库与内核的 C ABI 对账、Swift 纯逻辑回归（此前 macOS 的 4 个测试文件从未在任何流水线里跑过）、macOS 构建。首次在 main 上触发即 4/4 通过。
 - **发版时重建内核**：`release.yml` 的 Android 任务现在先跑 `cargo-ndk` + `build_native.sh`，再做符号对账；release 任务不再把 artifact 目录当资产上传（0.10.1 的 CI 就是这么红的）。
 - **鸿蒙内核同样重建**：`libliana_ffi.a` 从 10-13 更新到当前提交，此前缺的 10 个符号（`liana_translate`、`liana_card_*`、`liana_pin_candidate` 等）全部补齐；四个签入产物现在都是 64/64。鸿蒙这一端尚未在 DevEco / 真机上验证运行。

@@ -17,7 +17,21 @@ command -v cargo >/dev/null || { echo "找不到 cargo（rustup shim），请检
 [[ -d "$SDK" ]] || { echo "找不到 Android SDK：请设 ANDROID_HOME 或确认 $SDK 存在" >&2; exit 1; }
 NDK="${ANDROID_NDK_HOME:-$(ls -d "$SDK"/ndk/* 2>/dev/null | sort -V | tail -1)}"
 [[ -d "$NDK" ]] || { echo "找不到 NDK：$SDK/ndk/ 为空" >&2; exit 1; }
-NDK_TOOLCHAIN="$NDK/toolchains/llvm/prebuilt/darwin-x86_64/bin"
+# 工具链目录名随宿主变：macOS 是 darwin-x86_64（Intel / Apple Silicon 同名），Linux 是 linux-x86_64。
+# 写死 darwin-x86_64 会让 CI 的 ubuntu runner 直接找不到 clang——v0.11.0 的 android job 就是这么红的。
+HOST_TAG="${NDK_HOST_TAG:-}"
+if [[ -z "$HOST_TAG" ]]; then
+  case "$(uname -s)" in
+    Darwin) HOST_TAG=darwin-x86_64 ;;
+    Linux)  HOST_TAG=linux-x86_64 ;;
+    *)      HOST_TAG="$(ls "$NDK/toolchains/llvm/prebuilt" 2>/dev/null | head -1)" ;;
+  esac
+  # 兜底：按名字找不到就取 NDK 里实际存在的那个
+  if [[ ! -x "$NDK/toolchains/llvm/prebuilt/$HOST_TAG/bin/clang" ]]; then
+    HOST_TAG="$(ls "$NDK/toolchains/llvm/prebuilt" 2>/dev/null | head -1)"
+  fi
+fi
+NDK_TOOLCHAIN="$NDK/toolchains/llvm/prebuilt/$HOST_TAG/bin"
 CLANG="$NDK_TOOLCHAIN/clang"
 [[ -x "$CLANG" ]] || { echo "找不到 NDK clang：$CLANG" >&2; exit 1; }
 
