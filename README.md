@@ -123,9 +123,9 @@ iPhone 可与 Mac 桌宠[扫码配对并发送文件](docs/pet-link.md)，文件
 | macOS | InputMethodKit + Liquid Glass 候选窗 | ✅ 日常可用（v0.1.0 起） |
 | Android | InputMethodService + JNI 垫片（Kotlin） | ✅ APK 构建成功，待真机验收 |
 | iOS | 键盘扩展 + 静态链接（Swift） | ✅ arm64 IPA 构建、模拟器键盘行为测试通过，待实体 iPhone 验收 |
-| Linux | IBus 引擎（Python/GI + ctypes） | ✅ 引擎完成，绑定层冒烟 11/11，待实机 |
+| Linux | IBus 引擎（Python/GI + ctypes） | ✅ 引擎完成，绑定层冒烟 11/11，待实机；**本轮不发包（待出包）** |
 | HarmonyOS NEXT | InputMethodExtensionAbility + NAPI | 🟡 脚手架 + OHOS 静态库就绪，待 DevEco 联调 |
-| Windows | TSF COM DLL（C++ 壳 + Rust 静态内核） | 🟡 骨架 + 按键流接通，组合上屏待调试 |
+| Windows | TSF COM DLL（C++ 壳 + Rust 静态内核） | 🟡 骨架 + 按键流接通，组合上屏、候选窗、注册表注册待补；**本轮不发包（待出包）** |
 
 各端构建入口：`platforms/<平台>/build.sh`（Windows 为 `build.cmd`）。
 

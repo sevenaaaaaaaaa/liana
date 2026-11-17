@@ -27,6 +27,11 @@ dist/ target/  构建产物（gitignored）
 
 ```bash
 cargo test                                   # 内核测试（全绿是合并底线）
+
+# 质量闸门（.github/workflows/ci.yml 在每次 push/PR 都跑，本地同款）
+scripts/check-accuracy.sh                    # 整句准确率闸门：固定语料 120 句 + 仓库内剪枝模型，基线 51.7/70.0/92.0
+scripts/check-native-artifacts.sh            # 签入的 Android .so / 鸿蒙 .a 必须覆盖内核全部 C ABI 符号
+scripts/test-logic.sh                        # Swift 纯逻辑回归（macOS 3 + iOS 2，不需要模拟器）
 cargo build --release -p liana-ffi           # 构建内核静态库
 
 # macOS
@@ -90,5 +95,7 @@ scripts/release.sh 0.5.0 [--dry-run]  # 正式版（先把 CHANGELOG 的 Unrelea
 
 - 构建相关环境变量：`CODESIGN_IDENTITY`、`BUNDLE_ID`、`UNIVERSAL`、`MACOSX_DEPLOYMENT_TARGET`、`NOTARY_PROFILE`（默认 `liana-notary`，notarytool 凭据档案名）
 - 本机 bundle id 覆盖写在 `platforms/macos/.bundle-id`（gitignored）
+- **原生库是签入仓库的**（`platforms/android/app/src/main/jniLibs/*.so`、`platforms/harmonyos/.../libliana_ffi.a`）：改了 `crates/` 就必须重建它们（`platforms/android/build_native.sh`），否则 `check-native-artifacts` 会红。2026-11-17 复盘就是这条漏了：v0.10.1 的 APK 装着 10-13 的内核，缺 10 个 C ABI 符号。
+- 已知欠账写在 `platforms/native-artifacts-known-stale.txt`，只放过「该产物 + 该符号」组合；清账后删行。鸿蒙 target 直连 rust-lang 源会 connection reset，用镜像：`RUSTUP_DIST_SERVER=https://rsproxy.cn rustup target add aarch64-unknown-linux-ohos`。
 - 内核保持零第三方依赖；平台层改动不应要求改内核（经 `crates/ffi` 的 C ABI）
 - 新输入法安装后若系统列表不显示，需注销重登；macOS 26+ 仅收录有效签名的输入法

@@ -4,6 +4,13 @@
 
 ## Unreleased
 
+### 工程与质量
+
+- **Android 的内核追上当前提交**：签入仓库的 `libliana_jni.so` 停在 10-13，而 gradle 只打包、不重建它，所以 0.10.1 的 APK 缺 10 个 C ABI 入口（`liana_translate`、`liana_card_html`/`liana_card_markdown`、`liana_pin_candidate`、`liana_ban_candidate`、`liana_promote`、`liana_new_with_layers` 等），11 月 13 日以来的移动词库扩充、候选排序与整句模型一条都没进 Android。三个 ABI 已重建到 64/64 符号；**下一个 Android 包才会真正用上这些改进**。
+- **新增每次 push 与 PR 都跑的 CI**（`.github/workflows/ci.yml`）：内核测试、整句准确率闸门（120 句固定语料 + 仓库内模型，基线 51.7% / 70.0% / 92.0%）、原生库与内核的 C ABI 对账、Swift 纯逻辑回归（此前 macOS 的 4 个测试文件从未在任何流水线里跑过）、macOS 构建。
+- **发版时重建内核**：`release.yml` 的 Android 任务现在先跑 `cargo-ndk` + `build_native.sh`，再做符号对账；release 任务不再把 artifact 目录当资产上传（0.10.1 的 CI 就是这么红的）。
+- **鸿蒙内核同样重建**：`libliana_ffi.a` 从 10-13 更新到当前提交，此前缺的 10 个符号（`liana_translate`、`liana_card_*`、`liana_pin_candidate` 等）全部补齐；四个签入产物现在都是 64/64。鸿蒙这一端尚未在 DevEco / 真机上验证运行。
+
 ### iOS 主 App
 
 - 语音页新增「导出卡片」：把录音转写的文字排成一张卡片，导出 PDF（失败时退回 HTML），分享面板里可以存到文件或 iCloud。排版由 Rust 内核的 liana-card 生成——同一份转写既能出 PDF 也能出 Markdown，主 App 侧不写任何排版代码。

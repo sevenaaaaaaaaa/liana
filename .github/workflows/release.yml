@@ -83,6 +83,14 @@ jobs:
             dict build crates/dict/data/base-large.tsv \
             -o platforms/android/app/src/main/assets/base.ifd
 
+      # 2026-11-17 复盘补上：jniLibs 里的 .so 是签入仓库的，gradle 只打包不重建。
+      # v0.10.1 的 APK 因此带着 10-13 的内核出厂（缺 10 个 C ABI 符号）。
+      - name: 重建 Rust 内核（APK 必须带当前提交的内核）
+        run: |
+          cargo install cargo-ndk --locked
+          platforms/android/build_native.sh
+          bash scripts/check-native-artifacts.sh
+
       - name: versionName 对齐 tag（tag 触发时）
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
@@ -253,9 +261,8 @@ jobs:
         run: |
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             existing="$(gh release view "$GITHUB_REF_NAME" --json assets -q '.assets[].name')"
-            for f in release/*; do
-              # download-artifact 会把目录也带下来（例如 Windows 的打包目录），只传文件
-              [ -f "$f" ] || continue
+            # download-artifact 会把目录也带下来（例如 Windows 的打包目录），只传文件
+            for f in $(find release -maxdepth 1 -type f); do
               if grep -qxF "$(basename "$f")" <<<"$existing"; then
                 echo "skip (already on release): $(basename "$f")"
               else
@@ -266,5 +273,5 @@ jobs:
             TITLE="$(git log -1 --format='%s')"
             gh release create "$GITHUB_REF_NAME" \
               --verify-tag --title "$TITLE" --notes-file notes.md \
-              release/*
+              --clobber $(find release -maxdepth 1 -type f)
           fi

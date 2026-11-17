@@ -1,0 +1,65 @@
+# 松萝持续集成：**每次 push 与 PR 都跑**。
+#
+# 为什么补这个文件（2026-11-17 复盘）：
+#   在这之前仓库只有 release.yml，且只由 `v*` tag 触发。也就是说 main 上
+#   没有任何闸门——测试、准确率、原生库一致性、Swift 逻辑回归全靠人记得跑。
+#   后果在提交历史里有据可查：v0.9.0 次日补 0.9.1（Android 编不过）、
+#   v0.10.0 当天连推 9 个 Windows 修复、v0.10.1 的 release job 红着收场。
+#
+# 这里的每个 job 都是「能失败」的：阈值见各自脚本，改阈值要在提交里写原因。
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 内核：单元测试 + 准确率闸门（固定语料 + 仓库内模型，跨机器可复现）
+  kernel:
+    name: 内核测试与准确率
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo test
+        run: cargo test --workspace
+      - name: 整句准确率闸门
+        run: bash scripts/check-accuracy.sh
+
+  # 签入仓库的原生库（Android .so / 鸿蒙 .a）必须覆盖内核全部 C ABI 符号
+  native-artifacts:
+    name: 原生产物一致性
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/check-native-artifacts.sh
+
+  # Swift 纯逻辑回归：macOS 的 tests/*.swift 与 iOS 不依赖 UIKit 的两个
+  swift-logic:
+    name: Swift 逻辑回归
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/test-logic.sh
+
+  # 桌面端真的能编出来（Liquid Glass API 需要 macOS 26 SDK）
+  macos-build:
+    name: macOS 构建
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: 单架构构建（跳过 Universal 与签名）
+        run: UNIVERSAL=0 platforms/macos/build.sh

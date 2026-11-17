@@ -152,9 +152,16 @@ log "Nightly ${VERSION}（基于正式版本 ${BASE_VERSION}，提交 ${SHORT_SH
 log "运行测试：cargo test"
 cargo test --workspace --quiet || die "cargo test failed"
 
+# 签入仓库的原生库（Android .so / 鸿蒙 .a）必须覆盖当前内核的全部 C ABI。
+# 2026-11-17 复盘：v0.10.1 的 APK 装着 10-13 的内核，缺 10 个符号，
+# 一个月的内核改进没进 Android 用户手里——这条检查就是拦它的。
+log "检查原生库与内核同步"
+bash scripts/check-native-artifacts.sh || die "原生库落后于内核：先跑 platforms/android/build_native.sh"
+
 # 精准度专项（ops/docs/输入精准度专项.md）P0：固定语料趋势线。
 # 只跑轻量种子集（~120 句），完整评测手动跑 `xtask eval-corpus`；
-# 失败不阻断发版——这个数字用于观察趋势，不是闸门。
+# 这里的数字只用于观察趋势；闸门在同一次提交的 scripts/check-accuracy.sh（CI 里跑），
+# 阈值拦截真回归，不拦抖动。
 log "整句准确率趋势（种子语料）："
 cargo run -q --release -p xtask -- eval-corpus --set liana-seed --show 0 2>/dev/null \
     | grep -E "liana-seed" | sed 's/^/  /' || true
