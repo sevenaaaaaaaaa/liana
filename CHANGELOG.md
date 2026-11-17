@@ -4,20 +4,33 @@
 
 ## Unreleased
 
-### 工程与质量
+（下一次改动写在这里。发版前整理成 `## X.Y.0 — 日期 · 主题` 小节。）
 
-- **Android 的内核追上当前提交**：签入仓库的 `libliana_jni.so` 停在 10-13，而 gradle 只打包、不重建它，所以 0.10.1 的 APK 缺 10 个 C ABI 入口（`liana_translate`、`liana_card_html`/`liana_card_markdown`、`liana_pin_candidate`、`liana_ban_candidate`、`liana_promote`、`liana_new_with_layers` 等），11 月 13 日以来的移动词库扩充、候选排序与整句模型一条都没进 Android。三个 ABI 已重建到 64/64 符号；**下一个 Android 包才会真正用上这些改进**。
-- **新增每次 push 与 PR 都跑的 CI**（`.github/workflows/ci.yml`）：内核测试、整句准确率闸门（120 句固定语料 + 仓库内模型，基线 51.7% / 70.0% / 92.0%）、原生库与内核的 C ABI 对账、Swift 纯逻辑回归（此前 macOS 的 4 个测试文件从未在任何流水线里跑过）、macOS 构建。
-- **发版时重建内核**：`release.yml` 的 Android 任务现在先跑 `cargo-ndk` + `build_native.sh`，再做符号对账；release 任务不再把 artifact 目录当资产上传（0.10.1 的 CI 就是这么红的）。
-- **鸿蒙内核同样重建**：`libliana_ffi.a` 从 10-13 更新到当前提交，此前缺的 10 个符号（`liana_translate`、`liana_card_*`、`liana_pin_candidate` 等）全部补齐；四个签入产物现在都是 64/64。鸿蒙这一端尚未在 DevEco / 真机上验证运行。
+## 0.11.0 — 2026-11-17 · iOS 导出卡片与候选对译行、Android 内核补齐
 
-### iOS 主 App
+### iOS 键盘：候选对译行
+
+- 候选条上常驻一行对译：当前中文候选按内置词表译成英 / 日 / 韩 / 法 / 德 / 西 / 俄，点语言键循环切换并记住选择。词表在包内的 `mobile.sqlite`（`gloss` 表），离线即时出结果；拉丁字母与数字原样保留，查不到的中文保留原字，不吞字。
+
+### iOS 主 App：导出卡片
 
 - 语音页新增「导出卡片」：把录音转写的文字排成一张卡片，导出 PDF（失败时退回 HTML），分享面板里可以存到文件或 iCloud。排版由 Rust 内核的 liana-card 生成——同一份转写既能出 PDF 也能出 Markdown，主 App 侧不写任何排版代码。
 
-### iOS 键盘
+### iOS 键盘：命令台
 
 - 顶栏「输入工具」改为打开命令台：先显示光标前的当前文字，再按可用性排「对这段字能做什么」——有文字时「复制这段文字」排第一，没文字时它自动沉到末尾。长按该键仍可直达原来的四格工具面板（输入/表情/同步/词库），命令台里也有一个「更多工具」的入口。
+
+### 词库
+
+- 桌面端不再让人从「词典下载列表」里挑：词包本来就随构建发出，改由引擎按机器内存与已装词包自行决定加载哪一套，选择结果在词库页可见。
+
+### 工程与质量
+
+- **Android 的内核追上当前提交**：签入仓库的 `libliana_jni.so` 停在 10-13，而 gradle 只打包、不重建它，所以 0.10.1 的 APK 缺 10 个 C ABI 入口（`liana_translate`、`liana_card_html`/`liana_card_markdown`、`liana_pin_candidate`、`liana_ban_candidate`、`liana_promote`、`liana_new_with_layers` 等），11 月 13 日以来的移动词库扩充、候选排序与整句模型一条都没进 Android。三个 ABI 已重建到 64/64 符号，本版的 Android 包会真正带上这些改进。
+- **新增每次 push 与 PR 都跑的 CI**（`.github/workflows/ci.yml`）：内核测试、整句准确率闸门（120 句固定语料 + 仓库内模型，基线 51.7% / 70.0% / 92.0%）、原生库与内核的 C ABI 对账、Swift 纯逻辑回归（此前 macOS 的 4 个测试文件从未在任何流水线里跑过）、macOS 构建。首次在 main 上触发即 4/4 通过。
+- **发版时重建内核**：`release.yml` 的 Android 任务现在先跑 `cargo-ndk` + `build_native.sh`，再做符号对账；release 任务不再把 artifact 目录当资产上传（0.10.1 的 CI 就是这么红的）。
+- **鸿蒙内核同样重建**：`libliana_ffi.a` 从 10-13 更新到当前提交，此前缺的 10 个符号（`liana_translate`、`liana_card_*`、`liana_pin_candidate` 等）全部补齐；四个签入产物现在都是 64/64。鸿蒙这一端尚未在 DevEco / 真机上验证运行。
+- **内核新增 `liana-gloss`**（七语词表对译，251 行 + 7 个测试）与 `liana-card` 的排版树；FFI 已导出，桌面的对译界面尚未接入——iOS 的对译行走自己的 `gloss` 表实现，两套规则需要统一。
 
 ## 0.10.0 — 2026-11-14 · iOS 键盘手势与同声传译、macOS 安装自检修复
 
