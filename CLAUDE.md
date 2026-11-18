@@ -75,6 +75,8 @@ lint：无项目级配置（可用标准 `cargo clippy` / `cargo fmt`）。
 
 **硬性规则：每天开发结束跑一次 daily-release（或由全局 launchd `com.nownexts.daily-release-all` 调度）。** 日常只出 Nightly；正式版只发主版本 `X.Y.0`（`X.Y.Z` 仅限正式版的紧急修复）。
 
+**每轮修复都要发正式版（用户要求，2026-11-19）**：一轮修复合并进 `main` 后，紧接着发下一个 minor（`0.12.0` → `0.13.0` → …），发完再算这一轮结束；Nightly 仍按日构建，不互相替代。修复不发布等于没修。
+
 ```bash
 scripts/daily-release.sh              # Nightly：构建并更新滚动预发布「Nightly」
 scripts/daily-release.sh --dry-run    # 只测试 + 本地打 DMG，不动 tag/不推送/不发布/不安装
