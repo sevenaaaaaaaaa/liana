@@ -13,10 +13,14 @@ final class BluetoothDevicePanel: UIView {
     private let decisions = UIStackView()
     private var finalText = ""
     private var partialText = ""
+    /// 本地语音路径：键盘扩展不能录音，只能接收主 App 识别好的文字。
+    private let receiveAction: (() -> String)?
+    private let voiceStatus = UILabel()
 
-    init(hasFullAccess: @escaping () -> Bool, insert: @escaping (String) -> Void) {
+    init(hasFullAccess: @escaping () -> Bool, insert: @escaping (String) -> Void, receive: (() -> String)? = nil) {
         access = hasFullAccess
         self.insert = insert
+        receiveAction = receive
         super.init(frame: .zero)
         accessibilityIdentifier = "devices.panel"
         backgroundColor = LianaTheme.bg
@@ -40,7 +44,25 @@ final class BluetoothDevicePanel: UIView {
             stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -12),
             stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -24),
         ])
-        stack.addArrangedSubview(label("外接设备", style: .headline))
+        stack.addArrangedSubview(label("语音", style: .headline))
+        if receiveAction != nil {
+            let voiceButton = LianaPressButton(frame: .zero)
+            configure(voiceButton, title: "接收主 App 语音文字", id: "voice.receive") { [weak self] in
+                guard let self, let receiveAction = self.receiveAction else { return }
+                self.voiceStatus.text = receiveAction()
+                self.voiceStatus.isHidden = false
+            }
+            voiceButton.surface = .primary
+            stack.addArrangedSubview(voiceButton)
+            voiceStatus.font = LianaPalette.font(13)
+            voiceStatus.textColor = LianaPalette.muted
+            voiceStatus.numberOfLines = 0
+            voiceStatus.isHidden = true
+            voiceStatus.accessibilityIdentifier = "voice.status"
+            stack.addArrangedSubview(voiceStatus)
+            stack.addArrangedSubview(label("iOS 不允许键盘扩展直接使用麦克风。在松萝 App 的「语音」页录音（本机识别、不联网），点「复制文字」后回到键盘点上面的按钮接收。普通拼音不需要这些权限。", style: .caption1))
+        }
+        stack.addArrangedSubview(label("外接设备（可选）", style: .headline))
         status.numberOfLines = 0
         status.font = LianaPalette.font(13); status.textColor = LianaPalette.muted
         status.accessibilityIdentifier = "devices.status"

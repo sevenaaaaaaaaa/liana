@@ -181,6 +181,20 @@ final class MobileEngine {
         if let lexicon { return lexicon }
         let value = MobileLexicon(bundle: bundle); lexicon = value; return value
     }
+
+    /// 九宫格漏键纠错的候选池：按变体查词库，跨变体去重。
+    private func fuzzyT9Candidates(_ raw: String, includeDeletions: Bool) -> [(word: String, frequency: Int, learned: Int)] {
+        var output: [(word: String, frequency: Int, learned: Int)] = []
+        var seen = Set<String>()
+        for variant in CandidateNoiseFilter.digitVariants(raw, includeDeletions: includeDeletions) {
+            for word in database().exactRanked(variant, kind: "t9", limit: 3) {
+                guard seen.insert(word.word).inserted else { continue }
+                output.append(word)
+            }
+            if output.count >= 12 { break }
+        }
+        return output
+    }
     private func createSession() {
         let base = bundle.url(forResource: "base", withExtension: "ifd")?.path
         if let sessionFactory {
@@ -216,7 +230,9 @@ final class MobileEngine {
         var merged: [MergedCandidate] = []
         var seen = Set<String>()
         func add(_ text: String, _ core: Int?, learned: Int = 0) {
-            guard !text.isEmpty, !seen.contains(text) else { return }
+            // 中英混排的拼接候选（「看1080P」「2K一」）来自英数词条的前缀补全，
+            // 不是用户要打的句子，不展示。
+            guard !text.isEmpty, !seen.contains(text), !CandidateNoiseFilter.isMixedScript(text) else { return }
             seen.insert(text)
             merged.append(MergedCandidate(text: text, core: core, learned: learned))
         }
@@ -241,6 +257,17 @@ final class MobileEngine {
                 }
                 for word in database().learnedWords(code: raw, limit: Self.candidateLimit) {
                     add(word, nil, learned: 1)
+                }
+                // 漏按一个数字的容错：k yi（5 9 4）漏了 e（3）时补一位查出「可以」。
+                // 只在整串一个候选都没有时启用；先只补位，补位查不到再试删位——
+                // 删位会切出 94→一/以 这类高频单字，不能和整词一起按词频排。
+                if merged.isEmpty {
+                    var fuzzy = fuzzyT9Candidates(raw, includeDeletions: false)
+                    if fuzzy.isEmpty { fuzzy = fuzzyT9Candidates(raw, includeDeletions: true) }
+                    let ranked = fuzzy.sorted {
+                        $0.learned != $1.learned ? $0.learned > $1.learned : $0.frequency > $1.frequency
+                    }
+                    for word in ranked.prefix(6) { add(word.word, nil, learned: word.learned) }
                 }
             default:
                 break

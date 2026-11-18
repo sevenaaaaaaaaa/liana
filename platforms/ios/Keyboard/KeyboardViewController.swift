@@ -99,6 +99,7 @@ class KeyboardViewController: UIInputViewController {
     private var stripsInline = false
     private var candidateScroll: UIScrollView!
     private var idleScroll: UIScrollView!
+    private var idleShortcuts: UIStackView!
     /// 英文一行：候选下方实时显示当前候选的英文；点按即上屏英文。
     private var englishScroll: UIScrollView!
     private var englishStrip: UIStackView!
@@ -134,7 +135,8 @@ class KeyboardViewController: UIInputViewController {
     private static let dockCount: CGFloat = 6
     private static var dockWidth: CGFloat { dockCount * dockEntryWidth }
     private static let stripHeight: CGFloat = 46
-    private static let headerHeight: CGFloat = 44
+    private static let headerHeight: CGFloat = 58
+    private static let dockHeight: CGFloat = 54
     private static let cursorRowHeight: CGFloat = 44
     private static let wbCandidateRowHeight: CGFloat = 44
     private var keyboardAreaHeight: CGFloat { 4 * CGFloat(preferences.keyHeight) + 3 * Self.rowSpacing }
@@ -269,23 +271,24 @@ class KeyboardViewController: UIInputViewController {
         entryDock.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(entryDock)
         entryLeading = entryDock.leadingAnchor.constraint(equalTo: header.leadingAnchor)
-        NSLayoutConstraint.activate([entryLeading, entryDock.widthAnchor.constraint(equalToConstant: Self.dockWidth), entryDock.heightAnchor.constraint(equalToConstant: 44), entryDock.centerYAnchor.constraint(equalTo: header.centerYAnchor)])
+        NSLayoutConstraint.activate([entryLeading, entryDock.widthAnchor.constraint(equalToConstant: Self.dockWidth), entryDock.heightAnchor.constraint(equalToConstant: Self.dockHeight), entryDock.centerYAnchor.constraint(equalTo: header.centerYAnchor)])
         entryDock.accessibilityIdentifier = "layout.drag"
         entryDock.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(dragLayout(_:))))
-        let devices = toolbarButton("waveform", label: "语音设备", id: "devices.open")
+        let devices = railEntry("waveform", title: "语音", label: "语音输入", id: "devices.open")
         deviceEntry = devices
+        devices.accessibilityHint = "点按打开语音与外接设备；本地语音在主 App 录音，回键盘接收"
         devices.addAction(UIAction { [weak self] _ in self?.toggleDevices() }, for: .touchUpInside)
         entryDock.addArrangedSubview(devices)
-        let clipboard = toolbarButton("doc.on.clipboard", label: "剪贴板", id: "clip.open")
+        let clipboard = railEntry("doc.on.clipboard", title: "剪贴", label: "剪贴板", id: "clip.open")
         clipboard.addAction(UIAction { [weak self] _ in self?.openTools(section: 2) }, for: .touchUpInside)
         entryDock.addArrangedSubview(clipboard)
-        let files = toolbarButton("tray.and.arrow.down", label: "发送文件", id: "file.open")
+        let files = railEntry("tray.and.arrow.down", title: "文件", label: "发送文件", id: "file.open")
         files.addAction(UIAction { [weak self] _ in self?.receiveFromDock() }, for: .touchUpInside)
         entryDock.addArrangedSubview(files)
-        let faces = toolbarButton("face.smiling", label: "表情", id: "faces.open")
+        let faces = railEntry("face.smiling", title: "表情", label: "表情", id: "faces.open")
         faces.addAction(UIAction { [weak self] _ in self?.openTools(section: 1) }, for: .touchUpInside)
         entryDock.addArrangedSubview(faces)
-        let tools = toolbarButton("square.grid.2x2", label: "输入工具", id: "tools.open")
+        let tools = railEntry("square.grid.2x2", title: "更多", label: "更多功能：输入工具与命令台", id: "tools.open")
         toolEntry = tools
         tools.accessibilityHint = "点按打开命令台；长按直达工具面板；拖动可调整键盘高度与入口位置"
         tools.accessibilityCustomActions = [
@@ -300,7 +303,7 @@ class KeyboardViewController: UIInputViewController {
         legacyPress.minimumPressDuration = 0.4
         tools.addGestureRecognizer(legacyPress)
         entryDock.addArrangedSubview(tools)
-        let settings = toolbarButton("slider.horizontal.3", label: "布局与手感", id: "layout.settings")
+        let settings = railEntry("slider.horizontal.3", title: "布局", label: "布局与手感", id: "layout.settings")
         layoutEntry = settings
         settings.addAction(UIAction { [weak self] _ in self?.toggleAdjustments() }, for: .touchUpInside)
         entryDock.addArrangedSubview(settings)
@@ -397,14 +400,10 @@ class KeyboardViewController: UIInputViewController {
         idleHeight = idle.heightAnchor.constraint(equalToConstant: Self.stripHeight); idleHeight.isActive = true
         idle.translatesAutoresizingMaskIntoConstraints = false
         let shortcuts = UIStackView(); shortcuts.spacing = 0; shortcuts.translatesAutoresizingMaskIntoConstraints = false
+        idleShortcuts = shortcuts
         idle.addSubview(shortcuts)
         NSLayoutConstraint.activate([shortcuts.leadingAnchor.constraint(equalTo: idle.contentLayoutGuide.leadingAnchor, constant: 8), shortcuts.trailingAnchor.constraint(equalTo: idle.contentLayoutGuide.trailingAnchor, constant: -8), shortcuts.topAnchor.constraint(equalTo: idle.contentLayoutGuide.topAnchor), shortcuts.bottomAnchor.constraint(equalTo: idle.contentLayoutGuide.bottomAnchor), shortcuts.heightAnchor.constraint(equalTo: idle.frameLayoutGuide.heightAnchor)])
-        for text in ["，", "。", "？", "！", "@", "#", "…", "／"] {
-            let key = LianaPressButton(frame: .zero); key.rounded = 8
-            key.setTitle(text, for: .normal); key.titleLabel?.font = .systemFont(ofSize: 17)
-            key.accessibilityIdentifier = "shortcut." + text; key.widthAnchor.constraint(equalToConstant: 44).isActive = true
-            key.addAction(UIAction { [weak self] _ in self?.insertText(text) }, for: .touchUpInside); shortcuts.addArrangedSubview(key)
-        }
+        renderIdleShortcuts()
         root.addArrangedSubview(idle)
         root.setCustomSpacing(4, after: idle)
 
@@ -471,6 +470,7 @@ class KeyboardViewController: UIInputViewController {
 
         // 重建后：中/简/EN 标题、候选都必须原地恢复（L2）
         syncModeLabels()
+        renderIdleShortcuts()
         renderCandidates()
         if let adjustmentPanel { keyboardArea.bringSubviewToFront(adjustmentPanel) }
         if let devicePanel { keyboardArea.bringSubviewToFront(devicePanel) }
@@ -761,6 +761,13 @@ class KeyboardViewController: UIInputViewController {
         }
     }
 
+    /// 顶栏入口：图标 + 两字标签，六个入口宽度一致。
+    private func railEntry(_ symbol: String, title: String, label: String, id: String) -> ToolbarEntryButton {
+        let button = ToolbarEntryButton(symbol: symbol, title: title, id: id)
+        button.accessibilityLabel = label
+        return button
+    }
+
     private func toolbarButton(_ symbol: String, label: String, id: String) -> UIButton {
         let button = LianaPressButton(frame: .zero)
         button.rounded = 10
@@ -1028,6 +1035,17 @@ class KeyboardViewController: UIInputViewController {
         let panel = BluetoothDevicePanel(hasFullAccess: { [weak self] in self?.hasFullAccess ?? false }, insert: { [weak self] text in
             self?.commitPending()
             self?.insertText(text)
+        }, receive: { [weak self] in
+            guard let self else { return "键盘已关闭。" }
+            guard self.hasFullAccess else { return "需要在「设置 → 通用 → 键盘 → 松萝键盘」允许完全访问，才能读取主 App 的文字。" }
+            do {
+                guard let payload = try KeyboardPayload.read(), payload.kind == "text",
+                      let text = payload.text, !text.isEmpty else {
+                    return "还没有待接收的语音文字。先在松萝 App 的语音页录音，识别完成后回到键盘点这里。"
+                }
+                self.commitPending(); self.insertText(text)
+                return "已插入 \(text.count) 个字符。"
+            } catch { return error.localizedDescription }
         })
         devicePanel = panel
         installPanel(panel)
@@ -1418,6 +1436,33 @@ class KeyboardViewController: UIInputViewController {
         send(.literal(text))
     }
 
+    /// 空输入时的顶栏：九宫格左列已经有 ，。？！，这里换成常用短语，
+    /// 既不重复同一排标点，也给「常用语」一个看得见的入口；其他布局保持标点快捷。
+    private func renderIdleShortcuts() {
+        guard let stack = idleShortcuts else { return }
+        stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        if method == .t9 && !english && page == .letters {
+            for (index, text) in MobilePhrases.load().prefix(8).enumerated() {
+                let key = LianaPressButton(frame: .zero)
+                key.surface = .utility; key.rounded = 8
+                key.setTitle(text, for: .normal)
+                key.titleLabel?.font = LianaPalette.font(14, maximum: 18)
+                key.contentEdgeInsets = UIEdgeInsets(top: 0, left: 10, bottom: 0, right: 10)
+                key.accessibilityIdentifier = "idle.phrase.\(index)"
+                key.accessibilityLabel = "常用语：\(text)"
+                key.addAction(UIAction { [weak self] _ in self?.insertText(text) }, for: .touchUpInside)
+                stack.addArrangedSubview(key)
+            }
+            return
+        }
+        for text in ["，", "。", "？", "！", "@", "#", "…", "／"] {
+            let key = LianaPressButton(frame: .zero); key.rounded = 8
+            key.setTitle(text, for: .normal); key.titleLabel?.font = .systemFont(ofSize: 17)
+            key.accessibilityIdentifier = "shortcut." + text; key.widthAnchor.constraint(equalToConstant: 44).isActive = true
+            key.addAction(UIAction { [weak self] _ in self?.insertText(text) }, for: .touchUpInside); stack.addArrangedSubview(key)
+        }
+    }
+
     // MARK: - 候选刷新（状态 → 渲染，两处入口共用）
 
     private func renderCandidates() {
@@ -1625,23 +1670,37 @@ extension KeyboardViewController {
             case 1:
                 right = keyButton("⏎") { [weak self] in self?.onEnter() }
             default:
-                right = keyButton("清空") { [weak self] in self?.send(.clear) }
+                right = clearAllKey()
             }
             right.widthAnchor.constraint(equalToConstant: sideWidth).isActive = true
             row.addArrangedSubview(right)
             column.addArrangedSubview(row)
         }
+        // 底行与上面五列网格对齐：[中] 占左列、空格占中间三列、[🌐] 占右列。
+        // 左右两列等宽，整块键盘的基本对称由此成立。
         let functions = UIStackView(); functions.spacing = gap; functions.alignment = .fill
         let mode = keyButton("中") { [weak self] in self?.onModeToggle() }
         modeButton = mode
         configureModeMenu()
         let globe = keyButton("🌐") {}
         let space = keyButton("空格") { [weak self] in self?.onSpace() }
-        for key in [mode, globe, space] { functions.addArrangedSubview(key) }
-        globe.widthAnchor.constraint(equalTo: mode.widthAnchor).isActive = true
-        space.widthAnchor.constraint(equalTo: mode.widthAnchor, multiplier: 2).isActive = true
+        for key in [mode, space, globe] { functions.addArrangedSubview(key) }
+        mode.widthAnchor.constraint(equalToConstant: sideWidth).isActive = true
+        globe.widthAnchor.constraint(equalToConstant: sideWidth).isActive = true
         column.addArrangedSubview(functions)
         pinKeyboard(column)
+    }
+
+    /// 「清空」不能一点就抹掉整段输入：点按先弹确认，选「清空」才执行。
+    /// 想一步清空仍然可以按住删除键 3 秒上滑。
+    private func clearAllKey() -> UIButton {
+        let key = keyButton("清空") {}
+        key.accessibilityHint = "点按后确认才能清空全部输入"
+        key.menu = UIMenu(title: "清空全部输入？", children: [
+            UIAction(title: "清空", attributes: .destructive) { [weak self] _ in self?.send(.clear) },
+        ])
+        key.showsMenuAsPrimaryAction = true
+        return key
     }
 
     private func symbolKey(_ symbol: String) -> UIButton {
@@ -1679,6 +1738,21 @@ extension KeyboardViewController {
         case .changed: glidePoints.append(point)
         case .ended:
             glidePoints.append(point)
+            // 点按时手指本来就会抖一两像素：位移和跨键数都不够时按普通点按处理，
+            // 不能把一次按键误判成滑行输入。
+            var traveled: CGFloat = 0
+            for (a, b) in zip(glidePoints, glidePoints.dropFirst()) {
+                traveled += hypot(b.x - a.x, b.y - a.y)
+            }
+            var visited = Set<String>()
+            for p in glidePoints {
+                if let key = keyboardArea.hitTest(p, with: nil) as? UIButton,
+                   let title = key.title(for: .normal)?.lowercased(),
+                   title.count == 1, let first = title.first, first.isASCII, first.isLetter {
+                    visited.insert(title)
+                }
+            }
+            guard traveled >= 48, visited.count >= 2 else { glidePoints = []; return }
             var centers: [String: CGPoint] = [:]
             func collect(_ view: UIView) {
                 if let key = view as? UIButton, let title = key.title(for: .normal)?.lowercased(), title.count == 1, title.first!.isASCII, title.first!.isLetter { centers[title] = key.convert(CGPoint(x:key.bounds.midX,y:key.bounds.midY),to:keyboardArea) }

@@ -49,6 +49,13 @@ run command-catalog \
 run fold-layout \
   platforms/ios/Keyboard/FoldLayout.swift \
   platforms/ios/Tests/FoldLayoutTests.swift
+run candidate-noise \
+  platforms/ios/Keyboard/CandidateNoiseFilter.swift \
+  platforms/ios/Tests/CandidateNoiseFilterTests.swift
+run t9-missing-digit \
+  platforms/ios/Keyboard/MobileLexicon.swift \
+  platforms/ios/Keyboard/CandidateNoiseFilter.swift \
+  platforms/ios/Tests/T9MissingDigitLookupTests.swift
 
 echo
 echo "通过 ${PASSED}，失败 ${FAILED}"
