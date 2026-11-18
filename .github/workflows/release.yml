@@ -75,6 +75,9 @@ jobs:
           gradle-version: "8.10.2"
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          # cargo-ndk 需要这三个 target 才能编出 jniLibs（缺了就报 can't find crate for std）
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
 
       - name: 生成词典 base.ifd（资产未入库，构建前现生成）
         run: |
