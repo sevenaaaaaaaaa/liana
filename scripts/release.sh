@@ -166,4 +166,7 @@ else
         || die "gh release create 失败"
 fi
 rm -f "$NOTES"
+# 每次发版都把最新 IPA 同步到 iCloud：真机安装靠 iCloud 取件，漏了就得多跑一趟
+"$ROOT/scripts/sync-ipa-icloud.sh" || log "⚠️ iCloud 同步失败，IPA 仍在 dist/"
+
 log "完成：$(gh release view "$TAG" --json url -q .url 2>/dev/null || echo "$TAG")"

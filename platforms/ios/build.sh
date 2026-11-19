@@ -93,6 +93,8 @@ if [[ "$MODE" == device || "$MODE" == all ]]; then
     (cd "$(dirname "$IPA")" && shasum -a 256 "$(basename "$IPA")") > "$IPA.sha256"
     echo "IPA: $IPA"
     echo 'Signing: unsigned device build; re-sign both the app and embedded keyboard extension with your installation tool.'
+    # 每次出 IPA 都同步到 iCloud Drive（真机安装靠它取件）
+    "$ROOT/scripts/sync-ipa-icloud.sh" || echo "  ⚠️ iCloud 同步失败，IPA 仍在 $IPA"
 fi
 if [[ "$MODE" == simulator || "$MODE" == all ]]; then
     build_app iphonesimulator 'generic/platform=iOS Simulator' "$SIM_ARCH"

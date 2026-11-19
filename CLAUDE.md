@@ -77,6 +77,11 @@ lint：无项目级配置（可用标准 `cargo clippy` / `cargo fmt`）。
 
 **每轮修复都要发正式版（用户要求，2026-11-19）**：一轮修复合并进 `main` 后，紧接着发下一个 minor（`0.12.0` → `0.13.0` → …），发完再算这一轮结束；Nightly 仍按日构建，不互相替代。修复不发布等于没修。
 
+**每次更新 / 发版 / 提交都要把 IPA 同步到 iCloud（用户要求，2026-11-20）**：真机安装靠 iCloud Drive 取件，任何时候去 iCloud 根目录都必须是最新那版 IPA。
+- `platforms/ios/build.sh` 出完 IPA 会自动调 `scripts/sync-ipa-icloud.sh`；
+- `scripts/release.sh` 发版结束也会调一次（覆盖同步，失败只告警不中断发版）；
+- 手工补跑：`scripts/sync-ipa-icloud.sh`（把 `dist/` 里最新的 .ipa 与 .sha256 复制到 `~/Library/Mobile Documents/com~apple~CloudDocs/`，同名覆盖，不删旧版本）；目标目录可用 `LIANA_ICLOUD_DIR` 覆盖。
+
 ```bash
 scripts/daily-release.sh              # Nightly：构建并更新滚动预发布「Nightly」
 scripts/daily-release.sh --dry-run    # 只测试 + 本地打 DMG，不动 tag/不推送/不发布/不安装
