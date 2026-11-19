@@ -66,7 +66,13 @@ targets:
     postBuildScripts:
       - name: Copy language model
         script: |
-          cp -f "$SRCROOT/Vendor/LM/base.lm.bin" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/base.lm"
+          # 整句搭配模型：优先 17MB（450 万条）档，缺失才退回旧的 5.3MB 剪枝档。
+          # 缺模型时整句 Top-1 只有 45%，17MB 档能到 50%（完整 42MB 档 61.7%）。
+          if [ -f "$SRCROOT/Vendor/LM/base.lm" ]; then
+            cp -f "$SRCROOT/Vendor/LM/base.lm" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/base.lm"
+          else
+            cp -f "$SRCROOT/Vendor/LM/base.lm.bin" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/base.lm"
+          fi
         basedOnDependencyAnalysis: false
     sources:
       - Keyboard
@@ -122,7 +128,13 @@ targets:
     postBuildScripts:
       - name: Copy language model
         script: |
-          cp -f "$SRCROOT/Vendor/LM/base.lm.bin" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/base.lm"
+          # 整句搭配模型：优先 17MB（450 万条）档，缺失才退回旧的 5.3MB 剪枝档。
+          # 缺模型时整句 Top-1 只有 45%，17MB 档能到 50%（完整 42MB 档 61.7%）。
+          if [ -f "$SRCROOT/Vendor/LM/base.lm" ]; then
+            cp -f "$SRCROOT/Vendor/LM/base.lm" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/base.lm"
+          else
+            cp -f "$SRCROOT/Vendor/LM/base.lm.bin" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/base.lm"
+          fi
         basedOnDependencyAnalysis: false
     sources:
       - Keyboard
