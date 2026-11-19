@@ -24,6 +24,11 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      attach_to:
+        description: "把构建产物补传到这个已有 Release（例如 v0.12.0）；留空只产 artifact"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -233,11 +238,17 @@ jobs:
 
   # ────────────────────────── 发 Release ──────────────────────────
   release:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.attach_to != '')
     needs: [macos, android, linux, windows]
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.attach_to || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.attach_to || github.ref_name }}
 
       - uses: actions/download-artifact@v4
         with:
@@ -262,19 +273,19 @@ jobs:
         # scripts/daily-release.sh 可能已在本机建好 Release 并挂上本地 DMG：
         # 此时只补传缺失的产物（Android / Linux），同名资产不覆盖
         run: |
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            existing="$(gh release view "$GITHUB_REF_NAME" --json assets -q '.assets[].name')"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            existing="$(gh release view "$RELEASE_TAG" --json assets -q '.assets[].name')"
             # download-artifact 会把目录也带下来（例如 Windows 的打包目录），只传文件
             for f in $(find release -maxdepth 1 -type f); do
               if grep -qxF "$(basename "$f")" <<<"$existing"; then
                 echo "skip (already on release): $(basename "$f")"
               else
-                gh release upload "$GITHUB_REF_NAME" "$f"
+                gh release upload "$RELEASE_TAG" "$f"
               fi
             done
           else
             TITLE="$(git log -1 --format='%s')"
-            gh release create "$GITHUB_REF_NAME" \
+            gh release create "$RELEASE_TAG" \
               --verify-tag --title "$TITLE" --notes-file notes.md \
               --clobber $(find release -maxdepth 1 -type f)
           fi
