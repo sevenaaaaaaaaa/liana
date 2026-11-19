@@ -56,6 +56,9 @@ run t9-missing-digit \
   platforms/ios/Keyboard/MobileLexicon.swift \
   platforms/ios/Keyboard/CandidateNoiseFilter.swift \
   platforms/ios/Tests/T9MissingDigitLookupTests.swift
+run translation-wire \
+  platforms/ios/Keyboard/TranslationAPI.swift \
+  platforms/ios/Tests/TranslationAPITests.swift
 
 echo
 echo "通过 ${PASSED}，失败 ${FAILED}"

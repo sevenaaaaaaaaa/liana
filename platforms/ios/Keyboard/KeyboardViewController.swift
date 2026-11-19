@@ -97,6 +97,14 @@ class KeyboardViewController: UIInputViewController {
     private var inlineWidths: [NSLayoutConstraint] = []
     private var stripsInline = false
     private var candidateScroll: UIScrollView!
+    private var translationChip: LianaPressButton!
+    private var translationChipWidth: NSLayoutConstraint!
+    private var translationText = ""
+    private var translationWork: DispatchWorkItem?
+    private var translator: MixedLanguageLine?
+    private let cloud = CloudTranslator()
+    private var translationConfig = TranslationConfigStore.load()
+    private var translationKey = TranslationConfigStore.apiKey()
     private var hapticsEnabled = UserDefaults.standard.object(forKey: "keyboard.haptics") as? Bool ?? true
     private var modeButton: UIButton!
     private var tradButton: UIButton!
@@ -333,8 +341,38 @@ class KeyboardViewController: UIInputViewController {
             candidateStrip.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor),
             candidateStrip.heightAnchor.constraint(equalTo: scroll.frameLayoutGuide.heightAnchor),
         ])
-        root.addArrangedSubview(scroll)
-        root.setCustomSpacing(4, after: scroll)
+        let stripRow = UIView()
+        stripRow.translatesAutoresizingMaskIntoConstraints = false
+        stripRow.heightAnchor.constraint(equalToConstant: Self.stripHeight).isActive = true
+        stripRow.addSubview(scroll)
+        translationChip = LianaPressButton(frame: .zero)
+        translationChip.surface = .utility
+        translationChip.rounded = 8
+        translationChip.titleLabel?.font = LianaPalette.font(12, weight: .medium, maximum: 15)
+        translationChip.titleLabel?.lineBreakMode = .byTruncatingTail
+        translationChip.contentEdgeInsets = UIEdgeInsets(top: 2, left: 8, bottom: 2, right: 8)
+        translationChip.accessibilityIdentifier = "translation.chip"
+        translationChip.accessibilityLabel = "译文，点按插入，长按切换语言与云端设置"
+        translationChip.isHidden = true
+        translationChip.addAction(UIAction { [weak self] _ in self?.insertTranslation() }, for: .touchUpInside)
+        let chipPress = UILongPressGestureRecognizer(target: self, action: #selector(onTranslationChipLongPress(_:)))
+        chipPress.minimumPressDuration = 0.4
+        translationChip.addGestureRecognizer(chipPress)
+        stripRow.addSubview(translationChip)
+        translationChip.translatesAutoresizingMaskIntoConstraints = false
+        translationChipWidth = translationChip.widthAnchor.constraint(equalToConstant: 0)
+        NSLayoutConstraint.activate([
+            scroll.leadingAnchor.constraint(equalTo: stripRow.leadingAnchor),
+            scroll.topAnchor.constraint(equalTo: stripRow.topAnchor),
+            scroll.bottomAnchor.constraint(equalTo: stripRow.bottomAnchor),
+            scroll.trailingAnchor.constraint(equalTo: translationChip.leadingAnchor, constant: -6),
+            translationChip.trailingAnchor.constraint(equalTo: stripRow.trailingAnchor, constant: -8),
+            translationChip.centerYAnchor.constraint(equalTo: stripRow.centerYAnchor),
+            translationChip.heightAnchor.constraint(equalToConstant: 32),
+            translationChipWidth,
+        ])
+        root.addArrangedSubview(stripRow)
+        root.setCustomSpacing(4, after: stripRow)
 
         // 键盘区：几何随宽度变化整体重建（字母行 + 功能行 + 中缝工作台）
         let area = UIView()
@@ -717,32 +755,10 @@ class KeyboardViewController: UIInputViewController {
         if animated && isViewLoaded && LianaMotion.enabled { UIView.transition(with: view, duration: 0.16, options: [.transitionCrossDissolve, .allowUserInteraction], animations: apply) } else { apply() }
     }
 
-    /// Phone landscape shares one line for composition, candidates and tools.
-    /// Height stays stable while composing; key targets keep their normal size.
+    /// 候选条（含译文入口）固定占一行；横屏不再把它并进顶栏，
+    /// 避免切换方向时高度和命中区域同时变化。
     private func updateStripPlacement() {
-        guard chromeRoot != nil, candidateScroll != nil else { return }
-        let compact = traitCollection.verticalSizeClass == .compact && view.bounds.width >= 600
-        guard compact != stripsInline else { return }
-        NSLayoutConstraint.deactivate(inlineConstraints)
-        inlineConstraints = []; inlineLeading = []; inlineWidths = []
-        chromeRoot.removeArrangedSubview(candidateScroll)
-        candidateScroll.removeFromSuperview()
-        stripsInline = compact
-        stripHeight.constant = compact ? Self.headerHeight : Self.stripHeight
-        chromeRoot.setCustomSpacing(compact ? 4 : 0, after: chromeHeader)
-        if compact {
-            candidateStrip.layoutMargins.top = 0; candidateStrip.layoutMargins.bottom = 0
-            chromeHeader.addSubview(candidateScroll)
-            let leading = candidateScroll.leadingAnchor.constraint(equalTo: chromeHeader.leadingAnchor)
-            let width = candidateScroll.widthAnchor.constraint(equalToConstant: 0)
-            inlineLeading.append(leading); inlineWidths.append(width)
-            inlineConstraints += [leading, width, candidateScroll.centerYAnchor.constraint(equalTo: chromeHeader.centerYAnchor)]
-            NSLayoutConstraint.activate(inlineConstraints)
-        } else {
-            candidateStrip.layoutMargins.top = 1; candidateStrip.layoutMargins.bottom = 1
-            chromeRoot.insertArrangedSubview(candidateScroll, at: 1)
-            chromeRoot.setCustomSpacing(4, after: candidateScroll)
-        }
+        stripsInline = false
     }
 
     private func updateGeometry() {
@@ -1376,6 +1392,7 @@ class KeyboardViewController: UIInputViewController {
         updateGeometry()
         clearButton?.isHidden = rawInput.isEmpty || clearSuppressed
         for button in returnButtons { button.accessibilityLabel = rawInput.isEmpty ? "换行" : "确认候选" }
+        refreshTranslation()
         guard renderedCandidates != candidates || renderedCandidateFont != preferences.candidateFont else { return }
         renderedCandidates = candidates; renderedCandidateFont = preferences.candidateFont
         while candidateButtons.count < candidates.count {
@@ -1389,6 +1406,117 @@ class KeyboardViewController: UIInputViewController {
                 button.titleLabel?.font = .systemFont(ofSize: CGFloat(preferences.candidateFont), weight: i == 0 ? .semibold : .regular)
             }
         }
+    }
+
+    // MARK: - 候选译文（本地词表 → 可选云端）
+
+    /// 候选变化时刷新译文：先用本地词表立即出结果，云端只做增强（默认关）。
+    private func refreshTranslation() {
+        translationWork?.cancel()
+        cloud.cancel()
+        guard let top = candidates.first, !top.isEmpty else { setTranslation(""); return }
+        setTranslation(localTranslator()?.translate(top) ?? "")
+        let config = translationConfig
+        let key = translationKey
+        guard config.enabled, config.unusableReason(hasKey: !key.isEmpty) == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.cloud.translate(text: top, config: config, apiKey: key) { [weak self] result in
+                guard let self, case .success(let text) = result else { return }
+                self.setTranslation(text)
+            }
+        }
+        translationWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
+    }
+
+    private func setTranslation(_ text: String) {
+        translationText = text
+        translationChipWidth?.constant = text.isEmpty ? 0 : 132
+        translationChip?.isHidden = text.isEmpty
+        let title = text.isEmpty ? "" : TranslationConfig.title(for: translationConfig.target) + " " + text
+        translationChip?.setTitle(title, for: .normal)
+    }
+
+    private func localTranslator() -> MixedLanguageLine? {
+        guard let language = TranslateLanguage(rawValue: translationConfig.target) else { return nil }
+        if let translator { translator.language = language; return translator }
+        let line = MixedLanguageLine(lexicon: MobileLexicon(bundle: .main))
+        line.language = language
+        translator = line
+        return line
+    }
+
+    private func insertTranslation() {
+        guard !translationText.isEmpty else { return }
+        let text = translationText
+        commitPending()
+        insertText(text)
+        setTranslation("")
+        showGestureHint("已插入译文")
+    }
+
+    @objc private func onTranslationChipLongPress(_ g: UILongPressGestureRecognizer) {
+        guard g.state == .began else { return }
+        openTranslationMenu()
+    }
+
+    /// 长按译文芯片：目标语言、云端开关、导入配置、刷新、隐藏。
+    private func openTranslationMenu() {
+        var buttons: [UIButton] = []
+        for target in TranslationConfig.targets {
+            let key = keyButton(target.title) { [weak self] in
+                guard let self else { return }
+                self.translationConfig.target = target.code
+                TranslationConfigStore.save(self.translationConfig)
+                self.closeGesturePanel()
+                self.refreshTranslation()
+                self.showGestureHint("译文目标语言：\(target.name)")
+            }
+            if target.code == translationConfig.target { key.isSelected = true }
+            buttons.append(key)
+        }
+        buttons.append(keyButton(translationConfig.enabled ? "云端 开" : "云端 关") { [weak self] in
+            self?.toggleCloudTranslation()
+        })
+        buttons.append(keyButton("导入配置") { [weak self] in self?.importTranslationConfig() })
+        buttons.append(keyButton("刷新") { [weak self] in
+            self?.closeGesturePanel(); self?.refreshTranslation()
+        })
+        buttons.append(keyButton("隐藏") { [weak self] in
+            self?.closeGesturePanel(); self?.setTranslation("")
+        })
+        showGestureStrip(id: "translation.menu", buttons: buttons, height: 56)
+    }
+
+    private func toggleCloudTranslation() {
+        translationConfig.enabled.toggle()
+        TranslationConfigStore.save(translationConfig)
+        closeGesturePanel()
+        if translationConfig.enabled {
+            showGestureHint(translationKey.isEmpty ? "云端已开，还需导入 API 配置" : "云端翻译已开启")
+        } else {
+            showGestureHint("云端已关闭，仅用本地词表")
+        }
+        refreshTranslation()
+    }
+
+    /// 从剪贴板导入 {"base_url","model","api_key","target"}；Key 只进 Keychain。
+    private func importTranslationConfig() {
+        guard hasFullAccess else {
+            showGestureHint("需要在键盘设置里允许完全访问才能读剪贴板配置"); return
+        }
+        guard let text = UIPasteboard.general.string, let data = text.data(using: .utf8),
+              let parsed = TranslationConfigStore.importJSON(data) else {
+            showGestureHint("剪贴板里没有可用的 JSON 配置"); return
+        }
+        translationConfig = parsed.config
+        translationKey = parsed.key
+        TranslationConfigStore.save(translationConfig)
+        TranslationConfigStore.saveAPIKey(parsed.key)
+        closeGesturePanel()
+        showGestureHint(parsed.key.isEmpty ? "已导入配置，但没有 API Key" : "已导入配置，云端翻译已开启")
+        refreshTranslation()
     }
 
     /// 候选条目：点击选中；上滑 ≥ 24pt 直接着该候选上屏（§3.2）。
