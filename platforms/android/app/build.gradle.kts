@@ -64,7 +64,7 @@ dependencies {
 
 // 整句搭配模型：从仓库内共享的 base.lm 复制进 assets，随 APK 分发。
 // 没有它整句不看上下文，实测整句 Top-1 从 64.2% 掉到 47.5%。
-val sharedModel = rootProject.file("../crates/dict/data/lm/base.lm")
+val sharedModel = rootProject.file("../../crates/dict/data/lm/base.lm")
 tasks.register<Copy>("copySharedModel") {
     onlyIf { sharedModel.exists() }
     from(sharedModel)

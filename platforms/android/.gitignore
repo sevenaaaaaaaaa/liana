@@ -3,4 +3,4 @@
 build/
 app/build/
 local.properties
-*.apk.idsig
+*.apk.idsigapp/src/main/assets/base.lm
