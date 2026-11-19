@@ -92,26 +92,11 @@ class KeyboardViewController: UIInputViewController {
     private var chromeRoot: UIStackView!
     private var chromeHeader: UIView!
     private var stripHeight: NSLayoutConstraint!
-    private var idleHeight: NSLayoutConstraint!
     private var inlineConstraints: [NSLayoutConstraint] = []
     private var inlineLeading: [NSLayoutConstraint] = []
     private var inlineWidths: [NSLayoutConstraint] = []
     private var stripsInline = false
     private var candidateScroll: UIScrollView!
-    private var idleScroll: UIScrollView!
-    private var idleShortcuts: UIStackView!
-    /// 英文一行：候选下方实时显示当前候选的英文；点按即上屏英文。
-    private var englishScroll: UIScrollView!
-    private var englishStrip: UIStackView!
-    private var englishButton: LianaPressButton!
-    private var englishText = ""
-    private var englishLanguageButton: LianaPressButton!
-    private lazy var englishTranslator: MixedLanguageLine = {
-        let line = MixedLanguageLine(lexicon: MobileLexicon(bundle: .main))
-        if let saved = UserDefaults.standard.string(forKey: "keyboard.translateLanguage"),
-           let lang = TranslateLanguage(rawValue: saved) { line.language = lang }
-        return line
-    }()
     private var hapticsEnabled = UserDefaults.standard.object(forKey: "keyboard.haptics") as? Bool ?? true
     private var modeButton: UIButton!
     private var tradButton: UIButton!
@@ -349,64 +334,6 @@ class KeyboardViewController: UIInputViewController {
         root.addArrangedSubview(scroll)
         root.setCustomSpacing(4, after: scroll)
 
-        // 英文一行（中英混合输入）：候选下方单独一行，隐藏时不占高度。
-        let enScroll = UIScrollView()
-        englishScroll = enScroll
-        enScroll.isHidden = true
-        enScroll.contentInsetAdjustmentBehavior = .never
-        enScroll.showsHorizontalScrollIndicator = false
-        enScroll.translatesAutoresizingMaskIntoConstraints = false
-        enScroll.heightAnchor.constraint(equalToConstant: 34).isActive = true
-        let enStrip = UIStackView()
-        englishStrip = enStrip
-        enStrip.translatesAutoresizingMaskIntoConstraints = false
-        enStrip.axis = .horizontal
-        enStrip.spacing = 8
-        enStrip.layoutMargins = UIEdgeInsets(top: 1, left: 8, bottom: 1, right: 8)
-        enStrip.isLayoutMarginsRelativeArrangement = true
-        enScroll.addSubview(enStrip)
-        NSLayoutConstraint.activate([
-            enStrip.leadingAnchor.constraint(equalTo: enScroll.contentLayoutGuide.leadingAnchor),
-            enStrip.trailingAnchor.constraint(equalTo: enScroll.contentLayoutGuide.trailingAnchor),
-            enStrip.topAnchor.constraint(equalTo: enScroll.contentLayoutGuide.topAnchor),
-            enStrip.bottomAnchor.constraint(equalTo: enScroll.contentLayoutGuide.bottomAnchor),
-            enStrip.heightAnchor.constraint(equalTo: enScroll.frameLayoutGuide.heightAnchor),
-        ])
-        let enLang = LianaPressButton(frame: .zero)
-        enLang.surface = .plain
-        enLang.rounded = 8
-        enLang.contentEdgeInsets = UIEdgeInsets(top: 3, left: 8, bottom: 3, right: 8)
-        enLang.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
-        enLang.accessibilityIdentifier = "english.language"
-        enLang.accessibilityLabel = "切换翻译语言"
-        enLang.addAction(UIAction { [weak self] _ in self?.cycleTranslateLanguage() }, for: .touchUpInside)
-        enStrip.addArrangedSubview(enLang)
-        englishLanguageButton = enLang
-
-        let enButton = LianaPressButton(frame: .zero)
-        enButton.surface = .plain
-        enButton.rounded = 8
-        enButton.contentEdgeInsets = UIEdgeInsets(top: 3, left: 10, bottom: 3, right: 10)
-        enButton.titleLabel?.font = .systemFont(ofSize: 14, weight: .regular)
-        enButton.accessibilityIdentifier = "english.line"
-        enButton.accessibilityLabel = "英文候选，点按上屏英文"
-        enButton.addAction(UIAction { [weak self] _ in self?.commitEnglishLine() }, for: .touchUpInside)
-        enStrip.addArrangedSubview(enButton)
-        englishButton = enButton
-        root.addArrangedSubview(enScroll)
-
-        let idle = UIScrollView(); idleScroll = idle
-        idle.contentInsetAdjustmentBehavior = .never; idle.showsHorizontalScrollIndicator = false
-        idleHeight = idle.heightAnchor.constraint(equalToConstant: Self.stripHeight); idleHeight.isActive = true
-        idle.translatesAutoresizingMaskIntoConstraints = false
-        let shortcuts = UIStackView(); shortcuts.spacing = 0; shortcuts.translatesAutoresizingMaskIntoConstraints = false
-        idleShortcuts = shortcuts
-        idle.addSubview(shortcuts)
-        NSLayoutConstraint.activate([shortcuts.leadingAnchor.constraint(equalTo: idle.contentLayoutGuide.leadingAnchor, constant: 8), shortcuts.trailingAnchor.constraint(equalTo: idle.contentLayoutGuide.trailingAnchor, constant: -8), shortcuts.topAnchor.constraint(equalTo: idle.contentLayoutGuide.topAnchor), shortcuts.bottomAnchor.constraint(equalTo: idle.contentLayoutGuide.bottomAnchor), shortcuts.heightAnchor.constraint(equalTo: idle.frameLayoutGuide.heightAnchor)])
-        renderIdleShortcuts()
-        root.addArrangedSubview(idle)
-        root.setCustomSpacing(4, after: idle)
-
         // 键盘区：几何随宽度变化整体重建（字母行 + 功能行 + 中缝工作台）
         let area = UIView()
         area.translatesAutoresizingMaskIntoConstraints = false
@@ -470,7 +397,6 @@ class KeyboardViewController: UIInputViewController {
 
         // 重建后：中/简/EN 标题、候选都必须原地恢复（L2）
         syncModeLabels()
-        renderIdleShortcuts()
         renderCandidates()
         if let adjustmentPanel { keyboardArea.bringSubviewToFront(adjustmentPanel) }
         if let devicePanel { keyboardArea.bringSubviewToFront(devicePanel) }
@@ -792,36 +718,35 @@ class KeyboardViewController: UIInputViewController {
     /// Phone landscape shares one line for composition, candidates and tools.
     /// Height stays stable while composing; key targets keep their normal size.
     private func updateStripPlacement() {
-        guard chromeRoot != nil, candidateScroll != nil, idleScroll != nil else { return }
+        guard chromeRoot != nil, candidateScroll != nil else { return }
         let compact = traitCollection.verticalSizeClass == .compact && view.bounds.width >= 600
         guard compact != stripsInline else { return }
         NSLayoutConstraint.deactivate(inlineConstraints)
         inlineConstraints = []; inlineLeading = []; inlineWidths = []
-        for strip in [candidateScroll!, idleScroll!] { chromeRoot.removeArrangedSubview(strip); strip.removeFromSuperview() }
+        chromeRoot.removeArrangedSubview(candidateScroll)
+        candidateScroll.removeFromSuperview()
         stripsInline = compact
         stripHeight.constant = compact ? Self.headerHeight : Self.stripHeight
-        idleHeight.constant = compact ? Self.headerHeight : Self.stripHeight
         chromeRoot.setCustomSpacing(compact ? 4 : 0, after: chromeHeader)
         if compact {
             candidateStrip.layoutMargins.top = 0; candidateStrip.layoutMargins.bottom = 0
-            for strip in [candidateScroll!, idleScroll!] {
-                chromeHeader.addSubview(strip)
-                let leading = strip.leadingAnchor.constraint(equalTo: chromeHeader.leadingAnchor)
-                let width = strip.widthAnchor.constraint(equalToConstant: 0)
-                inlineLeading.append(leading); inlineWidths.append(width)
-                inlineConstraints += [leading, width, strip.centerYAnchor.constraint(equalTo: chromeHeader.centerYAnchor)]
-            }
+            chromeHeader.addSubview(candidateScroll)
+            let leading = candidateScroll.leadingAnchor.constraint(equalTo: chromeHeader.leadingAnchor)
+            let width = candidateScroll.widthAnchor.constraint(equalToConstant: 0)
+            inlineLeading.append(leading); inlineWidths.append(width)
+            inlineConstraints += [leading, width, candidateScroll.centerYAnchor.constraint(equalTo: chromeHeader.centerYAnchor)]
             NSLayoutConstraint.activate(inlineConstraints)
         } else {
             candidateStrip.layoutMargins.top = 1; candidateStrip.layoutMargins.bottom = 1
-            chromeRoot.insertArrangedSubview(candidateScroll, at: 1); chromeRoot.insertArrangedSubview(idleScroll, at: 2)
-            chromeRoot.setCustomSpacing(4, after: candidateScroll); chromeRoot.setCustomSpacing(4, after: idleScroll)
+            chromeRoot.insertArrangedSubview(candidateScroll, at: 1)
+            chromeRoot.setCustomSpacing(4, after: candidateScroll)
         }
     }
 
     private func updateGeometry() {
         updateStripPlacement()
-        let requested = Self.headerHeight + (stripsInline ? 0 : Self.stripHeight) + keyboardAreaHeight + view.safeAreaInsets.bottom + 12 + CGFloat(preferences.bottomPadding)
+        let stripVisible = !stripsInline && (candidateScroll?.isHidden == false)
+        let requested = Self.headerHeight + (stripVisible ? Self.stripHeight : 0) + keyboardAreaHeight + view.safeAreaInsets.bottom + 12 + CGFloat(preferences.bottomPadding)
         heightConstraint?.constant = requested
         (inputView as? KeyboardInputView)?.requestedHeight = requested
         preferredContentSize = CGSize(width: view.bounds.width, height: requested)
@@ -1436,33 +1361,6 @@ class KeyboardViewController: UIInputViewController {
         send(.literal(text))
     }
 
-    /// 空输入时的顶栏：九宫格左列已经有 ，。？！，这里换成常用短语，
-    /// 既不重复同一排标点，也给「常用语」一个看得见的入口；其他布局保持标点快捷。
-    private func renderIdleShortcuts() {
-        guard let stack = idleShortcuts else { return }
-        stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        if method == .t9 && !english && page == .letters {
-            for (index, text) in MobilePhrases.load().prefix(8).enumerated() {
-                let key = LianaPressButton(frame: .zero)
-                key.surface = .utility; key.rounded = 8
-                key.setTitle(text, for: .normal)
-                key.titleLabel?.font = LianaPalette.font(14, maximum: 18)
-                key.contentEdgeInsets = UIEdgeInsets(top: 0, left: 10, bottom: 0, right: 10)
-                key.accessibilityIdentifier = "idle.phrase.\(index)"
-                key.accessibilityLabel = "常用语：\(text)"
-                key.addAction(UIAction { [weak self] _ in self?.insertText(text) }, for: .touchUpInside)
-                stack.addArrangedSubview(key)
-            }
-            return
-        }
-        for text in ["，", "。", "？", "！", "@", "#", "…", "／"] {
-            let key = LianaPressButton(frame: .zero); key.rounded = 8
-            key.setTitle(text, for: .normal); key.titleLabel?.font = .systemFont(ofSize: 17)
-            key.accessibilityIdentifier = "shortcut." + text; key.widthAnchor.constraint(equalToConstant: 44).isActive = true
-            key.addAction(UIAction { [weak self] _ in self?.insertText(text) }, for: .touchUpInside); stack.addArrangedSubview(key)
-        }
-    }
-
     // MARK: - 候选刷新（状态 → 渲染，两处入口共用）
 
     private func renderCandidates() {
@@ -1472,11 +1370,10 @@ class KeyboardViewController: UIInputViewController {
         composingLabel?.text = composingText.isEmpty ? (english ? "松萝  /  EN" : "松萝  /  " + method.title) : composingText
         composingLabel?.textColor = rawInput.isEmpty ? LianaPalette.muted : LianaPalette.ink
         let hasComposition = !rawInput.isEmpty || !candidates.isEmpty
-        candidateScroll?.isHidden = !hasComposition; idleScroll?.isHidden = hasComposition
+        candidateScroll?.isHidden = !hasComposition
         updateGeometry()
         clearButton?.isHidden = rawInput.isEmpty || clearSuppressed
         for button in returnButtons { button.accessibilityLabel = rawInput.isEmpty ? "换行" : "确认候选" }
-        updateEnglishLine()
         guard renderedCandidates != candidates || renderedCandidateFont != preferences.candidateFont else { return }
         renderedCandidates = candidates; renderedCandidateFont = preferences.candidateFont
         while candidateButtons.count < candidates.count {
@@ -1490,51 +1387,6 @@ class KeyboardViewController: UIInputViewController {
                 button.titleLabel?.font = .systemFont(ofSize: CGFloat(preferences.candidateFont), weight: i == 0 ? .semibold : .regular)
             }
         }
-    }
-
-    /// 中英混合输入的「英文一行」：把当前首选候选翻成英文显示在候选下方。
-    /// 没有输入、没有候选或翻不出内容时整行隐藏，不占高度。
-    private func updateEnglishLine() {
-        guard !rawInput.isEmpty, let top = candidates.first, !top.isEmpty else {
-            englishText = ""
-            englishScroll?.isHidden = true
-            return
-        }
-        englishText = englishTranslator.translate(top) ?? ""
-        englishScroll?.isHidden = englishText.isEmpty
-        guard !englishText.isEmpty else { return }
-        englishLanguageButton?.setTitle(englishTranslator.language.title, for: .normal)
-        englishButton?.setTitle(englishText, for: .normal)
-    }
-
-    /// 点语言芯片：EN → 日 → 한 → FR → DE → ES → RU 循环，选择会记住。
-    private func cycleTranslateLanguage() {
-        englishTranslator.language = englishTranslator.language.next
-        UserDefaults.standard.set(englishTranslator.language.rawValue, forKey: "keyboard.translateLanguage")
-        let top = candidates.first ?? ""
-        if rawInput.isEmpty || top.isEmpty {
-            englishText = ""
-            englishScroll?.isHidden = true
-            return
-        }
-        englishText = englishTranslator.translate(top) ?? ""
-        englishScroll?.isHidden = englishText.isEmpty
-        englishLanguageButton?.setTitle(englishTranslator.language.title, for: .normal)
-        englishButton?.setTitle(englishText, for: .normal)
-    }
-
-    /// 点按英文一行：放弃中文候选，改为上屏英文（这就是「确认输入的是英文」）。
-    private func commitEnglishLine() {
-        guard !englishText.isEmpty else { return }
-        let text = englishText
-        englishText = ""
-        englishScroll?.isHidden = true
-        rawInput = ""
-        candidates = []
-        renderedCandidates = []
-        send(.clear)
-        insertText(text)
-        renderCandidates()
     }
 
     /// 候选条目：点击选中；上滑 ≥ 24pt 直接着该候选上屏（§3.2）。
