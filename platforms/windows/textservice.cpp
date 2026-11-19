@@ -8,7 +8,8 @@
 // 需在 Windows 机器上配合微软 TextService 样板逐段调试；引擎调用部分已完整。
 #include "textservice.h"
 
-#include <new>  // std::nothrow（工厂 CreateInstance 用它做不抛异常的 new）
+#include <new>     // std::nothrow（工厂 CreateInstance 用它做不抛异常的 new）
+#include <string>  // std::string（词典路径转 UTF-8）
 
 // textservice.h 里的 DEFINE_GUID 只是声明；这里给出唯一实体，否则链接报
 // LNK2019: unresolved external symbol CLSID_LianaTextService。不用 INITGUID，
