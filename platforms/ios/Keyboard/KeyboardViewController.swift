@@ -222,6 +222,8 @@ class KeyboardViewController: UIInputViewController {
 
     private func buildUI() {
         view.backgroundColor = LianaTheme.bg
+        // 单指输入：避免双指/掌压同时命中两个键各上一次屏
+        view.isMultipleTouchEnabled = false
         view.tintColor = LianaPalette.ink
 
         let root = UIStackView()
@@ -311,7 +313,7 @@ class KeyboardViewController: UIInputViewController {
         // 候选栏（横向滚动）
         let scroll = UIScrollView()
         candidateScroll = scroll
-        scroll.isHidden = true
+        scroll.isHidden = false
         scroll.contentInsetAdjustmentBehavior = .never
         scroll.showsHorizontalScrollIndicator = false
         scroll.translatesAutoresizingMaskIntoConstraints = false
@@ -745,8 +747,9 @@ class KeyboardViewController: UIInputViewController {
 
     private func updateGeometry() {
         updateStripPlacement()
-        let stripVisible = !stripsInline && (candidateScroll?.isHidden == false)
-        let requested = Self.headerHeight + (stripVisible ? Self.stripHeight : 0) + keyboardAreaHeight + view.safeAreaInsets.bottom + 12 + CGFloat(preferences.bottomPadding)
+        // 键盘高度恒定：候选条的 46pt 永远预留。若跟着「有没有候选」伸缩，
+        // 每输入一个词键盘都会上下跳一次，快速连点必然错行。
+        let requested = Self.headerHeight + (stripsInline ? 0 : Self.stripHeight) + keyboardAreaHeight + view.safeAreaInsets.bottom + 12 + CGFloat(preferences.bottomPadding)
         heightConstraint?.constant = requested
         (inputView as? KeyboardInputView)?.requestedHeight = requested
         preferredContentSize = CGSize(width: view.bounds.width, height: requested)
@@ -992,6 +995,7 @@ class KeyboardViewController: UIInputViewController {
 
     private func keyButton(_ title: String, action: @escaping () -> Void) -> UIButton {
         let b = LianaPressButton(frame: .zero)
+        b.isExclusiveTouch = true
         b.surface = .key; b.rounded = 8
         b.setTitle(title, for: .normal)
         b.setTitleColor(LianaTheme.text, for: .normal)
@@ -1369,8 +1373,6 @@ class KeyboardViewController: UIInputViewController {
         guard candidateStrip != nil else { return }
         composingLabel?.text = composingText.isEmpty ? (english ? "松萝  /  EN" : "松萝  /  " + method.title) : composingText
         composingLabel?.textColor = rawInput.isEmpty ? LianaPalette.muted : LianaPalette.ink
-        let hasComposition = !rawInput.isEmpty || !candidates.isEmpty
-        candidateScroll?.isHidden = !hasComposition
         updateGeometry()
         clearButton?.isHidden = rawInput.isEmpty || clearSuppressed
         for button in returnButtons { button.accessibilityLabel = rawInput.isEmpty ? "换行" : "确认候选" }
@@ -1604,7 +1606,7 @@ extension KeyboardViewController {
                     visited.insert(title)
                 }
             }
-            guard traveled >= 48, visited.count >= 2 else { glidePoints = []; return }
+            guard traveled >= 72, visited.count >= 3 else { glidePoints = []; return }
             var centers: [String: CGPoint] = [:]
             func collect(_ view: UIView) {
                 if let key = view as? UIButton, let title = key.title(for: .normal)?.lowercased(), title.count == 1, title.first!.isASCII, title.first!.isLetter { centers[title] = key.convert(CGPoint(x:key.bounds.midX,y:key.bounds.midY),to:keyboardArea) }
@@ -1761,7 +1763,20 @@ extension KeyboardViewController {
 
 private final class GlidePan: UIPanGestureRecognizer, UIGestureRecognizerDelegate {
     var allow: ((CGPoint) -> Bool)?
+    /// 起手 24pt 内不升级成滑行：快速点按时手指的轻微位移不应吞掉这次按键。
+    private let beginDistance: CGFloat = 24
+    private var origin: CGPoint?
     override init(target: Any?, action: Selector?) { super.init(target: target, action: action); delegate = self; maximumNumberOfTouches = 1 }
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool { allow?(touch.location(in: view)) ?? false }
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        origin = touches.first?.location(in: view)
+        super.touchesBegan(touches, with: event)
+    }
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+        if state == .possible, let origin, let point = touches.first?.location(in: view),
+           hypot(point.x - origin.x, point.y - origin.y) < beginDistance { return }
+        super.touchesMoved(touches, with: event)
+    }
+    override func reset() { origin = nil; super.reset() }
 }
 private func - (left: CGPoint, right: CGPoint) -> CGPoint { CGPoint(x:left.x-right.x,y:left.y-right.y) }
