@@ -10,6 +10,9 @@ larger frequency) for the fallback SQLite index.
 import argparse
 from pathlib import Path
 
+# core 词库里保留多少个常用字（GB2312 一二级字表约 6763，留出余量）。
+CORE_CHARS = 9000
+
 
 def read_rows(path):
     rows = {}
@@ -54,7 +57,22 @@ def select_rows(source, limit):
     rows = read_rows(source)
     # Every character from the desktop dictionary stays available: a missing
     # glyph is much worse on a phone than a rare one taking a candidate slot.
-    chosen = {key: freq for key, freq in rows.items() if len(key[0]) == 1}
+    # 单字按字聚合，只保留最高频的两个读音，并且只留最常用的 CORE_CHARS 个字。
+    # base-large 收了四万多个字（大量是 CJK 扩展区的生僻字，如「䫖」「䗞」），
+    # 它们过去占掉 core 配额的一半，把三字/四字常用词挤出 iOS 词库——这正是
+    # iOS 候选比 macOS 差的主因。生僻字仍留在 full 档的 SQLite 索引里。
+    by_char = {}
+    for (word, py), freq in rows.items():
+        if len(word) != 1:
+            continue
+        readings = by_char.setdefault(word, [])
+        readings.append((freq, py))
+    hot_chars = sorted(by_char.items(), key=lambda kv: -max(f for f, _ in kv[1]))[:CORE_CHARS]
+    chosen = {}
+    for word, readings in hot_chars:
+        readings.sort(reverse=True)
+        for freq, py in readings[:2]:
+            chosen[(word, py)] = freq
     priors = source.parents[2] / 'pinyin/data/jianpin.tsv'
     wanted = set()
     if priors.exists():

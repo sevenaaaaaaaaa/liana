@@ -32,6 +32,20 @@ else
     echo "词典已是最新，跳过"
 fi
 
+# 整句搭配模型：仓库里带一份跨平台共享的 base.lm（由 macOS 构建生成后签入）。
+# 没有它整句不看上下文，实测整句 Top-1 从 64.2% 掉到 47.5%——这是各端准确率差的主因。
+LM_OUT="$HERE/build/base.lm"
+LM_SRC="$ROOT/crates/dict/data/lm/base.lm"
+if [[ -f "$LM_SRC" ]] && { [[ ! -f "$LM_OUT" ]] || [[ "$LM_SRC" -nt "$LM_OUT" ]]; }; then
+    mkdir -p "$HERE/build"
+    cp "$LM_SRC" "$LM_OUT"
+    echo "    搭配模型就位：$(du -h "$LM_OUT" | cut -f1)"
+elif [[ -f "$LM_OUT" ]]; then
+    echo "    搭配模型已是最新，跳过"
+else
+    echo "    ⚠️ 缺少 crates/dict/data/lm/base.lm，本次不带整句搭配模型"
+fi
+
 echo "==> 3/3 引擎语法检查"
 python3 -m py_compile "$HERE/ibus-liana" "$HERE/libliana.py"
 echo "    Python 语法 OK"

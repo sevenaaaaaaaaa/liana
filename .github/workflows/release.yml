@@ -210,6 +210,12 @@ jobs:
           New-Item -ItemType Directory -Force $stage | Out-Null
           Copy-Item platforms/windows/build/liana_tsf.dll $stage -ErrorAction Stop
           Copy-Item platforms/windows/build/base.ifd $stage -ErrorAction Stop
+          # 整句搭配模型：缺它整句 Top-1 从 64.2% 掉到 47.5%
+          if (Test-Path platforms/windows/build/base.lm) {
+            Copy-Item platforms/windows/build/base.lm $stage -ErrorAction Stop
+          } else {
+            throw "缺少 base.lm：crates/dict/data/lm/base.lm 应随仓库签入"
+          }
           Copy-Item platforms/windows/README.md $stage
           @'
           松萝 Liana · Windows 构建产物（骨架阶段）

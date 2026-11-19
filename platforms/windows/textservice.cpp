@@ -49,6 +49,24 @@ STDMETHODIMP_(ULONG) CTextService::Release() {
     return c;
 }
 
+// ---- 词典路径 ----
+// DLL 与 base.ifd / base.lm 同目录（build.cmd 生成、安装包同层分发）。
+// 过去这里写的是 liana_new("pinyin")，内核退回 200 条内置词典，整句准确率与其它端差一大截。
+static std::string DictPathNextToDll() {
+    wchar_t path[MAX_PATH]{};
+    if (!GetModuleFileNameW(g_hInst, path, MAX_PATH)) return {};
+    std::wstring dir(path);
+    const auto slash = dir.find_last_of(L"\\/");
+    if (slash == std::wstring::npos) return {};
+    dir.resize(slash + 1);
+    dir += L"base.ifd";
+    int need = WideCharToMultiByte(CP_UTF8, 0, dir.c_str(), -1, nullptr, 0, nullptr, nullptr);
+    if (need <= 0) return {};
+    std::string out(static_cast<size_t>(need - 1), '\0');
+    WideCharToMultiByte(CP_UTF8, 0, dir.c_str(), -1, out.data(), need, nullptr, nullptr);
+    return out;
+}
+
 // ---- Activate / Deactivate ----
 
 STDMETHODIMP CTextService::Activate(ITfThreadMgr *ptim, TfClientId tid) {
@@ -56,8 +74,11 @@ STDMETHODIMP CTextService::Activate(ITfThreadMgr *ptim, TfClientId tid) {
     client_id_ = tid;
     thread_mgr_->AddRef();
 
-    // 内核会话：传 NULL 用内置词典；正式版改为从安装目录加载 base.ifd
-    session_ = liana_new("pinyin");
+    // 内核会话：优先加载 DLL 同目录的 base.ifd（旁边有 base.lm 时整句再看上下文）；
+    // 文件缺失才退回内置词典。
+    const std::string dict = DictPathNextToDll();
+    session_ = dict.empty() ? nullptr : liana_new_with_dict("pinyin", dict.c_str());
+    if (!session_) session_ = liana_new("pinyin");
     if (!session_) return E_OUTOFMEMORY;
 
     // TODO: AdviseKeyEventSink + 候选窗（ITfCandidateListUIElement 或自绘窗口）

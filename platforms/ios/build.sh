@@ -26,6 +26,13 @@ python3 "$ROOT/tools/build_ios_dict.py" "$ROOT/crates/dict/data/base-large.tsv" 
     "$DICT_BUILD/mobile-core.tsv" --limit "$CORE_LIMIT"
 cargo run --quiet --manifest-path "$ROOT/Cargo.toml" -p xtask -- \
     dict build "$DICT_BUILD/mobile-core.tsv" -o "$HERE/Resources/base.ifd"
+# 整句搭配模型必须与 base.ifd 同目录（内核按 base.ifd 旁边的 base.lm 加载）。
+# 17MB / 450 万条这一档：完整 42MB 在键盘扩展的内存预算里风险太大，
+# 实测这一档把 iOS 整句 Top-1 从 45.0% 提到 50.0%（完整档 61.7%）。
+if [[ -f "$HERE/Vendor/LM/base.lm" ]]; then
+    cp "$HERE/Vendor/LM/base.lm" "$HERE/Resources/base.lm"
+    echo "    搭配模型已就位（$(du -h "$HERE/Resources/base.lm" | cut -f1)）"
+fi
 
 python3 "$ROOT/tools/build_ios_dict.py" "$ROOT/crates/dict/data/base-large.tsv" \
     "$DICT_BUILD/mobile-full.tsv" --all \

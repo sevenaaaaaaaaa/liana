@@ -236,6 +236,12 @@ elif [[ ! -f "$LM_OUT" || "$DICT_SRC" -nt "$LM_OUT" ]]; then
 else
     echo "    整句搭配模型已是最新，跳过"
 fi
+# CI 没有 400MB 语法模型缓存、也未必能下载成功：退到仓库里签入的共享模型，
+# 保证 dist.sh 打出来的 DMG 一定带搭配模型（没它整句 Top-1 从 64.2% 掉到 47.5%）。
+if [[ ! -f "$LM_OUT" && -f "$ROOT/crates/dict/data/lm/base.lm" ]]; then
+    cp "$ROOT/crates/dict/data/lm/base.lm" "$LM_OUT"
+    echo "    使用仓库内共享搭配模型（$(du -h "$LM_OUT" | cut -f1)）"
+fi
 
 echo "==> 4/5 构建图形安装器"
 INSTALLER="$BUILD/松萝安装器.app"

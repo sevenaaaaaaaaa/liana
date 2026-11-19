@@ -1817,6 +1817,26 @@ mod tests {
     }
 
     #[test]
+    fn multi_char_word_beats_same_length_garbage_assembly() {
+        // 打满拼音时，词典里的补全词（朋友圈）常只拿到 Predictive；
+        // 它过去被「匹配质量分层」压在同一长度的逐字垃圾拼句（碰有）之后，
+        // 用户要翻好几页。质量必须是可被分数跨越的代价，不是硬分层。
+        let mut dict = Dictionary::new();
+        dict.insert("peng'you", "朋友", 90_000);
+        dict.insert("peng'you'quan", "朋友圈", 15_000);
+        dict.insert("peng", "碰", 3_000);
+        dict.insert("you", "有", 60_000);
+        let d = PinyinDecoder::new(Arc::new(dict), Layout::Full);
+        let c = d.candidates("pengyou");
+        let idx = |w: &str| {
+            c.iter()
+                .position(|x| x.text == w)
+                .unwrap_or_else(|| panic!("应包含「{w}」: {c:?}"))
+        };
+        assert!(idx("朋友圈") < idx("碰有"), "{c:?}");
+    }
+
+    #[test]
     fn exact_reading_is_marked_redundant() {
         let d = PinyinDecoder::new(dict(), Layout::Full);
         let c = d.candidates("nihao");

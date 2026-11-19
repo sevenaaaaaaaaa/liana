@@ -7,13 +7,17 @@
 # 口径：
 #   语料 xtask/data/corpus/liana-seed.tsv（120 句，随仓库走）
 #   词典 crates/dict/data/base-large.tsv（随仓库走）
-#   模型 platforms/ios/Vendor/LM/base.lm.bin（随仓库走的剪枝模型，107 万条）
+#   模型 platforms/ios/Vendor/LM/base.lm（随仓库走，17MB / 450 万条，iOS 实际分发的档位）
 # 同一份输入 → 同一组数字，不受本机装了什么影响。
 #
-# 2026-11-17 基线（本脚本建立时实测）：
-#   整句 Top-1 51.7% · Top-3 70.0% · 字准确率 92.0% · 逐键 p95 8ms
-# 同一套语料换桌面生产模型（1100 万条）是 64.2% / 75.0% / 93.8%——
-# 这 12.5 个百分点就是「移动端模型剪枝」的代价，见 ops/roadmap。
+# 2026-11-20 基线（各端模型分发补齐后实测）：
+#   整句 Top-1 53.3% · Top-3 71.7% · 字准确率 92.8% · 逐键 p95 8ms
+# 对照（同一套语料、同一份词典，只换模型，实测）：
+#   完整 42MB（1100 万条，桌面端）：64.2% / 75.0% / 93.8%
+#   17MB（450 万条，iOS）：53.3% / 71.7% / 92.8%
+#   无模型（2026-11-20 之前的 Android / Windows / Linux）：47.5% / 61.7% / 91.4%
+#   iOS 旧剪枝档 5.3MB（107 万条）：51.7% / 70.0% / 92.1%
+# 旧基线 51.7 是拿 5.3MB 剪枝档跑的；现在闸门跟产品实际分发的模型一致。
 #
 # 阈值取基线下方约 1 个百分点（延迟给到 25ms）：只拦真回归，不拦抖动。
 # 改阈值必须在同一次提交里说明原因。
@@ -22,14 +26,14 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-MIN_TOP1=51
-MIN_TOP3=69
-MIN_CHAR=91
+MIN_TOP1=52
+MIN_TOP3=70
+MIN_CHAR=92
 MAX_P95=25
 
 echo "==> 跑 liana-seed 固定语料（120 句，仓库内模型）"
 OUT="$(cargo run -q --release -p xtask -- eval-corpus \
-  --set liana-seed --lm platforms/ios/Vendor/LM/base.lm.bin --show 0 2>&1 | tail -20)"
+  --set liana-seed --lm platforms/ios/Vendor/LM/base.lm --show 0 2>&1 | tail -20)"
 echo "$OUT" | grep -E '语料集|liana-seed|逐键延迟' || true
 
 LINE="$(echo "$OUT" | awk '/^  liana-seed/ {print; exit}')"

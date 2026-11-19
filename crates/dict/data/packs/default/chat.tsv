@@ -1,0 +1,129 @@
+# 松萝官方词包 · 聊天口语 / 网络用语 / 歇后语（本项目维护，AGPL-3.0-only）
+# 为什么单独一个包：base-large 来自通用语料（wordfreq/rime），口语与聊天场景的词
+# 要么没有、要么词频被语料严重低估（「在吗」只有 139），候选里根本进不了前面。
+# 同一行可以给同一个词写多条读音：口语读音（在吗 / zai me）与标准读音分开登记，
+# 用户按哪个打都能整词命中。
+# 格式：词<TAB>拼音（空格分隔）<TAB>词频（与 base-large.tsv 同尺度）
+
+# ── 聊天开场与应答 ──
+在吗	zai ma	30000
+在吗	zai me	22000
+在么	zai me	9000
+在干嘛	zai gan ma	26000
+在干啥	zai gan sha	15000
+干嘛呢	gan ma ne	13000
+干啥呢	gan sha ne	11000
+咋了	za le	15000
+咋啦	za la	8000
+咋回事	za hui shi	12000
+怎么了	zen me le	26000
+怎么回事	zen me hui shi	18000
+好的呀	hao de ya	8000
+好滴	hao di	7000
+好嘞	hao lei	9000
+行吧	xing ba	16000
+可以吧	ke yi ba	9000
+收到收到	shou dao shou dao	8000
+知道了	zhi dao le	22000
+晓得了	xiao de le	6000
+不用了	bu yong le	10000
+算了吧	suan le ba	10000
+算了	suan le	16000
+没事儿	mei shi er	12000
+没事吧	mei shi ba	9000
+辛苦了	xin ku le	13000
+早点休息	zao dian xiu xi	7000
+晚安啦	wan an la	7000
+明天见	ming tian jian	13000
+回头见	hui tou jian	6000
+一会见	yi hui jian	6000
+先这样	xian zhe yang	7000
+就这样	jiu zhe yang	12000
+不好意思	bu hao yi si	16000
+没问题	mei wen ti	13000
+无所谓	wu suo wei	10000
+等一下	deng yi xia	13000
+等我一下	deng wo yi xia	7000
+马上到	ma shang dao	9000
+晚点到	wan dian dao	5000
+
+# ── 情绪与反应 ──
+笑死	xiao si	13000
+笑死我了	xiao si wo le	11000
+无语	wu yu	13000
+服了	fu le	9000
+绝了	jue le	11000
+太强了	tai qiang le	7000
+厉害了	li hai le	10000
+可以的	ke yi de	8000
+有点东西	you dian dong xi	7000
+真的假的	zhen de jia de	10000
+不至于	bu zhi yu	7000
+差不多吧	cha bu duo ba	7000
+应该是	ying gai shi	10000
+可能是	ke neng shi	9000
+我觉得	wo jue de	16000
+我感觉	wo gan jue	10000
+话说回来	hua shuo hui lai	6000
+你别说	ni bie shuo	6000
+我裂开了	wo lie kai le	5000
+爷青回	ye qing hui	4000
+绷不住了	beng bu zhu le	6000
+典中典	dian zhong dian	4000
+
+# ── 网络用语 ──
+吃瓜群众	chi gua qun zhong	13000
+一键三连	yi jian san lian	10000
+显眼包	xian yan bao	9000
+情绪价值	qing xu jia zhi	11000
+破防了	po fang le	10000
+摆烂了	bai lan le	8000
+躺平了	tang ping le	7000
+天花板	tian hua ban	8000
+社死	she si	8000
+小作文	xiao zuo wen	7000
+夺笋	duo sun	4000
+缝合怪	feng he guai	3000
+资源咖	zi yuan ka	3000
+格局打开	ge ju da kai	5000
+格局小了	ge ju xiao le	5000
+
+# ── 三字口语句 ──
+脑瓜子	nao gua zi	7000
+慢一点	man yi dian	7000
+快一点	kuai yi dian	8000
+小心点	xiao xin dian	7000
+下次吧	xia ci ba	7000
+再说吧	zai shuo ba	8000
+
+# ── 成语的常见读音变体（按大家实际怎么打补的另一条读音） ──
+不能自已	bu neng zi ji	5000
+自作多情	zi zuo duo qing	3000
+心照不宣	xin zhao bu xuan	3000
+
+# ── 歇后语（前半句与后半句都登记，整条也登记） ──
+黄鼠狼给鸡拜年	huang shu lang gei ji bai nian	3000
+竹篮打水一场空	zhu lan da shui yi chang kong	3000
+打破砂锅问到底	da po sha guo wen dao di	3000
+铁公鸡一毛不拔	tie gong ji yi mao bu ba	2500
+猪八戒照镜子	zhu ba jie zhao jing zi	2500
+泥菩萨过江	ni pu sa guo jiang	2500
+哑巴吃黄连	ya ba chi huang lian	2500
+骑驴看唱本	qi lv kan chang ben	2500
+狗咬吕洞宾	gou yao lv dong bin	2500
+八仙过海	ba xian guo hai	3000
+各显神通	ge xian shen tong	3000
+不打不相识	bu da bu xiang shi	2500
+老鼠过街	lao shu guo jie	2500
+人人喊打	ren ren han da	2500
+王婆卖瓜	wang po mai gua	2500
+自卖自夸	zi mai zi kua	2500
+猫哭老鼠	mao ku lao shu	2000
+假慈悲	jia ci bei	2500
+芝麻开花	zhi ma kai hua	2500
+节节高	jie jie gao	2500
+丈二和尚	zhang er he shang	2000
+摸不着头脑	mo bu zhao tou nao	3000
+有苦说不出	you ku shuo bu chu	2500
+里外不是人	li wai bu shi ren	2500
+自身难保	zi shen nan bao	2500

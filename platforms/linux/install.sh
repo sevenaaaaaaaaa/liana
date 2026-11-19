@@ -24,6 +24,7 @@ PY="$(src libliana.py || true)"
 ENGINE="$(src ibus-liana || true)"
 XML="$(src liana.xml || true)"
 DICT="$(src base.ifd || true)"
+LM="$(src base.lm || true)"
 
 for f in "$SO" "$PY" "$ENGINE" "$XML"; do
     [[ -f "$f" ]] || { echo "缺少构建产物: $f（先在仓库里跑 ./build.sh --local）" >&2; exit 1; }
@@ -50,6 +51,11 @@ if [[ -n "$DICT" ]]; then
     # 引擎以当前用户身份运行：词典放用户目录，避免 /usr/local 只读时无法学习/更新
     mkdir -p "$HOME/.local/share/liana"
     cp "$DICT" "$HOME/.local/share/liana/base.ifd"
+    # 整句搭配模型必须与 base.ifd 同目录（内核按 base.ifd 旁边的 base.lm 加载）
+    if [[ -n "$LM" ]]; then
+        sudo cp "$LM" "$LIB_DIR/base.lm"
+        cp "$LM" "$HOME/.local/share/liana/base.lm"
+    fi
 fi
 
 sudo mkdir -p "$COMPONENT_DIR"

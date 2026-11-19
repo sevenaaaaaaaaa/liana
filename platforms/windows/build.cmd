@@ -18,7 +18,7 @@ set HERE=%~dp0
 REM build 目录要先建：后面 two 步都要往里写文件（以前 copy 排在 mkdir 之前，首次构建必失败）
 if not exist "%HERE%build" mkdir "%HERE%build"
 
-echo ==^> 1/3 Rust 静态库（x86_64-pc-windows-msvc，staticlib 免链接器）
+echo ==^> 1/4 Rust 静态库（x86_64-pc-windows-msvc，staticlib 免链接器）
 REM 用 cargo rustc（rustc 本身没有 -p / --manifest-path 这些选项）
 cargo rustc --release -p liana-ffi --target x86_64-pc-windows-msvc --crate-type staticlib ^
     --manifest-path "%ROOT%\Cargo.toml"
@@ -27,7 +27,7 @@ REM msvc 目标直接产出 MSVC 命名的 liana_ffi.lib
 copy /y "%ROOT%\target\x86_64-pc-windows-msvc\release\liana_ffi.lib" "%HERE%build\liana_ffi.lib" >nul
 if errorlevel 1 goto :fail
 
-echo ==^> 2/3 词典（base.ifd）
+echo ==^> 2/4 词典（base.ifd + 搭配模型 base.lm）
 cargo run --quiet --release -p xtask --manifest-path "%ROOT%\Cargo.toml" -- ^
     dict build "%ROOT%\crates\dict\data\base-large.tsv" -o "%HERE%build\base.ifd"
 if errorlevel 1 goto :fail
@@ -42,7 +42,16 @@ if not defined TSF_OLD_LIB if exist "%TSF_IDL%" call :gen_tsf_iid
 echo     TSF 接口定义来源: %TSF_IMPORTLIB%
 
 
-echo ==^> 3/3 MSVC 编译 TSF DLL
+REM 整句搭配模型：仓库内共享的 base.lm 复制到与 DLL 同目录，内核按 base.ifd 旁边的 base.lm 加载。
+REM 没有它整句不看上下文，实测整句 Top-1 从 64.2% 掉到 47.5%。
+if exist "%ROOT%\crates\dict\data\lm\base.lm" (
+    copy /y "%ROOT%\crates\dict\data\lm\base.lm" "%HERE%build\base.lm" >nul
+    if errorlevel 1 goto :fail
+) else (
+    echo     [warn] 缺少 crates\dict\data\lm\base.lm，本次不带整句搭配模型
+)
+
+echo ==^> 4/4 MSVC 编译 TSF DLL
 cl /nologo /W4 /EHsc /O2 /LD /I"%ROOT%\crates\ffi\include" ^
     "%HERE%textservice.cpp" ^
     /Fe"%HERE%build\liana_tsf.dll" ^

@@ -87,6 +87,17 @@ class LianaImeService : InputMethodService() {
                 // 词典缺失时回退内核内置词典
             }
         }
+        // 整句搭配模型：与 base.ifd 同目录，内核自己按 base.ifd 旁边的 base.lm 加载
+        val lmFile = getFileStreamPath("base.lm")
+        if (!lmFile.exists()) {
+            try {
+                assets.open("base.lm").use { input ->
+                    lmFile.outputStream().use { input.copyTo(it) }
+                }
+            } catch (_: Exception) {
+                // 模型缺失时整句只看词频，仍可用
+            }
+        }
         val dictPath = if (dictFile.exists()) dictFile.absolutePath else null
         session = (dictPath?.let { LianaJni.newWithDict("pinyin", it) } ?: 0L)
             .takeIf { it != 0L } ?: LianaJni.new("pinyin")

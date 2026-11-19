@@ -152,6 +152,11 @@ impl CommentRole {
     }
 }
 
+/// 补全词（读音对齐、只比输入多出尾部音节）的排序代价：能被分数跨越。
+pub const PREDICTIVE_PENALTY: f64 = 2.5;
+/// 纠错读音（模糊音 / 编辑距离）的排序代价，比补全更重。
+pub const CORRECTED_PENALTY: f64 = 5.0;
+
 /// 拼音匹配质量与 UI 注释分离；学习和 AI 都不能跨匹配层置顶。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MatchQuality {
@@ -211,8 +216,21 @@ impl Candidate {
         literal
             .cmp(&other_literal)
             .then_with(|| other.consumed.cmp(&self.consumed))
+            .then_with(|| other.effective_score().total_cmp(&self.effective_score()))
             .then_with(|| self.match_quality.cmp(&other.match_quality))
             .then_with(|| other.score.total_cmp(&self.score))
+    }
+
+    /// 匹配质量折算成可被分数跨越的代价（不是硬分层）：
+    /// 打满拼音时，词典里的「朋友圈」「公司名称」这类补全词常常只拿到 Predictive，
+    /// 硬分层会让它们排在 3 分级的逐字拼装垃圾（「碰有」「共死」）之后。
+    fn effective_score(&self) -> f64 {
+        self.score
+            - match self.match_quality {
+                MatchQuality::Exact => 0.0,
+                MatchQuality::Predictive => PREDICTIVE_PENALTY,
+                MatchQuality::Corrected => CORRECTED_PENALTY,
+            }
     }
 }
 
