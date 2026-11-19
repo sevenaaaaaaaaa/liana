@@ -31,7 +31,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p assets
-          gh run download "${{ inputs.run_id }}" -n "${{ inputs.artifact }}" -D assets
+          gh run download "${{ inputs.run_id }}" -R "${{ github.repository }}" -n "${{ inputs.artifact }}" -D assets
           find assets -type f -maxdepth 2 -print
 
       - name: 补传到 Release（同名跳过）
@@ -39,13 +39,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${{ inputs.tag }}"
-          existing="$(gh release view "$tag" --json assets -q '.assets[].name')"
+          existing="$(gh release view "$tag" -R "${{ github.repository }}" --json assets -q '.assets[].name')"
           for f in $(find assets -type f); do
             name="$(basename "$f")"
             if grep -qxF "$name" <<<"$existing"; then
               echo "skip (already on release): $name"
             else
-              gh release upload "$tag" "$f"
+              gh release upload "$tag" -R "${{ github.repository }}" "$f"
               echo "uploaded: $name"
             fi
           done
