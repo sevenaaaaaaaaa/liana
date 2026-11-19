@@ -3,7 +3,7 @@ name: Attach release assets
 # 把某次构建 run 的产物补传到已有 Release。
 # 为什么需要它：tag 触发的 Release 流水线如果某个平台失败（例如缺 Android target），
 # 产出的 artifact 就停在 Actions 里，而 release job 要等所有平台才跑。
-# 这里只做「搬运」：从指定 run 下载 artifact，补传到指定 tag 的 Release（同名跳过）。
+# 这里只做「搬运」：从指定 run 下载 artifact，按规范文件名重传，并删掉错名的旧资产。
 on:
   workflow_dispatch:
     inputs:
@@ -17,6 +17,14 @@ on:
         description: "artifact 名称（默认 android）"
         required: false
         default: "android"
+      name:
+        description: "上传后的规范文件名（留空则保留原名）；sha256 会按新名重算"
+        required: false
+        default: ""
+      delete:
+        description: "上传前删除的资产名，逗号分隔（可留空）"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -30,22 +38,42 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p assets
-          gh run download "${{ inputs.run_id }}" -R "${{ github.repository }}" -n "${{ inputs.artifact }}" -D assets
-          find assets -type f -maxdepth 2 -print
+          mkdir -p assets out
+          gh run download "${{ inputs.run_id }}" -R "${{ github.repository }}" \
+            -n "${{ inputs.artifact }}" -D assets
+          find assets -type f -print
 
-      - name: 补传到 Release（同名跳过）
+      - name: 按规范名整理（可选改名 + 重算 sha256）
+        env:
+          NAME: ${{ inputs.name }}
+        run: |
+          if [[ -n "$NAME" ]]; then
+            src="$(find assets -type f ! -name '*.sha256' | head -1)"
+            [[ -n "$src" ]] || { echo "artifact 里没有文件" >&2; exit 1; }
+            cp "$src" "out/$NAME"
+            (cd out && sha256sum "$NAME" > "$NAME.sha256")
+          else
+            find assets -type f -exec cp {} out/ \;
+          fi
+          ls -l out
+
+      - name: 删除错名资产
+        if: inputs.delete != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DELETE: ${{ inputs.delete }}
+        run: |
+          IFS=',' read -ra names <<< "$DELETE"
+          for name in "${names[@]}"; do
+            name="$(echo "$name" | xargs)"
+            [[ -n "$name" ]] || continue
+            gh release delete-asset "${{ inputs.tag }}" "$name" -R "${{ github.repository }}" -y \
+              && echo "deleted: $name" || echo "skip (absent): $name"
+          done
+
+      - name: 补传到 Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${{ inputs.tag }}"
-          existing="$(gh release view "$tag" -R "${{ github.repository }}" --json assets -q '.assets[].name')"
-          for f in $(find assets -type f); do
-            name="$(basename "$f")"
-            if grep -qxF "$name" <<<"$existing"; then
-              echo "skip (already on release): $name"
-            else
-              gh release upload "$tag" -R "${{ github.repository }}" "$f"
-              echo "uploaded: $name"
-            fi
-          done
+          gh release upload "$tag" -R "${{ github.repository }}" --clobber out/*
