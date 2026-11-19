@@ -1,0 +1,51 @@
+name: Attach release assets
+
+# 把某次构建 run 的产物补传到已有 Release。
+# 为什么需要它：tag 触发的 Release 流水线如果某个平台失败（例如缺 Android target），
+# 产出的 artifact 就停在 Actions 里，而 release job 要等所有平台才跑。
+# 这里只做「搬运」：从指定 run 下载 artifact，补传到指定 tag 的 Release（同名跳过）。
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "产物所在的 run id（Actions 运行页 URL 里的数字）"
+        required: true
+      tag:
+        description: "目标 Release tag（例如 v0.12.0）"
+        required: true
+      artifact:
+        description: "artifact 名称（默认 android）"
+        required: false
+        default: "android"
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  attach:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 下载指定 run 的 artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p assets
+          gh run download "${{ inputs.run_id }}" -n "${{ inputs.artifact }}" -D assets
+          find assets -type f -maxdepth 2 -print
+
+      - name: 补传到 Release（同名跳过）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ inputs.tag }}"
+          existing="$(gh release view "$tag" --json assets -q '.assets[].name')"
+          for f in $(find assets -type f); do
+            name="$(basename "$f")"
+            if grep -qxF "$name" <<<"$existing"; then
+              echo "skip (already on release): $name"
+            else
+              gh release upload "$tag" "$f"
+              echo "uploaded: $name"
+            fi
+          done
