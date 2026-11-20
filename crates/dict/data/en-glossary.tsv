@@ -196,3 +196,345 @@
 回头	later
 先这样	that is it for now
 就这样	that is it
+# ── 高频功能词与代词（本地双语行的骨架）──
+我	I
+你	you
+他	he
+她	she
+它	it
+我们	we
+你们	you
+他们	they
+这	this
+那	that
+这里	here
+那里	there
+谁	who
+什么	what
+哪	which
+怎么	how
+为什么	why
+什么时候	when
+在哪里	where
+多少	how many
+是	is
+不是	is not
+有	have
+没有	no
+会	will
+能	can
+要	want
+想	think
+可以	can
+应该	should
+必须	must
+和	and
+或者	or
+但是	but
+因为	because
+所以	so
+如果	if
+也	also
+都	all
+就	just
+还	still
+只	only
+很	very
+太	too
+最	most
+更	more
+不	not
+别	don't
+已经	already
+正在	now
+马上	soon
+一起	together
+再	again
+又	again
+先	first
+然后	then
+最后	finally
+# ── 时间 ──
+今天	today
+明天	tomorrow
+昨天	yesterday
+现在	now
+刚才	just now
+早上	morning
+中午	noon
+下午	afternoon
+晚上	evening
+夜里	night
+时间	time
+时候	when
+周末	weekend
+今年	this year
+去年	last year
+明年	next year
+小时	hour
+分钟	minute
+秒	second
+天	day
+周	week
+月	month
+年	year
+# ── 数量 ──
+一个	one
+两个	two
+三个	three
+一点	a bit
+一些	some
+很多	many
+很少	few
+全部	all
+第一	first
+一半	half
+每个	each
+所有	all
+别的	other
+# ── 常用动词 ──
+吃	eat
+喝	drink
+睡	sleep
+起床	get up
+工作	work
+学习	study
+玩	play
+买	buy
+卖	sell
+给	give
+拿	take
+做	do
+用	use
+知道	know
+觉得	feel
+认为	think
+需要	need
+喜欢	like
+爱	love
+讨厌	hate
+帮助	help
+开始	start
+结束	end
+完成	finish
+等	wait
+找	find
+放	put
+打开	open
+关闭	close
+写	write
+读	read
+听	listen
+讲	speak
+问	ask
+回答	answer
+告诉	tell
+记得	remember
+忘记	forget
+决定	decide
+准备	prepare
+检查	check
+修复	fix
+更新	update
+发布	release
+下载	download
+上传	upload
+安装	install
+运行	run
+测试	test
+部署	deploy
+提交	commit
+合并	merge
+发送	send
+接收	receive
+复制	copy
+粘贴	paste
+删除	delete
+保存	save
+修改	edit
+# ── 常用名词 ──
+东西	thing
+事情	thing
+问题	problem
+答案	answer
+方法	way
+地方	place
+人	person
+朋友	friend
+家人	family
+孩子	child
+爸爸	dad
+妈妈	mom
+公司	company
+学校	school
+办公室	office
+电脑	computer
+手机	phone
+网络	internet
+密码	password
+用户名	username
+账号	account
+文件	file
+文件夹	folder
+图片	image
+视频	video
+音乐	music
+游戏	game
+天气	weather
+饭	meal
+水	water
+咖啡	coffee
+茶	tea
+书	book
+电影	movie
+会议	meeting
+项目	project
+需求	requirement
+版本	version
+功能	feature
+用户	user
+数据	data
+系统	system
+服务	service
+接口	API
+代码	code
+文档	document
+报告	report
+计划	plan
+结果	result
+原因	reason
+价格	price
+钱	money
+路	road
+车	car
+家	home
+房间	room
+# ── 形容词与副词 ──
+好	good
+坏	bad
+大	big
+小	small
+多	many
+少	few
+快	fast
+慢	slow
+新	new
+旧	old
+热	hot
+冷	cold
+难	difficult
+容易	easy
+重要	important
+简单	simple
+复杂	complex
+清楚	clear
+正确	correct
+错误	wrong
+一样	same
+不同	different
+真的	really
+可能	maybe
+一定	certainly
+# ── 日常短语 ──
+你好	hello
+谢谢	thanks
+对不起	sorry
+没关系	no problem
+再见	goodbye
+请	please
+好的	okay
+没问题	no problem
+我觉得	I think
+我认为	I think
+怎么办	what to do
+不好意思	excuse me
+不客气	you are welcome
+早上好	good morning
+晚安	good night
+生日快乐	happy birthday
+新年快乐	happy new year
+辛苦了	nice work
+等一下	wait a moment
+马上到	be right there
+好的吧	okay
+行吧	fine
+# ── 工作与技术 ──
+发版	release
+分支	branch
+仓库	repository
+词库	dictionary
+输入法	input method
+候选	candidate
+键盘	keyboard
+主题	theme
+配色	colorway
+设置	settings
+同步	sync
+配对	pair
+语音	voice
+翻译	translation
+许可证	license
+更新日志	changelog
+截图	screenshot
+报错	error
+日志	log
+性能	performance
+准确率	accuracy
+延迟	latency
+内存	memory
+打电话	call
+发消息	send a message
+开会	have a meeting
+吃饭	have a meal
+睡觉	sleep
+上班	go to work
+下班	get off work
+回家	go home
+出门	go out
+生病	get sick
+加班	work overtime
+请假	take leave
+出差	business trip
+买东西	shopping
+看电影	watch a movie
+听音乐	listen to music
+跑步	run
+健身	work out
+打扫	clean up
+做饭	cook
+点餐	order food
+结账	pay the bill
+忙	busy
+走	walk
+带	bring
+错	wrong
+对	right
+行	ok
+怕	fear
+累	tired
+饿	hungry
+渴	thirsty
+早	early
+晚	late
+高	tall
+低	low
+长	long
+短	short
+远	far
+近	near
+贵	expensive
+便宜	cheap
+空	empty
+满	full
+亮	bright
+暗	dark
+不错	not bad
+不行	not okay
+没事	it is fine
+有点	a bit
+非常	very
+特别	especially
+觉	feel
+得	get
+能	can
+会	will

@@ -91,6 +91,13 @@ final class MixedLanguageLine {
                 }
             }
             if matched { continue }
+            // 中文标点换成英文标点：不然「,你好」会整段留成中文标点的形状
+            if let mapped = Self.mappedPunctuation(character) {
+                flushPending()
+                pieces.append(mapped)
+                index += 1
+                continue
+            }
             pending.append(character)
             index += 1
         }
@@ -113,6 +120,23 @@ final class MixedLanguageLine {
     }
 
     func invalidate() { cache.removeAll(keepingCapacity: true) }
+
+    /// 中文标点 → 英文标点。查不到的对译句子至少标点是对的。
+    private static func mappedPunctuation(_ character: Character) -> String? {
+        switch character {
+        case "，", "、": return ","
+        case "。": return "."
+        case "！": return "!"
+        case "？": return "?"
+        case "；": return ";"
+        case "：": return ":"
+        case "（": return "("
+        case "）": return ")"
+        case "“", "”": return "\""
+        case "‘", "’": return "'"
+        default: return nil
+        }
+    }
 
     private static func isLatinToken(_ character: Character) -> Bool {
         guard character.isASCII else { return false }
