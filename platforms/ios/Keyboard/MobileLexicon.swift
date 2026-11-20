@@ -269,6 +269,39 @@ final class MobileLexicon {
         return output
     }
 
+    /// 删掉某个词的学习记录（「误学清理」）。下次打同一个词就回到词库默认排序。
+    func forget(_ word: String) {
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(database, "DELETE FROM learned WHERE word = ?", -1, &statement, nil) == SQLITE_OK else { return }
+        sqlite3_bind_text(statement, 1, word, -1, transient)
+        sqlite3_step(statement)
+        sqlite3_finalize(statement)
+    }
+
+    /// 所有学过的词，按学习次数从多到少（教练报告用）。
+    func allLearned(limit: Int = 40) -> [(word: String, count: Int)] {
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(database,
+            "SELECT word, MAX(n) AS c FROM learned GROUP BY word ORDER BY c DESC, word LIMIT ?", -1, &statement, nil) == SQLITE_OK else { return [] }
+        sqlite3_bind_int(statement, 1, Int32(limit))
+        var output: [(String, Int)] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            output.append((text(statement, 0), Int(sqlite3_column_int(statement, 1))))
+        }
+        sqlite3_finalize(statement)
+        return output
+    }
+
+    /// 这个词被学过几次（候选解释用）。
+    func learnedCount(for word: String) -> Int {
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(database, "SELECT COALESCE(MAX(n),0) FROM learned WHERE word = ?", -1, &statement, nil) == SQLITE_OK else { return 0 }
+        sqlite3_bind_text(statement, 1, word, -1, transient)
+        let count = sqlite3_step(statement) == SQLITE_ROW ? Int(sqlite3_column_int(statement, 0)) : 0
+        sqlite3_finalize(statement)
+        return count
+    }
+
     func learn(_ word: String, raw: String) {
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(database, "INSERT INTO learned VALUES(?,?,1) ON CONFLICT(word,code) DO UPDATE SET n=MIN(n+1,1000)", -1, &statement, nil) == SQLITE_OK else { return }

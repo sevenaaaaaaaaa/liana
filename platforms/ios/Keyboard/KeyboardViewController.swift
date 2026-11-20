@@ -70,6 +70,8 @@ class KeyboardViewController: UIInputViewController {
     private var areaHeight: NSLayoutConstraint!
     private var rootBottom: NSLayoutConstraint!
     private var adjustmentPanel: UIView?
+    /// 输入教练面板（周报 + 学习词）。单独存一份，避免和工具面板/手感面板抢同一块。
+    private var coachPanel: UIView?
     private var devicePanel: BluetoothDevicePanel?
     /// 长按滑动后弹出的临时条（数字/字母选择、常用短语）。
     private var gesturePanel: UIView?
@@ -202,15 +204,19 @@ class KeyboardViewController: UIInputViewController {
         if let documentID, documentID != id { _ = engine.submit(.clear, document: id) }
         documentID = id
         latestRequest = engine.submit(action, document: id)
+        // 输入教练账本：只数按键，上屏与删除在 receive 里按引擎回报记
+        if case .feed = action { InputCoach.shared.noteKey() }
     }
     func whenInputIdle(_ completion: @escaping () -> Void) { engine.whenIdle(completion) }
     private func receive(_ update: MobileEngine.Update) {
         guard visibleForInput, update.document == nil || update.document == textDocumentProxy.documentIdentifier else { return }
         if !update.committed.isEmpty {
             textDocumentProxy.insertText(update.committed)
+            InputCoach.shared.noteChars(update.committed.count)
             if update.sequence >= latestRequest { handwritingPanel?.clear() }
             scheduleSave()
         }
+        if update.deletes > 0 { InputCoach.shared.noteDelete() }
         for _ in 0..<update.deletes { textDocumentProxy.deleteBackward() }
         guard update.sequence >= latestRequest else { return }
         candidates = update.snapshot.candidates
@@ -708,7 +714,7 @@ class KeyboardViewController: UIInputViewController {
     private func resetKeyboardArea() {
         gesturePanel?.removeFromSuperview(); gesturePanel = nil
         gestureHint?.removeFromSuperview(); gestureHint = nil
-        keyboardArea.subviews.filter { $0 !== adjustmentPanel && $0 !== devicePanel && $0 !== featurePanel }.forEach { $0.removeFromSuperview() }
+        keyboardArea.subviews.filter { $0 !== adjustmentPanel && $0 !== devicePanel && $0 !== featurePanel && $0 !== coachPanel }.forEach { $0.removeFromSuperview() }
         handwritingPanel = nil
         backspaceButtons.removeAll()
         returnButtons.removeAll()
@@ -865,6 +871,115 @@ class KeyboardViewController: UIInputViewController {
             pop.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
         }
         present(sheet, animated: true)
+    }
+
+    /// 输入教练：本周做了什么、学会了什么、哪个学错了。
+    private func showCoachPanel() {
+        featurePanel?.removeFromSuperview(); featurePanel = nil
+        adjustmentPanel?.removeFromSuperview(); adjustmentPanel = nil
+        coachPanel?.removeFromSuperview(); coachPanel = nil
+        let panel = UIView(); panel.backgroundColor = LianaPalette.background; coachPanel = panel; installPanel(panel)
+        let title = LianaUI.label("输入教练", size: 15, weight: .semibold)
+        let done = toolbarButton("xmark", label: "返回键盘", id: "coach.done")
+        done.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        done.addAction(UIAction { [weak self] _ in
+            guard let self else { return }
+            self.coachPanel?.removeFromSuperview(); self.coachPanel = nil; // 面板关掉，键盘回来
+        }, for: .touchUpInside)
+        let head = UIStackView(arrangedSubviews: [title, UIView(), done]); head.alignment = .center
+        head.translatesAutoresizingMaskIntoConstraints = false; panel.addSubview(head)
+        NSLayoutConstraint.activate([
+            head.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 12),
+            head.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -6),
+            head.topAnchor.constraint(equalTo: panel.topAnchor),
+            head.heightAnchor.constraint(equalToConstant: 44),
+        ])
+
+        let scroll = UIScrollView(); scroll.translatesAutoresizingMaskIntoConstraints = false
+        scroll.contentInsetAdjustmentBehavior = .never
+        panel.addSubview(scroll)
+        NSLayoutConstraint.activate([
+            scroll.leadingAnchor.constraint(equalTo: panel.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: panel.trailingAnchor),
+            scroll.topAnchor.constraint(equalTo: head.bottomAnchor),
+            scroll.bottomAnchor.constraint(equalTo: panel.bottomAnchor),
+        ])
+        let stack = LianaUI.vertical(spacing: 10); stack.translatesAutoresizingMaskIntoConstraints = false
+        scroll.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 12),
+            stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -12),
+            stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 4),
+            stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -16),
+            stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -24),
+        ])
+
+        renderCoach(into: stack)
+    }
+
+    private func renderCoach(into stack: UIStackView) {
+        stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        let report = InputCoach.shared.report(days: 7)
+
+        let headline = report.activeDays == 0
+            ? "还没有记录。打几句话，这里就开始记账了。"
+            : "最近 7 天有 (report.activeDays) 天在输入"
+        stack.addArrangedSubview(LianaUI.label(headline, size: 20, weight: .semibold))
+
+        let metrics = UIStackView(); metrics.spacing = 8; metrics.distribution = .fillEqually
+        metrics.addArrangedSubview(metricCard("上屏字数", "\(report.chars)"))
+        metrics.addArrangedSubview(metricCard("省下按键", "\(report.savedKeys)"))
+        metrics.addArrangedSubview(metricCard("首选命中", String(format: "%.0f%%", report.top1Rate)))
+        stack.addArrangedSubview(metrics)
+
+        let detail = LianaUI.label(
+            "按键 \(report.keys) · 删除 \(report.deletes) · 选词 \(report.selections) 次 · 每字 \(String(format: "%.1f", report.keysPerChar)) 键",
+            size: 12, muted: true)
+        stack.addArrangedSubview(detail)
+
+        let learned = engine.learnedWords(preview: true)
+        stack.addArrangedSubview(LianaUI.label("学会的词", size: 15, weight: .semibold))
+        if learned.isEmpty {
+            stack.addArrangedSubview(LianaUI.label("还没有学新词。多打几次同一个词，它会自己浮上来。", size: 12, muted: true))
+        } else {
+            for item in learned {
+                stack.addArrangedSubview(learnedRow(word: item.word, count: item.count, stack: stack))
+            }
+        }
+
+        let reset = LianaUI.button("清空全部学习记录", icon: "trash", role: .plain, id: "coach.reset") { [weak self] in
+            guard let self else { return }
+            let alert = UIAlertController(title: "清空学习记录", message: "删掉全部学过的词，候选排序回到词库默认。这一步不能撤销。", preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+            alert.addAction(UIAlertAction(title: "清空", style: .destructive) { _ in
+                self.engine.resetLearning(); self.renderCoach(into: stack)
+            })
+            self.present(alert, animated: true)
+        }
+        stack.addArrangedSubview(reset)
+        stack.addArrangedSubview(LianaUI.label("这些数字只在这台设备上，只存在键盘自己的沙盒里，不上传。", size: 11, muted: true))
+    }
+
+    private func metricCard(_ title: String, _ value: String) -> UIView {
+        let valueLabel = LianaUI.label(value, size: 22, weight: .semibold)
+        let titleLabel = LianaUI.label(title, size: 11, muted: true)
+        let card = LianaUI.card([valueLabel, titleLabel], spacing: 4)
+        return card
+    }
+
+    private func learnedRow(word: String, count: Int, stack: UIStackView) -> UIView {
+        let name = LianaUI.label(word, size: 15, weight: .medium)
+        let times = LianaUI.label("学过 (count) 次", size: 11, muted: true)
+        let remove = LianaUI.button("删掉", role: .plain, id: "coach.forget.\(word)") { [weak self] in
+            guard let self else { return }
+            self.engine.forget(word)
+            self.renderCoach(into: stack)
+            self.renderCandidates()
+        }
+        remove.widthAnchor.constraint(equalToConstant: 56).isActive = true
+        let row = UIStackView(arrangedSubviews: [name, UIView(), times, remove])
+        row.alignment = .center; row.spacing = 8
+        return row
     }
 
     /// 选点击特效。九种按顺序列出，当前那种打勾。
@@ -1454,6 +1569,7 @@ class KeyboardViewController: UIInputViewController {
 
     private func selectCandidate(_ index: Int) {
         guard candidates.indices.contains(index) else { return }
+        InputCoach.shared.noteSelection(index: index)
         send(.select(index, raw: candidateRaw, text: candidates[index]))
         // 上屏加强触觉：形成"上屏了"的身体确认（§3.1）
         if hapticsEnabled { hapticStrong.impactOccurred(intensity: 0.6) }
@@ -1623,7 +1739,41 @@ class KeyboardViewController: UIInputViewController {
         swipeUp.direction = .up
         swipeUp.delaysTouchesEnded = false
         b.addGestureRecognizer(swipeUp)
+        // 长按看「为什么它排在这里」：学了几次、当前第几位、能不能删掉这条学习
+        let hold = UILongPressGestureRecognizer(target: self, action: #selector(onCandidateHold(_:)))
+        hold.minimumPressDuration = 0.45
+        b.addGestureRecognizer(hold)
         return b
+    }
+
+    /// 候选解释：让「它为什么排第一」可查，也让学错的词当场删掉。
+    @objc private func onCandidateHold(_ gesture: UILongPressGestureRecognizer) {
+        guard gesture.state == .began, let view = gesture.view else { return }
+        let index = view.tag
+        guard candidates.indices.contains(index) else { return }
+        let word = candidates[index]
+        let learned = engine.learnedCount(for: word)
+        var lines: [String] = []
+        lines.append("当前第 \(index + 1) 位")
+        if learned > 0 {
+            lines.append("学过 \(learned) 次——选过它，下次会往前排")
+        } else {
+            lines.append("还没有学习记录，排序来自词库词频与上下文")
+        }
+        if index == 0 { lines.append("这是首选：空格会直接上屏它") }
+        let sheet = UIAlertController(title: "「\(word)」", message: lines.joined(separator: "\n"), preferredStyle: .actionSheet)
+        if learned > 0 {
+            sheet.addAction(UIAlertAction(title: "删掉这条学习记录", style: .destructive) { [weak self] _ in
+                guard let self else { return }
+                self.engine.forget(word)
+                self.renderCandidates()
+            })
+        }
+        sheet.addAction(UIAlertAction(title: "取消", style: .cancel))
+        if let pop = sheet.popoverPresentationController {
+            pop.sourceView = view; pop.sourceRect = view.bounds
+        }
+        present(sheet, animated: true)
     }
 
     @objc private func onCandidateSwipeUp(_ g: UISwipeGestureRecognizer) {
@@ -1896,6 +2046,7 @@ extension KeyboardViewController {
             commandSheet?.status("正在接收…")
             receiveHostContent()
         case "feel": dismissCommands(); toggleAdjustments()
+        case "coach": dismissCommands(); showCoachPanel()
         case "toolbox": dismissCommands(); toggleTools()
         default: break
         }

@@ -28,6 +28,7 @@ enum CommandCatalog {
         Op(id: "cursor.right", title: "光标右移", icon: "arrow.right", needsText: false, group: .secondary),
         Op(id: "phrase", title: "常用短语", icon: "text.bubble", needsText: false),
         Op(id: "receive", title: "接收内容", icon: "tray.and.arrow.down", needsText: false),
+        Op(id: "coach", title: "输入教练", icon: "chart.line.uptrend.xyaxis", needsText: false, group: .secondary),
         Op(id: "feel", title: "布局与手感", icon: "slider.horizontal.3", needsText: false, group: .secondary),
         Op(id: "toolbox", title: "更多工具与设置", icon: "square.grid.2x2", needsText: false, group: .secondary),
     ]

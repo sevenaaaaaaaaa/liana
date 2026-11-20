@@ -177,6 +177,26 @@ final class MobileEngine {
     }
     func whenIdle(_ completion: @escaping () -> Void) { queue.async { DispatchQueue.main.async(execute: completion) } }
     deinit { if let session { liana_free(session) } }
+    /// 学会的词（输入教练面板用）。按学习次数从多到少。
+    func learnedWords(preview: Bool = false) -> [(word: String, count: Int)] {
+        database().allLearned(limit: preview ? 12 : 40)
+    }
+
+    /// 清空全部学习记录。
+    func resetLearning() {
+        database().resetLearning()
+        refresh()
+    }
+
+    /// 这个词学过几次（候选解释用）。
+    func learnedCount(for word: String) -> Int { database().learnedCount(for: word) }
+
+    /// 删掉一个词的学习记录，候选立刻回到词库默认排序。
+    func forget(_ word: String) {
+        database().forget(word)
+        refresh()
+    }
+
     private func database() -> MobileLexicon {
         if let lexicon { return lexicon }
         let value = MobileLexicon(bundle: bundle); lexicon = value; return value
