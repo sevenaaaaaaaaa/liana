@@ -69,7 +69,9 @@ final class PetLinkReceiver {
     }
     private func status(_ text: String) { DispatchQueue.main.async { [weak self] in self?.onStatus?(text) } }
     private func accept(_ connection: NWConnection) {
-        guard peers.count < 4 else { connection.cancel(); return }
+        // 一个局域网里可能同时有手机、平板、另一台 Mac、Linux/Windows 客户端：
+        // 上限从 4 提到 8，够一家人用，也不至于把监听端撑爆。
+        guard peers.count < 8 else { connection.cancel(); return }
         let token = UUID()
         let peer = Peer(PetLinkChannel(connection))
         peers[token] = peer
@@ -102,7 +104,9 @@ final class PetLinkReceiver {
                         UserDefaults.standard.set(Array(self.trusted), forKey: self.trustedKey)
                         peer.approved = true; peer.awaitingApproval = false
                         peer.channel.json(["kind": "ready", "clipboard": 1])
-                        self.status("已连接 \(name)，文件会进入松萝收件箱。")
+                        let names = self.peers.values.compactMap(\.name).filter { !$0.isEmpty }
+                        let summary = names.isEmpty ? "" : "（当前 \(names.count) 台：" + names.joined(separator: "、") + "）"
+                        self.status("已连接 \(name)，文件会进入松萝收件箱。\(summary)")
                     } else {
                         peer.channel.json(["kind": "error", "message": "Mac 未允许此设备配对。请在 Mac 确认后重试。"] ) { peer.channel.close("Mac 未允许此设备。") }
                         self.status("已拒绝设备连接。")
