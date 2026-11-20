@@ -18,8 +18,8 @@ android {
         applicationId = "dev.liana.ime"
         minSdk = 24
         targetSdk = 36
-        versionCode = 21
-        versionName = "0.19.0"
+        versionCode = 22
+        versionName = "0.20.0"
     }
 
     // 原生库是预构建好的（platforms/android/build_native.sh 产物），无需 NDK 构建
