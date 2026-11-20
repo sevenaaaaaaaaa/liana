@@ -43,6 +43,8 @@
 		<string>com.apple.keyboard-service</string>
 		<key>NSExtensionPrincipalClass</key>
 		<string>$(PRODUCT_MODULE_NAME).KeyboardViewController</string>
+		<key>RequestsOpenAccess</key>
+		<true/>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>仅在你主动同步剪贴板时，连接已配对 Mac。</string>

@@ -20,8 +20,18 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     func sceneDidBecomeActive(_ scene: UIScene) { deliverPendingDocument() }
 
     func scene(_ scene: UIScene, openURLContexts contexts: Set<UIOpenURLContext>) {
-        guard let url = contexts.first(where: { $0.url.isFileURL })?.url else { return }
-        pendingDocument = url
+        for context in contexts {
+            let url = context.url
+            if url.scheme == "liana", url.host == "voice" {
+                // 键盘的麦克风键把人送回这里：直接打开语音页，省得自己找
+                DispatchQueue.main.async { [weak self] in
+                    guard let controller = self?.window?.rootViewController as? ViewController else { return }
+                    controller.startVoiceFromKeyboard()
+                }
+                continue
+            }
+            if url.isFileURL { pendingDocument = url }
+        }
         if scene.activationState == .foregroundActive { deliverPendingDocument() }
     }
 

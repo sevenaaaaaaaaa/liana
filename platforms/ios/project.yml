@@ -38,6 +38,9 @@ targets:
             LSItemContentTypes: ["public.item"]
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleURLTypes:
+          - CFBundleURLName: dev.liana.ime.ios
+            CFBundleURLSchemes: ["liana"]
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
@@ -128,6 +131,9 @@ targets:
         NSExtension:
           NSExtensionPointIdentifier: com.apple.keyboard-service
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).KeyboardViewController
+          # 麦克风键要能把人送回宿主 App 录音：openURL 需要完全访问。
+          # iOS 不允许键盘扩展自己录音，所以「说一句」只能在宿主里做。
+          RequestsOpenAccess: true
           NSExtensionAttributes:
             IsASCIICapable: true
             PrefersRightToLeft: false

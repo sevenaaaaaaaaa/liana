@@ -122,6 +122,12 @@ final class ViewController: UIViewController, UITextViewDelegate {
     private func openAppSettings() { UIApplication.shared.open(URL(string:UIApplication.openSettingsURLString)!) }
     private func showGuide() { presentSheet(LianaGuideViewController()) }
     private func showTools() { presentSheet(MobileToolsHomeViewController()) }
+
+    /// 键盘上的麦克风键跳过来：直接进语音页，少点两层。
+    /// iOS 不允许键盘扩展自己录音，所以录音这一半只能在宿主里发生。
+    func startVoiceFromKeyboard() {
+        presentSheet(MobileToolsViewController(section: .voice))
+    }
     private func presentSheet(_ controller:UIViewController) {
         let navigation = UINavigationController(rootViewController:controller)
         navigation.sheetPresentationController?.detents = [.large()]; navigation.sheetPresentationController?.prefersGrabberVisible = true

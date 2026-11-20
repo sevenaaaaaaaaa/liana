@@ -280,7 +280,10 @@ class KeyboardViewController: UIInputViewController {
         let devices = railEntry("waveform", title: "语音", label: "语音输入", id: "devices.open")
         deviceEntry = devices
         devices.accessibilityHint = "点按打开语音与外接设备；本地语音在主 App 录音，回键盘接收"
-        devices.addAction(UIAction { [weak self] _ in self?.toggleDevices() }, for: .touchUpInside)
+        // 点按：去宿主 App 录音（键盘扩展拿不到麦克风，只能接力）；
+        // 长按：把上次录好的文字直接粘上来。
+        devices.addAction(UIAction { [weak self] _ in self?.openHostVoice() }, for: .touchUpInside)
+        devices.addGestureRecognizer(UILongPressGestureRecognizer(target: self, action: #selector(onVoiceHold(_:))))
         entryDock.addArrangedSubview(devices)
         let clipboard = railEntry("doc.on.clipboard", title: "剪贴", label: "剪贴板", id: "clip.open")
         clipboard.addAction(UIAction { [weak self] _ in self?.openTools(section: 2) }, for: .touchUpInside)
@@ -871,6 +874,31 @@ class KeyboardViewController: UIInputViewController {
             pop.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
         }
         present(sheet, animated: true)
+    }
+
+    /// 把用户送回宿主 App 录音。没有「完全访问」时 openURL 会被系统拒绝。
+    private func openHostVoice() {
+        guard let url = URL(string: "liana://voice") else { return }
+        extensionContext?.open(url) { [weak self] opened in
+            guard let self, !opened else { return }
+            let alert = UIAlertController(
+                title: "需要完全访问",
+                message: "iOS 不允许键盘自己录音。开启「允许完全访问」后，这个键能直接跳到松萝录音；也可以现在打开松萝 App 录音，回来长按这个键把文字粘上来。",
+                preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "知道了", style: .cancel))
+            self.present(alert, animated: true)
+        }
+    }
+
+    @objc private func onVoiceHold(_ gesture: UILongPressGestureRecognizer) {
+        guard gesture.state == .began else { return }
+        guard let text = UIPasteboard.general.string, !text.isEmpty else {
+            let alert = UIAlertController(title: "剪贴板是空的", message: "先在松萝 App 里录一句，回这里长按就能粘上来。", preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "知道了", style: .cancel))
+            present(alert, animated: true)
+            return
+        }
+        insertText(text)
     }
 
     /// 输入教练：本周做了什么、学会了什么、哪个学错了。
