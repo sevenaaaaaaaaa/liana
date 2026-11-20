@@ -15,6 +15,26 @@ enum NineKeyLayout: String, Codable, CaseIterable {
     }
 }
 
+/// 符号页的三行字符：用户自己配，不再写死。
+enum KeyboardSymbols {
+    static let defaultRows = ["[]{}#%^*+=", "_\\|~<>€£¥•", ".,?!'"]
+    /// 一行最多放几个：框宽固定，超出的按顺序截掉。
+    static let maxPerRow = 10
+    static let rowCount = 3
+
+    /// 去空白、去重字符、按行截断；行数不足补空行，全空时退回默认。
+    static func sanitize(_ rows: [String]) -> [String] {
+        var out: [String] = []
+        for row in rows.prefix(rowCount) {
+            var seen = Set<Character>()
+            let kept = row.filter { !$0.isWhitespace && seen.insert($0).inserted }
+            out.append(String(kept.prefix(maxPerRow)))
+        }
+        while out.count < rowCount { out.append("") }
+        return out.contains(where: { !$0.isEmpty }) ? out : defaultRows
+    }
+}
+
 /// Values stay in the keyboard's own sandbox; ordinary typing needs no shared group.
 struct KeyboardPreferences: Codable, Equatable {
     var keyHeight: Double = 46
@@ -27,11 +47,13 @@ struct KeyboardPreferences: Codable, Equatable {
     var nineKeyLayout: NineKeyLayout = .sidebar
     /// 九键数字键 / 回车键的长按滑动手势前置时长（秒）。删除键的清空手势固定 3 秒。
     var gestureHold: Double = KeyboardGestureDefaults.hold
+    /// 符号页的三行字符。旧版本没有这个字段，解码时回到默认三行。
+    var symbolRows: [String] = KeyboardSymbols.defaultRows
 
     init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case keyHeight, width, alignment, candidateFont, bottomPadding, entryPosition, nineKeyLayout, gestureHold
+        case keyHeight, width, alignment, candidateFont, bottomPadding, entryPosition, nineKeyLayout, gestureHold, symbolRows
     }
 
     // 手写 init(from:)：新增字段只做 decodeIfPresent，旧快照仍能恢复其余手感设置。
@@ -45,6 +67,7 @@ struct KeyboardPreferences: Codable, Equatable {
         entryPosition = try values.decodeIfPresent(Double.self, forKey: .entryPosition) ?? 1
         nineKeyLayout = try values.decodeIfPresent(NineKeyLayout.self, forKey: .nineKeyLayout) ?? .sidebar
         gestureHold = try values.decodeIfPresent(Double.self, forKey: .gestureHold) ?? KeyboardGestureDefaults.hold
+        symbolRows = KeyboardSymbols.sanitize(try values.decodeIfPresent([String].self, forKey: .symbolRows) ?? KeyboardSymbols.defaultRows)
     }
 
     mutating func normalize() {
@@ -55,6 +78,7 @@ struct KeyboardPreferences: Codable, Equatable {
         bottomPadding = Self.clamp(bottomPadding, 0...24, fallback: 0)
         entryPosition = Self.clamp(entryPosition, 0...1, fallback: 1)
         gestureHold = Self.clamp(gestureHold, 0.5...2, fallback: KeyboardGestureDefaults.hold)
+        symbolRows = KeyboardSymbols.sanitize(symbolRows)
     }
 
     private static func clamp(_ value: Double, _ range: ClosedRange<Double>, fallback: Double) -> Double {

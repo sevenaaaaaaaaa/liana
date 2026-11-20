@@ -2,12 +2,14 @@ import UIKit
 
 /// iOS 黑白体验：docs/design/IOS-EXPERIENCE.md。
 enum LianaTheme {
-    static let bg = LianaPalette.keyboard
-    static let key = LianaPalette.key
-    static let keyPressed = LianaPalette.pressed
-    static let text = LianaPalette.ink
-    static let secondary = LianaPalette.muted
-    static let accent = LianaPalette.ink
+    // 必须用 var：主题切换后这里要跟着变。static let 会在首次访问时把颜色固化，
+    // 换主题后键盘还是旧色。
+    static var bg: UIColor { LianaPalette.keyboard }
+    static var key: UIColor { LianaPalette.key }
+    static var keyPressed: UIColor { LianaPalette.pressed }
+    static var text: UIColor { LianaPalette.ink }
+    static var secondary: UIColor { LianaPalette.muted }
+    static var accent: UIColor { LianaPalette.ink }
     static let fontCandidate: CGFloat = 17
     static let fontKey: CGFloat = 20
     static let padSplitMinWidth: CGFloat = 600
@@ -81,7 +83,7 @@ class KeyboardViewController: UIInputViewController {
         switch page {
         case .letters: return ["qwertyuiop", "asdfghjkl", "zxcvbnm"]
         case .numbers: return ["1234567890", "-/:;()$&@\"", ".,?!'"]
-        case .symbols: return ["[]{}#%^*+=", "_\\|~<>€£¥•", ".,?!'"]
+        case .symbols: return preferences.symbolRows.filter { !$0.isEmpty }
         }
     }
     private var shiftTitle: String { page == .letters ? (capsLocked ? "⇪" : "⇧") : (page == .numbers ? "#+=" : "123") }
@@ -843,6 +845,58 @@ class KeyboardViewController: UIInputViewController {
         LianaMotion.reveal(panel)
     }
 
+    /// 选配色。十套按顺序列出，当前那套打勾。
+    private func chooseColorway() {
+        let sheet = UIAlertController(title: "键盘配色", message: "浅色与深色各有一套，跟随系统外观自动切换。", preferredStyle: .actionSheet)
+        for colorway in LianaColorway.allCases {
+            let mark = colorway == LianaPalette.colorway ? " ✓" : ""
+            sheet.addAction(UIAlertAction(title: colorway.title + " · " + colorway.note + mark, style: .default) { [weak self] _ in
+                guard let self else { return }
+                LianaPalette.colorway = colorway
+                self.applyAppearance(animated: true)
+                self.rebuildKeyboardIfNeeded(animated: true)
+                // 面板上的按钮文字要跟着变：关掉再开一次最省事
+                self.toggleAdjustments(); self.toggleAdjustments()
+            })
+        }
+        sheet.addAction(UIAlertAction(title: "取消", style: .cancel))
+        if let pop = sheet.popoverPresentationController {
+            pop.sourceView = view
+            pop.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
+        }
+        present(sheet, animated: true)
+    }
+
+    /// 编辑符号页的三行。每行最多 10 个字符，留空的行不显示。
+    private func editSymbolRows() {
+        let alert = UIAlertController(title: "符号页", message: "每行一条，最多 10 个字符；留空则不显示该行。", preferredStyle: .alert)
+        for index in 0..<KeyboardSymbols.rowCount {
+            let current = preferences.symbolRows.indices.contains(index) ? preferences.symbolRows[index] : ""
+            alert.addTextField { field in
+                field.text = current
+                field.placeholder = "第 \(index + 1) 行"
+                field.clearButtonMode = .whileEditing
+                field.autocorrectionType = .no
+                field.smartQuotesType = .no
+            }
+        }
+        alert.addAction(UIAlertAction(title: "恢复默认", style: .destructive) { [weak self] _ in
+            guard let self else { return }
+            self.preferences.symbolRows = KeyboardSymbols.defaultRows
+            self.preferences.save(); self.rebuildKeyboardIfNeeded(animated: true)
+            self.toggleAdjustments(); self.toggleAdjustments()
+        })
+        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+        alert.addAction(UIAlertAction(title: "保存", style: .default) { [weak self, weak alert] _ in
+            guard let self else { return }
+            let typed = (alert?.textFields ?? []).map { $0.text ?? "" }
+            self.preferences.symbolRows = KeyboardSymbols.sanitize(typed)
+            self.preferences.save(); self.rebuildKeyboardIfNeeded(animated: true)
+            self.toggleAdjustments(); self.toggleAdjustments()
+        })
+        present(alert, animated: true)
+    }
+
     private func toggleAdjustments() {
         closeGesturePanel()
         if let panel = adjustmentPanel { adjustmentPanel = nil; syncToolbarState(); LianaMotion.dismiss(panel); return }
@@ -875,6 +929,16 @@ class KeyboardViewController: UIInputViewController {
             guard let self, let theme else { return }
             UserDefaults.standard.set(theme.selectedSegmentIndex, forKey: "keyboard.appearance"); self.applyAppearance(animated: true)
         }, for: .valueChanged); stack.addArrangedSubview(theme)
+
+        // 十套配色：键盘、候选条、工具面板一起换。
+        stack.addArrangedSubview(LianaUI.button("配色 · \(LianaPalette.colorway.title)", icon: "paintpalette", role: .utility, id: "layout.colorway") { [weak self] in
+            self?.chooseColorway()
+        })
+        // 符号页三行自己配；留空的行不显示。
+        stack.addArrangedSubview(LianaUI.button("符号页 · 自定义", icon: "textformat.abc", role: .utility, id: "layout.symbols") { [weak self] in
+            self?.editSymbolRows()
+        })
+
         let presets = UIStackView(); presets.spacing = 8; presets.distribution = .fillEqually
         for (index, name) in ["标准", "单手", "宽松"].enumerated() {
             let preset = LianaUI.button(name, role: .utility, id: "layout.preset.\(index)") { [weak self] in

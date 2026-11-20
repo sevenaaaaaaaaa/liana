@@ -26,6 +26,13 @@ final class MobileToolsHomeViewController: UIViewController {
         stack.addArrangedSubview(LianaUI.card([rows], spacing:8))
 
         stack.addArrangedSubview(LianaActionRow(
+            title:"配色方案",
+            subtitle:"十套色卡，含浅色与深色两版",
+            icon:"paintpalette",
+            id:"tools.colorways"
+        ) { [weak self] in self?.presentSheet(ColorwayGalleryViewController()) })
+
+        stack.addArrangedSubview(LianaActionRow(
             title:"外接语音与编码设备",
             subtitle:"了解蓝牙 HID 与 BLE 的连接方式",
             icon:"waveform",

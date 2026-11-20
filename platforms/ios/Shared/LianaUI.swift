@@ -2,25 +2,32 @@ import UIKit
 
 /// iOS uses a neutral pair of palettes; semantic colors are shared by the app and extension.
 enum LianaPalette {
-    private static func pair(_ light: UInt32, _ dark: UInt32) -> UIColor {
-        UIColor { traits in
-            let hex = traits.userInterfaceStyle == .dark ? dark : light
-            return UIColor(red: CGFloat((hex >> 16) & 255)/255, green: CGFloat((hex >> 8) & 255)/255, blue: CGFloat(hex & 255)/255, alpha: 1)
-        }
+    /// 主题存在本进程的 UserDefaults：键盘与宿主各自一份。
+    /// 键盘外观在键盘里调（那里才看得见结果），宿主里的切换只影响预览。
+    static let themeKey = "liana.theme"
+
+    static var colorway: LianaColorway {
+        get { LianaColorway(rawValue: UserDefaults.standard.string(forKey: themeKey) ?? "") ?? .mist }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: themeKey) }
     }
-    static let background = pair(0xF5F5F2, 0x101112)
-    static let card = pair(0xFFFFFF, 0x1B1D1F)
-    static let soft = pair(0xECEDE9, 0x282A2C)
-    static let ink = pair(0x191B1D, 0xF3F3EF)
-    static let muted = pair(0x64686A, 0xB3B7B9)
-    static let stroke = pair(0xDDDFDC, 0x3B3E40)
-    static let primary = pair(0x202224, 0xEDEEE9)
-    static let onPrimary = pair(0xFFFFFF, 0x17191B)
-    static let keyboard = pair(0xE5E7E6, 0x17191B)
-    static let key = pair(0xFFFFFF, 0x303335)
-    static let pressed = pair(0xC4C8C7, 0x505557)
-    static let utility = pair(0xCFD3D1, 0x222527)
-    static let shadow = pair(0x9DA3A0, 0x080909)
+
+    private static func color(_ role: LianaColorway.Role) -> UIColor {
+        UIColor { traits in colorway.color(role, dark: traits.userInterfaceStyle == .dark) }
+    }
+
+    static var background: UIColor { color(.background) }
+    static var card: UIColor { color(.card) }
+    static var soft: UIColor { color(.soft) }
+    static var ink: UIColor { color(.ink) }
+    static var muted: UIColor { color(.muted) }
+    static var stroke: UIColor { color(.stroke) }
+    static var primary: UIColor { color(.primary) }
+    static var onPrimary: UIColor { color(.onPrimary) }
+    static var keyboard: UIColor { color(.keyboard) }
+    static var key: UIColor { color(.key) }
+    static var pressed: UIColor { color(.pressed) }
+    static var utility: UIColor { color(.utility) }
+    static var shadow: UIColor { color(.shadow) }
     static func font(_ size: CGFloat, weight: UIFont.Weight = .regular, style: UIFont.TextStyle = .body, maximum: CGFloat? = nil) -> UIFont {
         let base = UIFont.systemFont(ofSize: size, weight: weight)
         if let maximum { return UIFontMetrics(forTextStyle: style).scaledFont(for: base, maximumPointSize: maximum) }
