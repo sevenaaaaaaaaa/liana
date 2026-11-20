@@ -1100,6 +1100,14 @@ class KeyboardViewController: UIInputViewController {
         stack.addArrangedSubview(LianaUI.button("点击特效 · \(KeyEffectSettings.current.title)", icon: "sparkles", role: .utility, id: "layout.effect") { [weak self] in
             self?.chooseKeyEffect()
         })
+        // 双语模式：候选条下方常显首选候选的目标语言译文。
+        let bilingualState = BilingualSettings.isOn ? "开" : "关"
+        stack.addArrangedSubview(LianaUI.button("双语模式 · " + bilingualState, icon: "character.bubble", role: .utility, id: "layout.bilingual") { [weak self] in
+            guard let self else { return }
+            BilingualSettings.isOn.toggle()
+            self.refreshTranslation()
+            self.toggleAdjustments(); self.toggleAdjustments()
+        })
         // 符号页三行自己配；留空的行不显示。
         stack.addArrangedSubview(LianaUI.button("符号页 · 自定义", icon: "textformat.abc", role: .utility, id: "layout.symbols") { [weak self] in
             self?.editSymbolRows()
@@ -1671,6 +1679,8 @@ class KeyboardViewController: UIInputViewController {
     private func refreshTranslation() {
         translationWork?.cancel()
         cloud.cancel()
+        // 双语模式关掉时整条隐藏：不多占一行，也不做无用的翻译
+        guard BilingualSettings.isOn else { setTranslation(""); return }
         guard let top = candidates.first, !top.isEmpty else { setTranslation(""); return }
         setTranslation(localTranslator()?.translate(top) ?? "")
         let config = translationConfig
@@ -2100,6 +2110,11 @@ extension KeyboardViewController {
             commandSheet?.status("正在接收…")
             receiveHostContent()
         case "feel": dismissCommands(); toggleAdjustments()
+        case "bilingual":
+            dismissCommands()
+            BilingualSettings.isOn.toggle()
+            refreshTranslation()
+            showGestureHint(BilingualSettings.isOn ? "双语模式已开：译文显示在候选下方" : "双语模式已关")
         case "coach": dismissCommands(); showCoachPanel()
         case "toolbox": dismissCommands(); toggleTools()
         default: break

@@ -120,3 +120,17 @@ final class MixedLanguageLine {
         return character == "-" || character == "_" || character == "." || character == "+" || character == "#"
     }
 }
+
+
+/// 双语模式的总开关。
+///
+/// 关掉时译文芯片整条隐藏，候选条只占一行；打开时首选候选的目标语言译文常显，
+/// 点一下就插上屏。语言本身仍由 TranslationConfig.target 决定（长按芯片可换）。
+enum BilingualSettings {
+    static let defaultsKey = "liana.bilingual"
+
+    static var isOn: Bool {
+        get { UserDefaults.standard.object(forKey: defaultsKey) as? Bool ?? false }
+        set { UserDefaults.standard.set(newValue, forKey: defaultsKey) }
+    }
+}
