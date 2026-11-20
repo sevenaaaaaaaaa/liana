@@ -29,7 +29,10 @@ liana-peer text "会议改到三点"
 # 3. 取 Mac 剪贴板
 liana-peer pull
 
-# 4. 持续接 Mac 发来的文字（Ctrl+C 退出）
+# 4. 发文件（每片 60KB，逐片等 Mac 确认，最后校验 SHA-256）
+liana-peer file ./report.pdf
+
+# 5. 持续接 Mac 发来的文字（Ctrl+C 退出）
 liana-peer watch
 
 # 网络里有多台 Mac 时，直接给地址跳过 mDNS
@@ -41,8 +44,9 @@ liana-peer --addr 192.168.1.20:49152 text "hello"
 ## 已验证 / 未验证
 
 - ✅ TLS-PSK 握手、hello/ready、clipboardPush/Pull 往返（用 `examples/echo_server.rs` 端到端跑通）
+- ✅ 文件传输：300KB / 5 片，服务端收满 300000 字节且 SHA-256 一致（`sha match`）
 - ⚠️ mDNS 自动发现：macOS 上编译通过；Windows 依赖系统 mDNS（Win10 1803+ 自带），Linux 需要 avahi 或纯 Rust 多播（mdns-sd 自带）
-- ❌ 文件发送：协议帧已就绪（kind 2），CLI 里的 `file` 命令还没接
+- ⚠️ 文件发送尚未与真实 Mac 桌宠对测（只在 echo 服务端验证了 offer → accept → chunk → saved 全流程）
 
 ## 为什么单独一个 crate
 

@@ -316,6 +316,62 @@ fn run(command: &str, rest: &[String], addr: Option<&str>) -> Result<(), String>
                 _ => Err("Mac 没有返回剪贴板内容".into()),
             }
         }
+        "file" => {
+            let path = rest.first().ok_or("缺少文件路径")?;
+            let data = std::fs::read(path).map_err(|e| format!("读文件失败：{e}"))?;
+            if data.len() > 200 * 1024 * 1024 {
+                return Err("只支持不超过 200MB 的文件".into());
+            }
+            let name = std::path::Path::new(path)
+                .file_name()
+                .and_then(|v| v.to_str())
+                .unwrap_or("file.bin")
+                .to_string();
+            let profile = load_profile()?;
+            let target = match addr {
+                Some(value) => value.to_string(),
+                None => resolve_via_mdns(Duration::from_secs(8))?,
+            };
+            let mut stream = connect(&profile, &target)?;
+            handshake(&mut stream, &profile)?;
+            let id = uuid_like();
+            let digest = sha256_hex(&data);
+            send_json(
+                &mut stream,
+                &serde_json::json!({
+                    "kind": "offer",
+                    "id": id,
+                    "name": name,
+                    "size": data.len(),
+                    "sha256": digest,
+                }),
+            )?;
+            let reply = read_json(&mut stream)?;
+            if reply.get("kind").and_then(|v| v.as_str()) != Some("accept") {
+                return Err(reply
+                    .get("message")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Mac 没有接受这个文件")
+                    .to_string());
+            }
+            // 每片 60KB，发完等一条 ack；最后一片的 ack 是 saved。
+            let mut chunks = 0usize;
+            for chunk in data.chunks(60 * 1024) {
+                write_frame(&mut stream, 2, chunk)?;
+                chunks += 1;
+                let ack = read_json(&mut stream)?;
+                match ack.get("kind").and_then(|v| v.as_str()) {
+                    Some("accept") => {}
+                    Some("saved") => {
+                        println!("✓ 已送达：{}（{} 字节 / {} 片）", name, data.len(), chunks);
+                        return Ok(());
+                    }
+                    _ => return Err("Mac 在传输中途报错".into()),
+                }
+            }
+            println!("✓ 已发送完毕：{}（{} 片），等待 Mac 校验", name, chunks);
+            Ok(())
+        }
         "watch" => {
             let profile = load_profile()?;
             let target = match addr {
@@ -340,6 +396,14 @@ fn run(command: &str, rest: &[String], addr: Option<&str>) -> Result<(), String>
             usage();
             Err(format!("未知命令：{other}"))
         }
+    }
+}
+
+fn sha256_hex(data: &[u8]) -> String {
+    use openssl::hash::{hash, MessageDigest};
+    match hash(MessageDigest::sha256(), data) {
+        Ok(digest) => digest.iter().map(|b| format!("{b:02x}")).collect(),
+        Err(_) => String::new(),
     }
 }
 
