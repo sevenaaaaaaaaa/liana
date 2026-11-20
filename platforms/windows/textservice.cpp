@@ -61,11 +61,12 @@ static std::string DictPathNextToDll() {
     if (slash == std::wstring::npos) return {};
     dir.resize(slash + 1);
     dir += L"base.ifd";
-    int need = WideCharToMultiByte(CP_UTF8, 0, dir.c_str(), -1, nullptr, 0, nullptr, nullptr);
-    if (need <= 0) return {};
-    std::string out(static_cast<size_t>(need - 1), '\0');
-    WideCharToMultiByte(CP_UTF8, 0, dir.c_str(), -1, out.data(), need, nullptr, nullptr);
-    return out;
+    // 栈缓冲直接转：路径不超过 MAX_PATH，不用 C++17 的 std::string::data() 可写重载
+    // （build.cmd 没开 /std:c++17，那个重载在 C++14 下返回 const char*，MSVC 会报 C2664）
+    char buf[MAX_PATH * 3]{};
+    const int n = WideCharToMultiByte(CP_UTF8, 0, dir.c_str(), -1, buf, sizeof(buf), nullptr, nullptr);
+    if (n <= 1) return {};
+    return std::string(buf);
 }
 
 // ---- Activate / Deactivate ----
