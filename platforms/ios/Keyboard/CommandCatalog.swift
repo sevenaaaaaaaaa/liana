@@ -7,6 +7,9 @@ import Foundation
 /// 排序是面板的核心行为（谁该在第一位），它不该只能在真机上看。
 enum CommandCatalog {
 
+    /// 分组：常用动作一眼可见，偶尔才用到的收在「其他」下面。
+    enum Group { case primary, secondary }
+
     /// 一个算子。只描述，不带闭包。
     struct Op: Equatable {
         let id: String
@@ -14,18 +17,19 @@ enum CommandCatalog {
         let icon: String
         /// 是否需要「当前对象」才有意义（没文字时沉到后面）。
         let needsText: Bool
+        var group: Group = .primary
     }
 
     /// 面板里出现的全部算子。新增能力往这里加一行即可。
     static let catalog: [Op] = [
         Op(id: "copy", title: "复制这段文字", icon: "doc.on.doc", needsText: true),
         Op(id: "traditional", title: "切换简繁", icon: "character.book.closed", needsText: false),
-        Op(id: "cursor.left", title: "光标左移", icon: "arrow.left", needsText: true),
-        Op(id: "cursor.right", title: "光标右移", icon: "arrow.right", needsText: false),
+        Op(id: "cursor.left", title: "光标左移", icon: "arrow.left", needsText: true, group: .secondary),
+        Op(id: "cursor.right", title: "光标右移", icon: "arrow.right", needsText: false, group: .secondary),
         Op(id: "phrase", title: "常用短语", icon: "text.bubble", needsText: false),
         Op(id: "receive", title: "接收内容", icon: "tray.and.arrow.down", needsText: false),
-        Op(id: "feel", title: "布局与手感", icon: "slider.horizontal.3", needsText: false),
-        Op(id: "toolbox", title: "更多工具", icon: "square.grid.2x2", needsText: false),
+        Op(id: "feel", title: "布局与手感", icon: "slider.horizontal.3", needsText: false, group: .secondary),
+        Op(id: "toolbox", title: "更多工具与设置", icon: "square.grid.2x2", needsText: false, group: .secondary),
     ]
 
     /// 有文字时「需要文字」的算子排前面，没文字时沉到后面。

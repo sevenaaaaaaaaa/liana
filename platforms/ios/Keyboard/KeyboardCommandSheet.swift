@@ -126,9 +126,33 @@ final class KeyboardCommandSheet: UIView {
         contextLabel.textColor = hasText ? LianaPalette.ink : LianaPalette.muted
 
         list.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        for op in CommandCatalog.ordered(hasText: hasText) {
-            list.addArrangedSubview(row(for: op, hasText: hasText))
+        // 分区显示，但**不改** ordered 的语义：先取它的顺序，再稳定地分成两组。
+        // 过去八行平铺在一起，「复制」和「布局与手感」看起来同等重要，找起来费劲。
+        let ordered = CommandCatalog.ordered(hasText: hasText)
+        let primary = ordered.filter { $0.group == .primary }
+        let secondary = ordered.filter { $0.group == .secondary }
+        if !primary.isEmpty {
+            list.addArrangedSubview(sectionTitle(hasText ? "对这段文字" : "常用"))
+            primary.forEach { list.addArrangedSubview(row(for: $0, hasText: hasText)) }
         }
+        if !secondary.isEmpty {
+            list.addArrangedSubview(sectionTitle("其他"))
+            secondary.forEach { list.addArrangedSubview(row(for: $0, hasText: hasText)) }
+        }
+    }
+
+    private func sectionTitle(_ text: String) -> UIView {
+        let label = LianaUI.label(text, size: 12, weight: .semibold, muted: true)
+        let holder = UIView()
+        label.translatesAutoresizingMaskIntoConstraints = false
+        holder.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: holder.leadingAnchor, constant: 6),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: holder.trailingAnchor, constant: -6),
+            label.topAnchor.constraint(equalTo: holder.topAnchor, constant: 10),
+            label.bottomAnchor.constraint(equalTo: holder.bottomAnchor, constant: -2),
+        ])
+        return holder
     }
 
     private func row(for op: CommandCatalog.Op, hasText: Bool) -> UIView {

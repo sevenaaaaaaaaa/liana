@@ -4,7 +4,25 @@ import ImageIO
 import Speech
 
 final class MobileToolsViewController:UIViewController,UIDocumentPickerDelegate,UITextViewDelegate {
-    private enum Section:Int { case voice,dictionary,media,sync }
+    enum Section:Int {
+        case voice,dictionary,media,sync
+        var title:String {
+            switch self {
+            case .voice: return "语音转文字"
+            case .dictionary: return "词库与短语"
+            case .media: return "表情与 GIF"
+            case .sync: return "连接 Mac"
+            }
+        }
+        var icon:String {
+            switch self {
+            case .voice: return "mic.fill"
+            case .dictionary: return "text.book.closed"
+            case .media: return "face.smiling"
+            case .sync: return "laptopcomputer"
+            }
+        }
+    }
     private let tabs=LianaUI.segment(["语音","词库","表情","同步"])
     private let content=LianaUI.vertical(spacing:16)
     private weak var scroll: UIScrollView?
@@ -49,9 +67,17 @@ final class MobileToolsViewController:UIViewController,UIDocumentPickerDelegate,
     private var voicePrefix=""
     private var lastClearedDraft:String?
     private var draftWrite:DispatchWorkItem?
-    static let draftKey="mobile.voice.draft"
+    static let draftKey="mobile.voice.draft"  // 一级页读它做摘要
     private var section:Section = .voice
     private var statuses:[Section:String]=[:]
+    /// 从一级页进来时隐藏分类切换条：分类在外面选过了，进来只做一件事。
+    private var hidesTabs=false
+    private var initialSection:Section = .voice
+    convenience init(section:Section) {
+        self.init(nibName:nil,bundle:nil)
+        self.initialSection=section
+        self.hidesTabs=true
+    }
     private lazy var recordButton=LianaUI.button("开始录音",icon:"mic.fill",role:.primary,id:"voice.start") { [weak self] in
         guard let self else { return }; self.editor.resignFirstResponder()
         if self.voice.state == .recording { self.voice.finish(); self.flushTranslation() }
@@ -84,14 +110,19 @@ final class MobileToolsViewController:UIViewController,UIDocumentPickerDelegate,
         guard let self,!self.words.isEmpty else { return }; self.copy(KeyboardPayload(kind:"words",words:self.words),in:.dictionary)
     }
     override func viewDidLoad() {
-        super.viewDidLoad(); title="输入工具"; LianaUI.navigation(self)
+        super.viewDidLoad(); title=hidesTabs ? initialSection.title : "输入工具"; LianaUI.navigation(self)
         navigationItem.rightBarButtonItem=LianaUI.closeItem(id:"mobile.done") { [weak self] in self?.done() }
         navigationItem.rightBarButtonItem?.accessibilityIdentifier="mobile.done"
         tabs.translatesAutoresizingMaskIntoConstraints=false; view.addSubview(tabs)
         let width=tabs.widthAnchor.constraint(equalTo:view.safeAreaLayoutGuide.widthAnchor,constant:-40); width.priority = .defaultHigh
         NSLayoutConstraint.activate([tabs.centerXAnchor.constraint(equalTo:view.safeAreaLayoutGuide.centerXAnchor),tabs.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:8),tabs.widthAnchor.constraint(lessThanOrEqualToConstant:620),width])
         let stack=LianaUI.scrollStack(in:self,below:tabs,spacing:20); scroll=stack.superview as? UIScrollView
-        tabs.selectedSegmentIndex=0; tabs.accessibilityIdentifier="mobile.section"; tabs.accessibilityLabel="输入工具分类"
+        tabs.selectedSegmentIndex=initialSection.rawValue; section=initialSection
+        if hidesTabs {
+            tabs.isHidden=true
+            tabs.heightAnchor.constraint(equalToConstant:0).isActive=true
+        }
+        tabs.accessibilityIdentifier="mobile.section"; tabs.accessibilityLabel="输入工具分类"
         tabs.addAction(UIAction { [weak self] _ in self?.changeSection() },for:.valueChanged)
         stack.addArrangedSubview(content)
         status.accessibilityIdentifier="mobile.status"; stack.addArrangedSubview(LianaUI.card([status]))
