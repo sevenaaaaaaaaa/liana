@@ -1,0 +1,20 @@
+# 独立 workspace：内核保持零第三方依赖，这个工具要 openssl 与 mDNS，
+# 不能跟着父 workspace 一起被解析。
+[workspace]
+
+[package]
+name = "liana-peer"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+description = "Liana LAN peer CLI: talk to a Mac running the 松萝 desk pet over TLS-PSK"
+
+[dependencies]
+openssl = "0.10"
+mdns-sd = "0.11"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[[bin]]
+name = "liana-peer"
+path = "src/main.rs"
