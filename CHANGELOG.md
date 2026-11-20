@@ -6,6 +6,21 @@
 
 （下一次改动写在这里。发版前整理成 `## X.Y.0 — 日期 · 主题` 小节。）
 
+## 0.29.0 — 2026-11-20 · 不用切终端
+
+### Linux：IBus 里直接接收 Mac 文字
+
+- 引擎注册了一个属性菜单「接收 Mac 文字」，点一下就从同一局域网的 Mac 拉剪贴板并**直接上屏**；菜单文字会变（正在接收 → 已接收 / 没收到）。
+- 另一个入口是 **Ctrl+Alt+V**，不用去点菜单。
+- 实现上调用同目录（或 `/usr/local/lib/liana/`、PATH）里的 `liana-peer`：Python 的 ssl 不支持 PSK，协议只能交给它说。子进程在后台线程里跑，结果用 `GLib.idle_add` 回主线程 commit，不阻塞按键。
+- `build.sh` / `dist.sh` / `install.sh` 三处都把 `liana-peer` 带上；没有它时菜单显示「未安装 liana-peer」。
+
+### Windows：TSF 里 Ctrl+Alt+V 接收
+
+- `OnKeyDown` 里拦截 Ctrl+Alt+V，调 `liana-peer.exe pull`，结果写进**系统剪贴板**（Ctrl+V 即可粘贴）。
+- 为什么是剪贴板而不是直接上屏：TSF 的组合文本上屏（ITfComposition）在这个项目里仍是 TODO，先给一条能用的路径。
+- ⚠️ 这段 C++ **没有在 Windows 上编译验证过**（开发机是 macOS，没有 MSVC）。下次在 Windows 上跑 `build.cmd` 时如报错，按报错修。
+
 ## 0.28.0 — 2026-11-20 · 大文件也能跨平台传
 
 ### `liana-peer file`：文件分片与校验

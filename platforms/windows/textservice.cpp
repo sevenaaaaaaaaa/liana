@@ -8,8 +8,10 @@
 // 需在 Windows 机器上配合微软 TextService 样板逐段调试；引擎调用部分已完整。
 #include "textservice.h"
 
-#include <new>     // std::nothrow（工厂 CreateInstance 用它做不抛异常的 new）
-#include <string>  // std::string（词典路径转 UTF-8）
+#include <cstring>
+#include <new>      // std::nothrow（工厂 CreateInstance 用它做不抛异常的 new）
+#include <string>   // std::string（词典路径转 UTF-8）
+#include <vector>
 
 // textservice.h 里的 DEFINE_GUID 只是声明；这里给出唯一实体，否则链接报
 // LNK2019: unresolved external symbol CLSID_LianaTextService。不用 INITGUID，
@@ -114,8 +116,100 @@ STDMETHODIMP CTextService::OnTestKeyDown(ITfContext *, WPARAM wParam, LPARAM, BO
     return S_OK;
 }
 
+namespace {
+
+// 找 liana-peer.exe：先看 DLL 同目录，再看 PATH。
+std::string PeerBinary() {
+    wchar_t module[MAX_PATH]{};
+    if (GetModuleFileNameW(g_hInst, module, MAX_PATH)) {
+        std::wstring dir(module);
+        const auto slash = dir.find_last_of(L"\\/");
+        if (slash != std::wstring::npos) {
+            dir.resize(slash + 1);
+            std::wstring candidate = dir + L"liana-peer.exe";
+            if (GetFileAttributesW(candidate.c_str()) != INVALID_FILE_ATTRIBUTES) {
+                char buf[MAX_PATH * 3]{};
+                const int n = WideCharToMultiByte(CP_UTF8, 0, candidate.c_str(), -1, buf, sizeof(buf), nullptr, nullptr);
+                if (n > 1) return std::string(buf);
+            }
+        }
+    }
+    return "liana-peer.exe";
+}
+
+// 调 liana-peer pull，把 stdout 收回来。失败返回空串。
+std::string RunPeerPull() {
+    const std::string exe = PeerBinary();
+    SECURITY_ATTRIBUTES sa{sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
+    HANDLE readEnd = nullptr, writeEnd = nullptr;
+    if (!CreatePipe(&readEnd, &writeEnd, &sa, 0)) return {};
+    SetHandleInformation(readEnd, HANDLE_FLAG_INHERIT, 0);
+
+    STARTUPINFOA si{};
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdOutput = writeEnd;
+    si.hStdError = writeEnd;
+    si.hStdInput = nullptr;
+    PROCESS_INFORMATION pi{};
+    std::string command = "\"" + exe + "\" pull";
+    std::vector<char> mutableCommand(command.begin(), command.end());
+    mutableCommand.push_back('\0');
+    const BOOL started = CreateProcessA(nullptr, mutableCommand.data(), nullptr, nullptr, TRUE,
+                                        CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi);
+    CloseHandle(writeEnd);
+    if (!started) {
+        CloseHandle(readEnd);
+        return {};
+    }
+    std::string output;
+    char buffer[512];
+    DWORD read = 0;
+    while (ReadFile(readEnd, buffer, sizeof(buffer), &read, nullptr) && read > 0) {
+        output.append(buffer, read);
+        if (output.size() > 64 * 1024) break;
+    }
+    WaitForSingleObject(pi.hProcess, 30000);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+    CloseHandle(readEnd);
+    while (!output.empty() && (output.back() == '\n' || output.back() == '\r')) output.pop_back();
+    return output;
+}
+
+void CopyToClipboard(const std::string& utf8) {
+    if (utf8.empty()) return;
+    const int wideLen = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, nullptr, 0);
+    if (wideLen <= 1) return;
+    std::wstring wide(static_cast<size_t>(wideLen), L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, wide.data(), wideLen);
+    if (!OpenClipboard(nullptr)) return;
+    EmptyClipboard();
+    const size_t bytes = wide.size() * sizeof(wchar_t);
+    if (HGLOBAL mem = GlobalAlloc(GMEM_MOVEABLE, bytes)) {
+        if (void* target = GlobalLock(mem)) {
+            memcpy(target, wide.data(), bytes);
+            GlobalUnlock(mem);
+            SetClipboardData(CF_UNICODETEXT, mem);
+        }
+    }
+    CloseClipboard();
+}
+
+}  // namespace
+
 STDMETHODIMP CTextService::OnKeyDown(ITfContext *pic, WPARAM wParam, LPARAM, BOOL *pfEaten) {
     *pfEaten = FALSE;
+    // Ctrl+Alt+V：从同一局域网的 Mac 拉剪贴板。TSF 的组合上屏还没接，
+    // 所以落到系统剪贴板，用户 Ctrl+V 即可——比什么都不做强，也不用等编辑会话。
+    if ((GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_MENU) & 0x8000) && wParam == 'V') {
+        const std::string text = RunPeerPull();
+        if (!text.empty()) {
+            CopyToClipboard(text);
+            *pfEaten = TRUE;
+        }
+        return S_OK;
+    }
     if (!session_) return S_OK;
 
     char ch;

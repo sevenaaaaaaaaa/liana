@@ -25,6 +25,7 @@ ENGINE="$(src ibus-liana || true)"
 XML="$(src liana.xml || true)"
 DICT="$(src base.ifd || true)"
 LM="$(src base.lm || true)"
+PEER="$(src liana-peer || true)"
 
 for f in "$SO" "$PY" "$ENGINE" "$XML"; do
     [[ -f "$f" ]] || { echo "缺少构建产物: $f（先在仓库里跑 ./build.sh --local）" >&2; exit 1; }
@@ -56,6 +57,11 @@ if [[ -n "$DICT" ]]; then
         sudo cp "$LM" "$LIB_DIR/base.lm"
         cp "$LM" "$HOME/.local/share/liana/base.lm"
     fi
+fi
+# 局域网对端：Ctrl+Alt+V 拉 Mac 剪贴板靠它。没有它时菜单会提示「未安装 liana-peer」。
+if [[ -n "$PEER" ]]; then
+    sudo cp "$PEER" "$LIB_DIR/liana-peer"
+    sudo chmod +x "$LIB_DIR/liana-peer"
 fi
 
 sudo mkdir -p "$COMPONENT_DIR"

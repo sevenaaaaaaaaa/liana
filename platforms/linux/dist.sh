@@ -28,6 +28,7 @@ cp "$SO" "$STAGE/libliana_ffi.so"
 cp "$HERE/ibus-liana" "$HERE/libliana.py" "$HERE/liana.xml" "$STAGE/"
 cp "$HERE/build/base.ifd" "$STAGE/base.ifd"
 [[ -f "$HERE/build/base.lm" ]] && cp "$HERE/build/base.lm" "$STAGE/base.lm"
+[[ -f "$HERE/build/liana-peer" ]] && cp "$HERE/build/liana-peer" "$STAGE/liana-peer"
 chmod +x "$STAGE/ibus-liana"
 
 # install.sh：直接复用 platforms/linux/install.sh（单一来源，装完自带自检与启用指引）

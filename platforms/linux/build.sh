@@ -46,6 +46,20 @@ else
     echo "    ⚠️ 缺少 crates/dict/data/lm/base.lm，本次不带整句搭配模型"
 fi
 
+# 局域网对端 CLI：Ctrl+Alt+V 拉 Mac 剪贴板靠它（协议是 TLS-PSK，Python 说不了）
+PEER_OUT="$HERE/build/liana-peer"
+if [[ -x "$ROOT/tools/liana-peer/target/release/liana-peer" ]]; then
+    cp "$ROOT/tools/liana-peer/target/release/liana-peer" "$PEER_OUT"
+    echo "    局域网对端就位：$(du -h "$PEER_OUT" | cut -f1)"
+elif command -v cargo >/dev/null 2>&1; then
+    ( cd "$ROOT/tools/liana-peer" && cargo build --release >/dev/null 2>&1 ) \
+        && cp "$ROOT/tools/liana-peer/target/release/liana-peer" "$PEER_OUT" \
+        && echo "    已构建局域网对端" \
+        || echo "    ⚠️ liana-peer 构建失败，Ctrl+Alt+V 暂不可用"
+else
+    echo "    ⚠️ 没有 cargo，也没有预构建的 liana-peer，Ctrl+Alt+V 暂不可用"
+fi
+
 echo "==> 3/3 引擎语法检查"
 python3 -m py_compile "$HERE/ibus-liana" "$HERE/libliana.py"
 echo "    Python 语法 OK"

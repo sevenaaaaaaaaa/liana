@@ -10,7 +10,10 @@
 """
 import json
 import os
+import shutil
+import subprocess
 import sys
+import threading
 
 import gi
 
@@ -49,6 +52,75 @@ class LianaEngine(IBus.EngineBase):
         except Exception:
             self._session = None
         self._load_user_words()
+        self._register_receive_property()
+
+    # ---- 接收 Mac 文字 ----
+    #
+    # 走 liana-peer（同一套 TLS-PSK 协议），这里只负责：把子进程的输出 commit 上屏。
+    # 为什么用子进程而不是在 Python 里说协议：Python 的 ssl 不支持 PSK。
+
+    def _peer_binary(self):
+        here = os.path.dirname(os.path.abspath(__file__))
+        for candidate in (os.path.join(here, "liana-peer"),
+                          "/usr/local/lib/liana/liana-peer",
+                          shutil.which("liana-peer") or ""):
+            if candidate and os.path.exists(candidate):
+                return candidate
+        return None
+
+    def _register_receive_property(self):
+        prop = IBus.Property(
+            key="liana.receive",
+            prop_type=IBus.PropType.NORMAL,
+            label=IBus.Text.new_from_string("接收 Mac 文字"),
+            tooltip=IBus.Text.new_from_string("从同一局域网的 Mac 拉取剪贴板文字"),
+            icon="network-wired-symbolic",
+        )
+        self._receive_prop = prop
+        props = IBus.PropList()
+        props.append(prop)
+        self.register_properties(props)
+
+    def do_property_activate(self, prop_name, state):
+        if prop_name == "liana.receive":
+            self._receive_from_mac()
+            return True
+        return False
+
+    def _set_prop_label(self, text):
+        try:
+            self._receive_prop.set_label(IBus.Text.new_from_string(text))
+            self.update_property(self._receive_prop)
+        except Exception:
+            pass
+
+    def _receive_from_mac(self):
+        peer = self._peer_binary()
+        if not peer:
+            self._set_prop_label("未安装 liana-peer")
+            return
+        self._set_prop_label("正在接收…")
+
+        def work():
+            try:
+                result = subprocess.run([peer, "pull"], capture_output=True, text=True, timeout=25)
+                text = (result.stdout or "").strip()
+                error = (result.stderr or "").strip()
+            except Exception as exc:  # noqa: BLE001 - 子进程任何失败都反馈到菜单
+                text, error = "", str(exc)
+            GLib.idle_add(self._deliver_received, text, error)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _deliver_received(self, text, error):
+        if text:
+            self._commit(text)
+            self._set_prop_label("已接收，可再点一次")
+        else:
+            self._set_prop_label("没收到（Mac 未开收件箱？）")
+            if error:
+                sys.stderr.write("[liana] 接收失败: " + error + "\n")
+        return False
 
     # ---- 用户词持久化 ----
 
@@ -114,6 +186,11 @@ class LianaEngine(IBus.EngineBase):
     # ---- 按键处理（与 macOS 端约定一致：空格首选、数字选词、Esc 取消、回车原样） ----
 
     def do_process_key_event(self, keyval, keycode, state):
+        # Ctrl+Alt+V：从 Mac 拉一段文字直接上屏（不用切终端跑 CLI）
+        mods = state & (IBus.ModifierType.CONTROL_MASK | IBus.ModifierType.MOD1_MASK)
+        if mods == (IBus.ModifierType.CONTROL_MASK | IBus.ModifierType.MOD1_MASK) and keyval == IBus.KEY_v:
+            self._receive_from_mac()
+            return True
         if state & (IBus.ModifierType.RELEASE_MASK | IBus.ModifierType.CONTROL_MASK
                     | IBus.ModifierType.MOD1_MASK | IBus.ModifierType.SUPER_MASK):
             return False

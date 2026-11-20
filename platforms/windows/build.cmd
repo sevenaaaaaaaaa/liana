@@ -51,6 +51,13 @@ if exist "%ROOT%\crates\dict\data\lm\base.lm" (
     echo     [warn] 缺少 crates\dict\data\lm\base.lm，本次不带整句搭配模型
 )
 
+REM 局域网对端：Ctrl+Alt+V 拉 Mac 剪贴板靠它（协议是 TLS-PSK，TSF 里直接说不了）
+if exist "%ROOT%\tools\liana-peer\target\release\liana-peer.exe" (
+    copy /y "%ROOT%\tools\liana-peer\target\release\liana-peer.exe" "%HERE%build\liana-peer.exe" >nul
+) else (
+    echo     [warn] 没找到 liana-peer.exe（先在 tools\liana-peer 里 cargo build --release）
+)
+
 echo ==^> 4/4 MSVC 编译 TSF DLL
 cl /nologo /W4 /EHsc /O2 /LD /I"%ROOT%\crates\ffi\include" ^
     "%HERE%textservice.cpp" ^
