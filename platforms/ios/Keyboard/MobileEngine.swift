@@ -120,7 +120,7 @@ final class MobileEngine {
                 case .clear: raw = ""; choices = []; externalComposition = false; lastCommittedTail = ""; if let session { liana_clear(session) }
                 case .select(let index, let expected, let text):
                     if externalComposition, raw == expected {
-                        committed = text; database().learn(text, raw: raw)
+                        committed = text; database().learn(text, raw: raw); learnedCache = nil
                         raw = ""; choices = []; externalComposition = false
                         if let session { liana_clear(session) }
                     } else if raw == expected, choices.indices.contains(index), choices[index].text == text { committed = select(index) }
@@ -185,15 +185,28 @@ final class MobileEngine {
     /// 清空全部学习记录。
     func resetLearning() {
         database().resetLearning()
+        learnedCache = nil
         refresh()
     }
 
     /// 这个词学过几次（候选解释用）。
     func learnedCount(for word: String) -> Int { database().learnedCount(for: word) }
 
+    /// 学过的词缓存：候选每次重绘都要用，别逐词查库。
+    private var learnedCache: Set<String>?
+
+    /// 有学习记录的词（候选角标用）。一次查出来，别在渲染循环里逐词查库。
+    func learnedSet() -> Set<String> {
+        if let cached = learnedCache { return cached }
+        let set = Set(database().allLearned(limit: 500).map(\.word))
+        learnedCache = set
+        return set
+    }
+
     /// 删掉一个词的学习记录，候选立刻回到词库默认排序。
     func forget(_ word: String) {
         database().forget(word)
+        learnedCache = nil
         refresh()
     }
 

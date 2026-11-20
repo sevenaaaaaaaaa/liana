@@ -1602,13 +1602,39 @@ class KeyboardViewController: UIInputViewController {
             let button = candidateButton("", index: candidateButtons.count)
             candidateButtons.append(button); candidateStrip.addArrangedSubview(button)
         }
+        let learned = engine.learnedSet()
         for (i, button) in candidateButtons.enumerated() {
             button.isHidden = i >= candidates.count
             if i < candidates.count {
-                UIView.performWithoutAnimation { button.setTitle(candidates[i], for: .normal) }
+                let word = candidates[i]
+                UIView.performWithoutAnimation { button.setTitle(word, for: .normal) }
                 button.titleLabel?.font = .systemFont(ofSize: CGFloat(preferences.candidateFont), weight: i == 0 ? .semibold : .regular)
+                // 学过的小圆点：不用长按也能看出「这个是我教出来的」
+                markLearned(button, isLearned: learned.contains(word))
+            } else {
+                markLearned(button, isLearned: false)
             }
         }
+    }
+
+    /// 候选右上角的小圆点：这个词有学习记录。
+    private func markLearned(_ button: UIButton, isLearned: Bool) {
+        let tag = 0x1EAD
+        button.viewWithTag(tag)?.removeFromSuperview()
+        guard isLearned else { return }
+        let dot = UIView()
+        dot.tag = tag
+        dot.backgroundColor = LianaPalette.ink.withAlphaComponent(0.5)
+        dot.layer.cornerRadius = 2.5
+        dot.isUserInteractionEnabled = false
+        dot.translatesAutoresizingMaskIntoConstraints = false
+        button.addSubview(dot)
+        NSLayoutConstraint.activate([
+            dot.widthAnchor.constraint(equalToConstant: 5),
+            dot.heightAnchor.constraint(equalToConstant: 5),
+            dot.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: -5),
+            dot.topAnchor.constraint(equalTo: button.topAnchor, constant: 5),
+        ])
     }
 
     // MARK: - 候选译文（本地词表 → 可选云端）
