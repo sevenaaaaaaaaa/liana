@@ -38,9 +38,9 @@
     <key>CFBundleSignature</key>
     <string>????</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.28.0</string>
+    <string>0.29.0</string>
     <key>CFBundleVersion</key>
-    <string>29</string>
+    <string>30</string>
     <key>ComponentInputModeDict</key>
     <dict>
         <key>tsInputModeListKey</key>
