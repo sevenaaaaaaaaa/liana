@@ -867,6 +867,25 @@ class KeyboardViewController: UIInputViewController {
         present(sheet, animated: true)
     }
 
+    /// 选点击特效。九种按顺序列出，当前那种打勾。
+    private func chooseKeyEffect() {
+        let sheet = UIAlertController(title: "点击特效", message: "按下按键时的一层短动画，不影响输入。", preferredStyle: .actionSheet)
+        for effect in KeyEffect.allCases {
+            let mark = effect == KeyEffectSettings.current ? " ✓" : ""
+            sheet.addAction(UIAlertAction(title: effect.title + mark, style: .default) { [weak self] _ in
+                guard let self else { return }
+                KeyEffectSettings.current = effect
+                self.toggleAdjustments(); self.toggleAdjustments()
+            })
+        }
+        sheet.addAction(UIAlertAction(title: "取消", style: .cancel))
+        if let pop = sheet.popoverPresentationController {
+            pop.sourceView = view
+            pop.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
+        }
+        present(sheet, animated: true)
+    }
+
     /// 编辑符号页的三行。每行最多 10 个字符，留空的行不显示。
     private func editSymbolRows() {
         let alert = UIAlertController(title: "符号页", message: "每行一条，最多 10 个字符；留空则不显示该行。", preferredStyle: .alert)
@@ -933,6 +952,10 @@ class KeyboardViewController: UIInputViewController {
         // 十套配色：键盘、候选条、工具面板一起换。
         stack.addArrangedSubview(LianaUI.button("配色 · \(LianaPalette.colorway.title)", icon: "paintpalette", role: .utility, id: "layout.colorway") { [weak self] in
             self?.chooseColorway()
+        })
+        // 点击特效：九种，按下瞬间在键上叠一层短动画。
+        stack.addArrangedSubview(LianaUI.button("点击特效 · \(KeyEffectSettings.current.title)", icon: "sparkles", role: .utility, id: "layout.effect") { [weak self] in
+            self?.chooseKeyEffect()
         })
         // 符号页三行自己配；留空的行不显示。
         stack.addArrangedSubview(LianaUI.button("符号页 · 自定义", icon: "textformat.abc", role: .utility, id: "layout.symbols") { [weak self] in

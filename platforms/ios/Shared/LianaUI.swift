@@ -54,7 +54,13 @@ class LianaPressButton: UIButton {
     enum Role { case plain, key, utility, primary, tile }
     var surface: Role = .plain { didSet { refreshAppearance() } }
     var rounded: CGFloat = 10 { didSet { layer.cornerRadius = rounded } }
-    override var isHighlighted: Bool { didSet { refreshAppearance(animate: !isHighlighted) } }
+    override var isHighlighted: Bool {
+        didSet {
+            // 只在按下时点，且只给键盘主键：面板里的按钮不需要特效
+            if isHighlighted, surface == .key { KeyEffectPlayer.play(KeyEffectSettings.current, on: self, tint: LianaPalette.ink) }
+            refreshAppearance(animate: !isHighlighted)
+        }
+    }
     override var isEnabled: Bool { didSet { refreshAppearance() } }
     override var isSelected: Bool { didSet { refreshAppearance() } }
     override init(frame: CGRect) {
