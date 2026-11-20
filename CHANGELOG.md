@@ -6,6 +6,16 @@
 
 （下一次改动写在这里。发版前整理成 `## X.Y.0 — 日期 · 主题` 小节。）
 
+## 0.27.0 — 2026-11-20 · Linux / Windows 接进同一个局域网
+
+### 新增 `liana-peer` 命令行工具
+
+- 与 Apple 端说同一套协议：Bonjour `_liana-pet._tcp` 发现、TLS 1.2 PSK（identity `liana-pet-v1`）、帧 = 4 字节长度 + kind + 载荷。
+- 五个命令：`pair`（贴配对码）、`info`、`text`（发到 Mac 剪贴板）、`pull`（取 Mac 剪贴板）、`watch`（持续收）。
+- 端到端验证：仓库内 `examples/echo_server.rs` 起一个 PSK 服务端，`text` 与 `pull` 都跑通（hello → ready → clipboardPush → clipboardSaved）。
+- 为什么单独一个 crate：内核保持零第三方依赖，而 TCP + TLS-PSK + mDNS 必须有库；它有自己的 workspace，不参与 `cargo test --workspace`。
+- 未完成：`file` 命令（协议帧已就绪，CLI 还没接）。
+
 ## 0.26.0 — 2026-11-20 · 一个网络里的多台设备
 
 ### 接收端本来就能同时接多台，现在把上限和可见性补上
