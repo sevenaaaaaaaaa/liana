@@ -36,7 +36,7 @@ struct CommandCatalogTests {
         // 4. 每个算子都必须能被分发：id 唯一，且分发器认识的 id 与清单一致。
         let ids = CommandCatalog.catalog.map(\.id)
         precondition(Set(ids).count == ids.count, "算子 id 重复: \(ids)")
-        let handled: Set<String> = ["copy", "traditional", "cursor.left", "cursor.right", "phrase", "receive", "feel", "toolbox"]
+        let handled: Set<String> = ["copy", "traditional", "cursor.left", "cursor.right", "phrase", "receive", "coach", "feel", "toolbox"]
         precondition(Set(ids) == handled, "清单与分发器不一致: \(Set(ids).symmetricDifference(handled))")
 
         print("Command catalog: \(ids.count) operators, ordering stable, snippet tail-only, dispatcher in sync")
