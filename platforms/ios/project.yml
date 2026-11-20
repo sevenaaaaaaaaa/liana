@@ -18,6 +18,8 @@ targets:
     dependencies:
       - target: LianaKeyboard
         embed: true
+      - target: LianaWatch
+        embed: true
     info:
       path: Host/Info.plist
       properties:
@@ -59,6 +61,32 @@ targets:
         HEADER_SEARCH_PATHS: "$(SRCROOT)/../../crates/ffi/include"
         OTHER_LDFLAGS: "$(SRCROOT)/libs/libliana_ffi_device.a"
         OTHER_LDFLAGS[sdk=iphonesimulator*]: "$(SRCROOT)/libs/libliana_ffi_sim.a"
+
+  # 手表端：抬腕说一句 → 文字 → 发到 iPhone 剪贴板。
+  # Vibe 模式的自然延伸：手机在口袋里也能把话变成可粘贴的文字。
+  LianaWatch:
+    type: application
+    platform: watchOS
+    deploymentTarget: "10.0"
+    sources:
+      - Watch
+    info:
+      path: Watch/Info.plist
+      properties:
+        CFBundleDisplayName: 松萝
+        WKApplication: true
+        WKRunsIndependentlyOfCompanionApp: false
+    settings:
+      base:
+        SDKROOT: watchos
+        SUPPORTED_PLATFORMS: "watchos watchsimulator"
+        WATCHOS_DEPLOYMENT_TARGET: "10.0"
+        PRODUCT_BUNDLE_IDENTIFIER: dev.liana.ime.ios.watchkitapp
+        MARKETING_VERSION: 0.21.0
+        CURRENT_PROJECT_VERSION: 11
+        SWIFT_VERSION: "5.0"
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGNING_ALLOWED: "NO"
 
   LianaKeyboard:
     type: app-extension

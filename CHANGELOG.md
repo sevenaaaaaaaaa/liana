@@ -6,6 +6,15 @@
 
 （下一次改动写在这里。发版前整理成 `## X.Y.0 — 日期 · 主题` 小节。）
 
+## 0.22.0 — 2026-11-20 · Vibe 上手表
+
+### 新增 watchOS app：抬腕说一句，文字落到 iPhone 剪贴板
+
+- 手表上点输入框，用系统听写说一句（watchOS SDK 没有 Speech 框架，识别交给系统），点「发到 iPhone」，文字经 WatchConnectivity 送到手机，直接进剪贴板。
+- iPhone 端由 `WatchReceiver` 接收：写剪贴板 + 一次成功触感。只认文本这一种载荷，其他字段忽略。
+- watch app 已随 IPA 内嵌（`Payload/LianaApp.app/Watch/LianaWatch.app`）。首次使用需要在 iPhone 的 Watch app 里安装并授予麦克风权限（系统听写会自己请求）。
+- 技术细节：watchOS target 必须同时声明 `SDKROOT: watchos` 与 `SUPPORTED_PLATFORMS: watchos watchsimulator`，否则嵌进 iOS 工程后会被当成 iOS target 编译（TextField 的 axis/lineLimit 报 iOS 16 不可用、WCSessionDelegate 缺 iOS 专属方法）。
+
 ## 0.21.0 — 2026-11-20 · 学过的词看得见
 
 - 候选右上角加了一枚小圆点：这个词有你的学习记录。不用长按去问，打字时就能分出「我教出来的」「词库自带的」。
