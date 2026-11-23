@@ -1206,11 +1206,6 @@ struct PetPage: View {
             }
             SettingsGroup("输入联动") {
                 ToggleRow(
-                    title: "不在输入框时打字就聊天",
-                    detail: "在桌面等没有输入框的地方连续敲字母，会打开对话气泡。需要辅助功能权限，只用来判断当前是不是输入框，不记录任何按键；聊天内容不保存",
-                    isOn: model.binding({ PetChatAutoTrigger.enabled }, { PetChatAutoTrigger.enabled = $0 })
-                )
-                ToggleRow(
                     title: "复制命令后问我要不要在终端运行",
                     detail: "点「在终端运行」才会运行；rm -rf、sudo、curl | sh 等危险命令会再弹窗确认。剪贴板只判断一次，不记录",
                     isOn: model.binding({ ClipboardActionWatcher.commandsEnabled }, { ClipboardActionWatcher.commandsEnabled = $0 })

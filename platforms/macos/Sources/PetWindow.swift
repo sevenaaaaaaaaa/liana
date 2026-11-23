@@ -177,13 +177,11 @@ final class PetWindowController {
             shared.hide()
             PetChatController.shared.close()
         }
-        PetChatAutoTrigger.shared.refresh()
     }
 
     static func restoreIfEnabled() {
         guard isEnabled else { return }
         shared.show()
-        PetChatAutoTrigger.shared.refresh()
     }
 
     /// 扫描社区形象包。
@@ -1911,11 +1909,6 @@ final class PetWindowController {
             item.state = on ? .on : .off
             menu.addItem(item)
         }
-        let auto = NSMenuItem(title: "不在输入框时打字就聊天", action: #selector(petMenuToggleChatAuto(_:)), keyEquivalent: "")
-        auto.target = self
-        auto.state = PetChatAutoTrigger.enabled ? .on : .off
-        auto.toolTip = "需要辅助功能权限：只判断当前是不是输入框，不记录任何按键"
-        menu.addItem(auto)
         let community = NSMenuItem(title: "形象源…", action: #selector(petMenuCommunity(_:)), keyEquivalent: "")
         community.target = self
         menu.addItem(community)
@@ -2054,15 +2047,6 @@ final class PetWindowController {
 
     @objc private func petMenuChat(_ sender: Any) {
         PetChatController.shared.open()
-    }
-
-    @objc private func petMenuToggleChatAuto(_ sender: Any) {
-        PetChatAutoTrigger.enabled.toggle()
-        if PetChatAutoTrigger.enabled {
-            showToast(PetChatAutoTrigger.permitted
-                      ? "好！在没有输入框的地方直接打字，我就来陪你聊"
-                      : "请在系统设置 › 隐私与安全性 › 辅助功能 里允许「松萝」，开启后自动生效", duration: 6)
-        }
     }
 
     @objc private func petMenuForgetInteraction(_ sender: Any) {

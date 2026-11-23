@@ -35,9 +35,6 @@ echo "==> macOS 纯逻辑"
 run input-source-registration \
   platforms/macos/Sources/InputSourceRegistration.swift \
   platforms/macos/tests/InputSourceRegistrationTests.swift
-run pet-chat-trigger-policy -D PETCHAT_AUTO_TRIGGER_POLICY_TEST \
-  platforms/macos/Sources/PetChat.swift \
-  platforms/macos/tests/PetChatAutoTriggerPolicyTests.swift
 run pet-studio \
   platforms/macos/Sources/PetStudioCore.swift \
   platforms/macos/tests/PetStudioTests.swift

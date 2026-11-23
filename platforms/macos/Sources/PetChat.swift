@@ -1,62 +1,11 @@
 import Foundation
 import CoreGraphics
-#if !PETCHAT_AUTO_TRIGGER_POLICY_TEST
 import AppKit
-import ApplicationServices
-#endif
 
-// MARK: - 自动进入对话的触发判定（纯逻辑，可单测）
-
-/// 自动进入对话模式的触发条件：只有「鼠标停在桌宠窗口上 + 前台是 Finder / 桌面 +
-/// 焦点不在输入框 + 1.5 秒内敲了 4 个以上小写字母」才触发。
-///
-/// 用户明确要求：鼠标在别的 App 上时一律不抢焦点。把判定抽成纯函数（不碰 NSEvent / AX），
-/// 用 -D PETCHAT_AUTO_TRIGGER_POLICY_TEST 单独编译本文件即可回归，不需要辅助功能权限。
-enum PetChatAutoTriggerPolicy {
-    /// 前台应用分类（不直接依赖 NSWorkspace，方便测试）。
-    enum Frontmost: Equatable {
-        /// 松萝自己（输入法面板 / 桌宠）
-        case liana
-        /// Finder / 桌面：只在桌面上「直接打字叫桌宠」时才允许自动弹出。
-        case finder
-        /// 其他第三方 App（含游戏）：用户正在别处工作，不打扰。
-        case thirdParty
-    }
-
-    struct Input {
-        var frontmost: Frontmost
-        var mouseLocation: CGPoint
-        var petFrame: CGRect?
-        var letterCount: Int
-        var isSnoozed: Bool
-        var isChatOpen: Bool
-        /// 焦点是否在输入框。查询要走辅助功能（AX），所以只在前面所有便宜条件都满足后才求值。
-        var focusIsTextInput: () -> Bool
-    }
-
-    /// 连续敲多少个小写字母才认为是在叫桌宠（从 3 提到 4，减少误判）。
-    static let minimumLetters = 4
-    /// 字母累计窗口（秒）。
-    static let window: TimeInterval = 1.5
-
-    static func shouldOpen(_ input: Input) -> Bool {
-        guard !input.isChatOpen, !input.isSnoozed else { return false }
-        guard input.letterCount >= minimumLetters else { return false }
-        // 只在「桌面 / Finder」前台时自动弹出：第三方 App 前台时用户在别处工作，松萝自己前台时也不该抢。
-        guard input.frontmost == .finder else { return false }
-        // 鼠标必须真的在桌宠窗口（其可见区域）上；鼠标在别的 App 上时一律不触发。
-        guard let petFrame = input.petFrame, petFrame.contains(input.mouseLocation) else { return false }
-        return !input.focusIsTextInput()
-    }
-}
-
-#if !PETCHAT_AUTO_TRIGGER_POLICY_TEST
-
-/// 和桌宠聊天：对话气泡（自带拼音输入）+ 回复大脑（本机规则 / 本机模型）+ 自动进入对话模式。
+/// 和桌宠聊天：对话气泡（自带拼音输入）+ 回复大脑（本机规则 / 本机模型）。
 ///
 /// 隐私：聊天内容只在内存里，关掉窗口就没了；本机模型走 127.0.0.1 的 llama-server，不联网（ADR-0004）。
-/// 自动进入对话模式默认关闭；开启后需要辅助功能权限，只用来判断「当前焦点是不是输入框」，
-/// 并且只有鼠标停在桌宠上、前台是 Finder / 桌面时才在按键后弹出，**不记录任何按键**，判断完即丢弃。
+/// 只在用户自己点开时出现（桌宠上的聊天按钮 / 右键菜单「聊天」），不监听全局按键、不抢输入焦点。
 
 // MARK: - 回复大脑
 
@@ -167,10 +116,6 @@ enum PetChatBrain {
             PetWindowController.entranceEnabled = false
             return Reply(text: "好，出场动画关掉了，我随叫随到", trigger: "chat", action: nil)
         }
-        if has(t, ["自动聊天", "自言自语", "主动聊天"]) && has(t, ["别", "不要", "关闭", "关掉"]) {
-            PetChatAutoTrigger.enabled = false
-            return Reply(text: "好，我不主动搭话了，你想聊再叫我", trigger: "chat", action: nil)
-        }
         if has(t, ["安静", "别说话"]) { return nil }  // 交给既有安静模式规则
         // —— 语音代码模式 ——
         if has(t, ["代码模式", "代码语音", "符号词"]) {
@@ -280,21 +225,16 @@ final class PetChatController {
     private let candidates = NSTextField(labelWithString: "")
     private let thinking = NSTextField(labelWithString: "")
     private var history: [(fromUser: Bool, text: String)] = []
-    private var openedAutomatically = false
-    private var sentSinceOpen = false
 
     var isOpen: Bool { panel?.isVisible == true }
 
-    /// 打开对话（prefill = 自动进入时已经敲下的拼音字母，接着打不丢字）。
-    func open(prefill: String = "", automatic: Bool = false) {
+    /// 打开对话。
+    func open() {
         let panel = ensurePanel()
-        openedAutomatically = automatic
-        sentSinceOpen = false
         composer.reset()
-        prefill.forEach { composer.feed($0) }
         position(panel)
         if history.isEmpty {
-            append(fromUser: false, text: automatic ? "我在听～直接打字就能和我聊天" : "想聊点什么？")
+            append(fromUser: false, text: "想聊点什么？")
         }
         panel.alphaValue = 0
         panel.makeKeyAndOrderFront(nil)
@@ -306,8 +246,6 @@ final class PetChatController {
     /// 展示一段结果（链接总结 / 译文 / 菜谱结果）：以桌宠的口吻放进对话气泡，可滚动、可复制。
     func present(title: String, body: String) {
         let panel = ensurePanel()
-        openedAutomatically = false
-        sentSinceOpen = true
         append(fromUser: false, text: "【\(title)】\n\(body)")
         if !panel.isVisible {
             position(panel)
@@ -319,8 +257,6 @@ final class PetChatController {
 
     func close() {
         guard let panel, panel.isVisible else { return }
-        // 自动弹出、一句没聊就关：说明是误触发，暂停自动进入一会儿
-        if openedAutomatically && !sentSinceOpen { PetChatAutoTrigger.shared.snooze(minutes: 10) }
         panel.orderOut(nil)
     }
 
@@ -436,7 +372,6 @@ final class PetChatController {
     private func send(_ text: String) {
         let message = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !message.isEmpty else { return }
-        sentSinceOpen = true
         append(fromUser: true, text: message)
         PetWindowController.shared.chatHeard()
         thinking.stringValue = "\(PetWindowController.shared.petName)正在想…"
@@ -579,125 +514,3 @@ final class ChatComposerView: NSView {
         onChange?()
     }
 }
-
-// MARK: - 自动进入对话模式
-
-/// 不在任何输入框里却在敲字母 → 打开对话气泡（把刚敲的字母带进去）。
-/// 需要辅助功能权限：只判断焦点是不是输入框，不记录按键。默认关闭。
-final class PetChatAutoTrigger {
-    static let shared = PetChatAutoTrigger()
-    private static let key = "LianaPetChatAuto"
-
-    static var enabled: Bool {
-        get { UserDefaults.standard.bool(forKey: key) }
-        set {
-            UserDefaults.standard.set(newValue, forKey: key)
-            if newValue { requestPermissionIfNeeded() }
-            shared.refresh()
-        }
-    }
-
-    static var permitted: Bool { AXIsProcessTrusted() }
-
-    /// 弹系统授权框（辅助功能），用户在系统设置里勾选松萝后生效。
-    static func requestPermissionIfNeeded() {
-        guard !AXIsProcessTrusted() else { return }
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(options)
-    }
-
-    private var monitor: Any?
-    private var buffer: [(at: Date, ch: Character)] = []
-    private var snoozeUntil = Date.distantPast
-    private var permissionTimer: Timer?
-
-    /// 文本输入类焦点：在这些里面打字就是在输入，不打扰
-    private let textRoles: Set<String> = ["AXTextField", "AXTextArea", "AXSearchField", "AXComboBox"]
-    /// 「输入字母即跳转 / 快捷键」的焦点：Finder 列表、网页阅读等，也不打扰
-    private let typeToSelectRoles: Set<String> = ["AXList", "AXOutline", "AXTable", "AXBrowser", "AXGrid", "AXWebArea"]
-
-    func refresh() {
-        let shouldRun = Self.enabled && PetWindowController.isEnabled
-        if shouldRun && Self.permitted {
-            permissionTimer?.invalidate()
-            permissionTimer = nil
-            guard monitor == nil else { return }
-            monitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-                self?.handle(event)
-            }
-        } else {
-            if let monitor { NSEvent.removeMonitor(monitor) }
-            monitor = nil
-            buffer.removeAll()
-            // 刚开启、还在等用户去系统设置授权：每 3 秒看一次，授权后自动生效
-            if shouldRun, permissionTimer == nil {
-                let timer = Timer(timeInterval: 3, repeats: true) { [weak self] _ in
-                    if Self.permitted { self?.refresh() }
-                }
-                RunLoop.main.add(timer, forMode: .common)
-                permissionTimer = timer
-            }
-        }
-    }
-
-    func snooze(minutes: Double) {
-        snoozeUntil = Date().addingTimeInterval(minutes * 60)
-    }
-
-    private func handle(_ event: NSEvent) {
-        let flags = event.modifierFlags.intersection([.command, .control, .option, .function])
-        guard flags.isEmpty, let ch = event.charactersIgnoringModifiers?.first,
-              ch.isASCII, ch.isLetter, ch.isLowercase else {
-            buffer.removeAll()
-            return
-        }
-        let now = Date()
-        buffer = buffer.filter { now.timeIntervalSince($0.at) < PetChatAutoTriggerPolicy.window } + [(now, ch)]
-        guard buffer.count >= PetChatAutoTriggerPolicy.minimumLetters else { return }
-        let letters = String(buffer.map(\.ch))
-        let input = PetChatAutoTriggerPolicy.Input(
-            frontmost: frontmostKind(),
-            mouseLocation: NSEvent.mouseLocation,
-            petFrame: PetWindowController.shared.petFrame,
-            letterCount: letters.count,
-            isSnoozed: now <= snoozeUntil,
-            isChatOpen: PetChatController.shared.isOpen,
-            focusIsTextInput: { [weak self] in self?.focusIsBusy() ?? true })
-        // 不管这次弹不弹，都把这段字母清空：别让在别的 App 里打的字被带进下一次自动对话。
-        buffer.removeAll()
-        guard PetChatAutoTriggerPolicy.shouldOpen(input) else { return }
-        DispatchQueue.main.async {
-            PetChatController.shared.open(prefill: letters, automatic: true)
-        }
-    }
-
-    /// 焦点在输入框、或在「打字即跳转」的列表 / 网页里 → 不是想聊天。
-    private func focusIsBusy() -> Bool {
-        let system = AXUIElementCreateSystemWide()
-        var focused: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
-              let element = focused else { return false }
-        let el = element as! AXUIElement
-        var roleValue: CFTypeRef?
-        AXUIElementCopyAttributeValue(el, kAXRoleAttribute as CFString, &roleValue)
-        let role = roleValue as? String ?? ""
-        if textRoles.contains(role) || typeToSelectRoles.contains(role) { return true }
-        // 网页里的可编辑区域（contenteditable）等
-        var editable: CFTypeRef?
-        if AXUIElementCopyAttributeValue(el, "AXEditableAncestor" as CFString, &editable) == .success, editable != nil { return true }
-        var settable = DarwinBoolean(false)
-        if AXUIElementIsAttributeSettable(el, kAXValueAttribute as CFString, &settable) == .success, settable.boolValue,
-           role != "AXSlider", role != "AXScrollBar" { return true }
-        return false
-    }
-
-    /// 前台分类：只有 Finder / 桌面允许自动叫出聊天；松萝自己与第三方 App（含游戏）都不抢焦点。
-    private func frontmostKind() -> PetChatAutoTriggerPolicy.Frontmost {
-        guard let app = NSWorkspace.shared.frontmostApplication else { return .finder }
-        if app.processIdentifier == ProcessInfo.processInfo.processIdentifier { return .liana }
-        if app.bundleIdentifier == "com.apple.finder" { return .finder }
-        return .thirdParty
-    }
-}
-
-#endif
