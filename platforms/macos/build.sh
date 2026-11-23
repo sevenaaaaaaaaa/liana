@@ -83,7 +83,8 @@ SWIFT_SOURCES=("$HERE/Sources/main.swift" "$HERE/Sources/Engine.swift" \
     "$HERE/Sources/PetLinkWindow.swift" \
     "$HERE/Sources/InputSourceRegistration.swift" \
     "$HERE/Sources/CandidateWindow.swift" "$HERE/Sources/AppProfile.swift" \
-    "$HERE/Sources/PetWindow.swift" "$HERE/Sources/EncryptedStore.swift" \
+    "$HERE/Sources/PetWindow.swift" "$HERE/Sources/PetGazeGate.swift" \
+    "$HERE/Sources/EncryptedStore.swift" \
     "$HERE/Sources/ClipboardMonitor.swift" "$HERE/Sources/ClipboardWindow.swift" \
     "$HERE/Sources/AIModelStore.swift" "$HERE/Sources/BackupManager.swift" \
     "$HERE/Sources/SettingsWindow.swift" "$HERE/Sources/InputController.swift" \

@@ -72,6 +72,8 @@ class PetWebView: WKWebView, WKScriptMessageHandler, WKNavigationDelegate {
     func setMood(_ level: Int) { eval("window.petSetMood && window.petSetMood(\(level))") }
     func greet(_ period: String) { eval("window.petGreet && window.petGreet('\(period)')") }
     func setGaze(dx: Double, dy: Double, near: Double = 0) {
+        // 暂停时页面不画；再推一次只会给 WebContent 添一个 foreground activity。
+        guard !pausedForHidden else { return }
         eval("window.petSetGaze && window.petSetGaze(\(dx), \(dy), \(near))")
     }
     /// 场景姿态：game / music / watch / coding / office …… / ""（纸偶渲染器）。

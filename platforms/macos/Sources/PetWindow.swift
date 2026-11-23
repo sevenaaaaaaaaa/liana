@@ -244,6 +244,8 @@ final class PetWindowController {
     private var voiceHeardAny = false
     private var lastVoiceNod = Date.distantPast
     private var pollTick = 0
+    /// 注视推送闸门：鼠标没动就不往 WebKit 里发 JS（见 PetGazeGate）。
+    private var gazeGate = PetGazeGate()
     private var dragSamples: [(t: CFTimeInterval, p: NSPoint)] = []
     private var dragStarted = Date()
     private var dragWork: DispatchWorkItem?
@@ -482,8 +484,7 @@ final class PetWindowController {
         stopAnimTimer()
         lifeTimer?.invalidate()
         lifeTimer = nil
-        shakeTimer?.invalidate()
-        shakeTimer = nil
+        stopShakeTimer()
         hideToast()
         guard let panel, panel.isVisible, Self.entranceEnabled else {
             self.panel?.orderOut(nil)
@@ -512,7 +513,16 @@ final class PetWindowController {
         let before = pauseReasons.isEmpty
         if on { pauseReasons.insert(reason) } else { pauseReasons.remove(reason) }
         guard before != pauseReasons.isEmpty else { return }
-        petView?.setPaused(!pauseReasons.isEmpty)
+        let paused = !pauseReasons.isEmpty
+        if paused {
+            // 不看就不跑：30Hz 的 shakeTimer 是这次事故的主要唤醒源。
+            stopShakeTimer()
+        } else {
+            // 暂停期间页面没收到新姿态，恢复后补一帧。
+            gazeGate.reset()
+            startShakeTimerIfNeeded()
+        }
+        petView?.setPaused(paused)
     }
 
     /// 遮挡 / 息屏 / 锁屏：桌宠常驻时最容易被忽略的耗电来源。
@@ -715,13 +725,19 @@ final class PetWindowController {
     /// 30Hz 里每两帧更新一次注视（页面里再平滑）；鼠标停在远处一会儿 →（可选）走过去。
     private func followTick(_ panel: NSPanel) {
         let mouse = NSEvent.mouseLocation
-        if pollTick % 2 == 0, let petView {
+        // 看不见 / 息屏 / 锁屏 / 被遮挡时，一帧 JS 都不许发：暂停中的 WebContent
+        // 每收到一次 evaluateJavaScript 都会被一个 foreground activity 拽起来一次，
+        // 正是 2026-11-23 空闲整机冻结的燃料（见 PetGazeGate 的四段注释）。
+        if pauseReasons.isEmpty, panel.isVisible, pollTick % 2 == 0, let petView {
             let center = NSPoint(x: panel.frame.midX, y: panel.frame.minY + panel.frame.height * 0.7)
-            let dx = (mouse.x - center.x) / max(120, panel.frame.width)
-            let dy = (mouse.y - center.y) / max(120, panel.frame.height)
+            let dx = Double((mouse.x - center.x) / max(120, panel.frame.width))
+            let dy = Double((mouse.y - center.y) / max(120, panel.frame.height))
             let dist = hypot(mouse.x - center.x, mouse.y - center.y)
-            let near = max(0, min(1, 1 - (dist - 60) / 260))
-            petView.setGaze(dx: Double(dx), dy: Double(dy), near: Double(near))
+            let near = Double(max(0, min(1, 1 - (dist - 60) / 260)))
+            // 鼠标不动就不推：页面侧自己会平滑，15Hz 的空推只会烧 CPU。
+            if gazeGate.shouldEmit(PetGazeSample(dx: dx, dy: dy, near: near)) {
+                petView.setGaze(dx: dx, dy: dy, near: near)
+            }
         }
         if hypot(mouse.x - lastMouse.x, mouse.y - lastMouse.y) > 3 {
             lastMouse = mouse
@@ -841,13 +857,24 @@ final class PetWindowController {
 
     // MARK: - 生活节律（打盹 / 问候 / 休息提醒）
 
+    /// 30Hz 只读鼠标坐标（不需要任何权限），光标不在桌宠附近时几乎不做事。
+    /// 桌宠一旦暂停（隐藏 / 遮挡 / 息屏 / 锁屏）就必须真的停掉：留着它跑就是每 33ms
+    /// 一次唤醒 + 每两帧一次 evaluateJavaScript，正是空闲整机冻结的燃料。
+    private func startShakeTimerIfNeeded() {
+        guard shakeTimer == nil, panel != nil, pauseReasons.isEmpty else { return }
+        let shake = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in self?.shakeTick() }
+        RunLoop.main.add(shake, forMode: .common)
+        shakeTimer = shake
+    }
+
+    private func stopShakeTimer() {
+        shakeTimer?.invalidate()
+        shakeTimer = nil
+        shakeSamples.removeAll()
+    }
+
     private func startLifeTimer() {
-        if shakeTimer == nil {
-            // 30Hz 只读鼠标坐标（不需要任何权限），光标不在桌宠附近时几乎不做事
-            let shake = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in self?.shakeTick() }
-            RunLoop.main.add(shake, forMode: .common)
-            shakeTimer = shake
-        }
+        startShakeTimerIfNeeded()
         guard lifeTimer == nil else { return }
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             self?.lifeTick()
@@ -1340,6 +1367,9 @@ final class PetWindowController {
     /// 按当前状态用对应帧率重启计时器：idle 慢速省电，typing 提速跟手。
     private func restartAnimTimer() {
         guard pack != nil else { return }
+        // WebKit 渲染器（VRM / Live2D / 纸偶）自己用页面内的 rAF 画，这个帧计时器
+        // 每一下都会命中 tick() 的早退分支：纯空转，直接不建。
+        guard petView == nil else { return }
         let fps: Double
         switch currentState {
         case .idle: fps = pack?.idleFps ?? 3

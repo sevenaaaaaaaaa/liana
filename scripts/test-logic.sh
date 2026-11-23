@@ -38,6 +38,9 @@ run input-source-registration \
 run pet-studio \
   platforms/macos/Sources/PetStudioCore.swift \
   platforms/macos/tests/PetStudioTests.swift
+run pet-gaze-gate \
+  platforms/macos/Sources/PetGazeGate.swift \
+  platforms/macos/tests/PetGazeGateTests.swift
 
 echo "==> iOS 纯逻辑（不依赖 UIKit）"
 run command-catalog \
