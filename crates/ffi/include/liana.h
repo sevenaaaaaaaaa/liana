@@ -57,8 +57,13 @@ void liana_clear(LianaSession *session);
 /* 切换模式，返回 1 表示成功。 */
 int32_t liana_set_mode(LianaSession *session, const char *mode);
 
-/* 当前模式 id。 */
+/* 当前语言 id（自定义语言包下可能与 mode 枚举不同）。 */
 char *liana_mode(LianaSession *session);
+
+/* 内置语言清单（JSON 数组）：[{"id":"...","label":"...","policy":"ascii|unicode"}]。
+ * id 可直接传给 liana_set_mode；policy 是该语言的输入闸门。
+ * 返回值由调用方用 liana_free_string 释放。 */
+char *liana_languages(void);
 
 /* 是否处于组合态：不生成 JSON，供前端每键走快路径。 */
 int32_t liana_has_composition(LianaSession *session);
@@ -111,7 +116,15 @@ void liana_app_mode_free(LianaAppMode *memory);
 int32_t liana_app_mode_observe(LianaAppMode *memory, const char *app_id,
                                    int32_t zh, int32_t strong, uint64_t now);
 
-/* 该应用该用中文还是英文？1 = 中文，0 = 英文，-1 = 样本不足不干预。 */
+/* 记录一次信号（按语言 id，M2）：lang = zh/ja/en/ko/es...；strong 非 0 为手动切换。 */
+int32_t liana_app_mode_observe_lang(LianaAppMode *memory, const char *app_id,
+                                       const char *lang, int32_t strong, uint64_t now);
+
+/* 该应用最该用哪种语言？返回语言 id（调用方释放），NULL = 样本不足不干预。 */
+char *liana_app_mode_decide_lang(LianaAppMode *memory, const char *app_id,
+                                    uint64_t now);
+
+/* 兼容旧接口：1 = 中文，0 = 英文，-1 = 样本不足或不干预（含日语等第三种语言）。 */
 int32_t liana_app_mode_decide(LianaAppMode *memory, const char *app_id,
                                   uint64_t now);
 

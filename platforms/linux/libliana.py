@@ -50,6 +50,7 @@ def _bind():
     l.liana_clear.argtypes, l.liana_clear.restype = [ptr], None
     l.liana_set_mode.argtypes, l.liana_set_mode.restype = [ptr, str_p], ctypes.c_int32
     l.liana_mode.argtypes, l.liana_mode.restype = [ptr], ptr
+    l.liana_languages.argtypes, l.liana_languages.restype = [], ptr
     l.liana_set_traditional.argtypes, l.liana_set_traditional.restype = [ptr, ctypes.c_int32], ctypes.c_int32
     l.liana_traditional.argtypes, l.liana_traditional.restype = [ptr], ctypes.c_int32
     l.liana_composition_json.argtypes, l.liana_composition_json.restype = [ptr], ptr
@@ -65,6 +66,11 @@ def _bind():
 
 
 _bind()
+
+
+def languages():
+    """内置语言清单：[{"id":..., "label":..., "policy":...}]。"""
+    return json.loads(_take_str(_lib.liana_languages()) or "[]")
 
 
 def _take_str(cptr):

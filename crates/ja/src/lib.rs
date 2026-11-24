@@ -1,9 +1,81 @@
-//! 日语输入（阶段一）：罗马字 → 平假名 / 片假名。
+//! 日语输入：罗马字 → 假名 → 汉字（JMdict 剪枝 + 词性连接矩阵 + Viterbi）。
 //!
-//! 采用「最长匹配 + 促音/拨音规则」的确定性转换；假名→汉字的 Viterbi 转换在 M2
-//! （JMdict + 连接矩阵），届时复用 `liana-dict` 与 `liana-pinyin` 的 DP 思路。
+//! 三段各管一件事：
+//! 1. `to_hiragana`：确定性罗马字转写（最长匹配、促音、拨音）；
+//! 2. `dict` / `matrix`：内嵌的常用词表与词性 bigram 成本；
+//! 3. `viterbi`：词格上的 N-best 解码，最坏情况原样输出假名。
+//!
+//! 数据来源与许可证见 `crates/ja/data/SOURCES.md`（JMdict / UD Japanese-GSD，
+//! 均 CC BY-SA 4.0）。
+
+mod charlm;
+mod dict;
+mod matrix;
+mod pos;
+mod viterbi;
+
+pub use viterbi::Conversion;
 
 use liana_core::{Candidate, CandidateKind, Decoder};
+
+/// 假名 → 表记（评测与测试入口，不经过罗马字）。
+///
+/// 两级：先跑 Viterbi 取 20-best，再用字符 4-gram 模型按「平均每字符成本」重排。
+/// 重排权重可用环境变量 `LIANA_JA_LM_WEIGHT` 调（0 = 关闭，默认 70）。
+pub fn convert_kana(kana: &str) -> Vec<Conversion> {
+    let mut out = viterbi::convert(kana, dict::Dictionary::embedded(), matrix::Matrix::embedded(), 20);
+    let weight: i32 = std::env::var("LIANA_JA_LM_WEIGHT")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(30);
+    // 短输入（单个词）不重排：字符 n-gram 没有上下文可依，反而会把
+    // 词表里正确的汉字换成更「像日语」的假名。词级评测守的就是这条线。
+    if weight > 0 && kana.chars().count() >= 6 {
+        let lm = charlm::CharLm::embedded();
+        for c in &mut out {
+            c.cost += lm.score_per_char(&c.text) * weight / 100;
+        }
+        out.sort_by_key(|c| c.cost);
+    }
+    out
+}
+
+/// 词典里是否存在 (读音, 表记) 这一对（评测用）。
+pub fn has_surface(reading: &str, surface: &str) -> bool {
+    dict::Dictionary::embedded().has_surface(reading, surface)
+}
+
+/// 这个假名是否本身就是一个读音（脚本判定用）。
+pub fn has_reading(reading: &str) -> bool {
+    dict::Dictionary::embedded().lookup(reading).is_some()
+}
+
+/// 是否存在以该假名开头的读音（脚本判定用）。
+pub fn has_reading_prefix(prefix: &str) -> bool {
+    dict::Dictionary::embedded().has_prefix(prefix)
+}
+
+/// 假名 → 候选（语言包与前端用）。转换结果在前，假名/片假名兜底在后。
+pub fn decode_kana(kana: &str) -> Vec<Candidate> {
+    let consumed = kana.chars().count();
+    let mut out: Vec<Candidate> = Vec::new();
+    for (i, c) in convert_kana(kana).into_iter().enumerate() {
+        out.push(Candidate::new(
+            c.text,
+            consumed,
+            CandidateKind::Sentence,
+            100_000.0 - c.cost as f64 - i as f64,
+        ));
+    }
+    if !out.iter().any(|c| c.text == kana) {
+        out.push(Candidate::new(kana, consumed, CandidateKind::Kana, 1.0));
+    }
+    let kata = to_katakana(kana);
+    if !out.iter().any(|c| c.text == kata) {
+        out.push(Candidate::new(kata, consumed, CandidateKind::Kana, 1.0).with_comment("カタカナ"));
+    }
+    out
+}
 
 /// 罗马字表（按长度做最长匹配；含拗音、外来语音节与常用简写）。
 const TABLE: &[(&str, &str)] = &[
@@ -284,11 +356,12 @@ impl Decoder for JaDecoder {
             return Vec::new();
         }
         let consumed = input.chars().count();
-        let kata = to_katakana(&hira);
-        vec![
-            Candidate::new(hira, consumed, CandidateKind::Kana, 2.0),
-            Candidate::new(kata, consumed, CandidateKind::Kana, 1.0).with_comment("カタカナ"),
-        ]
+        let mut out = decode_kana(&hira);
+        // 罗马字输入时，前端要消费的是字母数而不是假名字数
+        for c in &mut out {
+            c.consumed = consumed;
+        }
+        out
     }
 }
 
@@ -329,12 +402,20 @@ mod tests {
     }
 
     #[test]
-    fn decoder_outputs_hira_and_kata() {
+    fn decoder_converts_romaji_to_kanji() {
         let d = JaDecoder;
         let c = d.decode("nihon");
-        assert_eq!(c.len(), 2);
-        assert_eq!(c[0].text, "にほん");
-        assert_eq!(c[1].text, "ニホン");
+        assert_eq!(c[0].text, "日本");
+        assert!(c.iter().any(|x| x.text == "にほん"));
+        assert!(c.iter().any(|x| x.text == "ニホン"));
         assert!(d.decode("").is_empty());
+    }
+
+    #[test]
+    fn kana_decoder_prefers_kanji_and_keeps_kana() {
+        let c = decode_kana("がっこう");
+        assert_eq!(c[0].text, "学校");
+        assert!(c.iter().any(|x| x.text == "がっこう"));
+        assert!(c[0].consumed == 4);
     }
 }

@@ -3,7 +3,10 @@
 use std::sync::{Arc, Mutex};
 
 use liana_core::backup::{self, BackupError};
-use liana_core::{Candidate, CandidateKind, Composition, Decoder, Mode, UserModel};
+use liana_core::{
+    Candidate, CandidateKind, Composition, Decoder, FeedPolicy, LanguagePack, Mode, Registry,
+    UserModel,
+};
 use liana_dict::Dictionary;
 use liana_emoji::EmojiDecoder;
 use liana_en::EnDecoder;
@@ -22,6 +25,7 @@ use chinese_ime_lm::{Reranker, SentenceModel};
 pub type SentenceModelHandle = SentenceModel;
 
 pub mod app_mode;
+pub mod script;
 pub mod evolution;
 pub mod feed;
 pub mod stats;
@@ -81,14 +85,122 @@ pub struct SelectionEval {
     pub alt_rank: bool,
 }
 
+/// 内置英文包：会话共享词表包成语言包，分发不再按枚举分支。
+struct EnglishPack {
+    inner: Arc<EnDecoder>,
+}
+
+impl LanguagePack for EnglishPack {
+    fn id(&self) -> &'static str {
+        "en"
+    }
+
+    fn label(&self) -> &'static str {
+        "English"
+    }
+
+    fn feed_policy(&self) -> FeedPolicy {
+        FeedPolicy::Ascii
+    }
+
+    fn decode(&self, input: &str) -> Vec<Candidate> {
+        self.inner.decode(input)
+    }
+}
+
+/// 内置日文包：罗马字 → 假名。M1 的假名 → 汉字换的是这个 id 的实现，调用方不变。
+struct JapanesePack;
+
+impl LanguagePack for JapanesePack {
+    fn id(&self) -> &'static str {
+        "ja"
+    }
+
+    fn label(&self) -> &'static str {
+        "日本語"
+    }
+
+    fn feed_policy(&self) -> FeedPolicy {
+        FeedPolicy::Ascii
+    }
+
+    fn preedit(&self, input: &str) -> String {
+        liana_ja::to_hiragana(input).unwrap_or_else(|| input.to_string())
+    }
+
+    fn decode(&self, input: &str) -> Vec<Candidate> {
+        JaDecoder.decode(input)
+    }
+}
+
+/// 内置表情包。
+struct EmojiPack;
+
+impl LanguagePack for EmojiPack {
+    fn id(&self) -> &'static str {
+        "emoji"
+    }
+
+    fn label(&self) -> &'static str {
+        "表情"
+    }
+
+    fn feed_policy(&self) -> FeedPolicy {
+        FeedPolicy::Ascii
+    }
+
+    fn decode(&self, input: &str) -> Vec<Candidate> {
+        EmojiDecoder.candidates(input)
+    }
+}
+
+/// 中文语言 id：走 PinyinDecoder 路径，其余语言一律走注册表。
+const CHINESE_LANGS: [&str; 4] = ["pinyin", "flypy", "mspy", "zrm"];
+
+/// 构造内置语言包表（与会话内的那张表同源）。
+fn builtin_packs() -> Registry {
+    let mut packs = Registry::new();
+    packs.register(Box::new(EnglishPack {
+        inner: EnDecoder::embedded_shared(),
+    }));
+    packs.register(Box::new(JapanesePack));
+    packs.register(Box::new(liana_ko::KoreanPack));
+    packs.register(Box::new(liana_es::SpanishPack));
+    packs.register(Box::new(EmojiPack));
+    packs
+}
+
+/// 内置语言清单：(id, 菜单名, 输入闸门)。
+///
+/// 中文四项是特例（走 PinyinDecoder），其余直接从注册表取——
+/// 将来加语言只需注册一个包，这份清单自动跟上，前端菜单不必逐端改枚举。
+pub fn builtin_languages() -> Vec<(&'static str, &'static str, &'static str)> {
+    let mut out = vec![
+        ("pinyin", "拼音", "ascii"),
+        ("flypy", "小鹤双拼", "ascii"),
+        ("mspy", "微软双拼", "ascii"),
+        ("zrm", "自然码", "ascii"),
+    ];
+    let packs = builtin_packs();
+    for id in packs.ids() {
+        if let Some(p) = packs.get(id) {
+            out.push((p.id(), p.label(), p.feed_policy().id()));
+        }
+    }
+    out
+}
+
 pub struct Session {
     mode: Mode,
+    /// 当前语言 id（真相源）。mode 只在四个内置枚举内有效，
+    /// 自定义语言包由注册表承载，与 mode 无关。
+    language: &'static str,
+    /// 已注册语言包：分发只看这里，不看 match self.mode。
+    packs: Registry,
     buffer: String,
     comp: Composition,
     dict: Arc<Dictionary>,
     en: Arc<EnDecoder>,
-    ja: JaDecoder,
-    emoji: EmojiDecoder,
     symbol: SymbolDecoder,
     radix: RadixDecoder,
     user: UserModel,
@@ -144,14 +256,15 @@ impl Session {
     }
 
     pub fn with_mode(dict: Arc<Dictionary>, mode: Mode) -> Self {
+        let en = EnDecoder::embedded_shared();
         let mut session = Self {
             mode,
+            language: mode.id(),
+            packs: builtin_packs(),
             buffer: String::new(),
             comp: Composition::default(),
             dict,
-            en: EnDecoder::embedded_shared(),
-            ja: JaDecoder,
-            emoji: EmojiDecoder,
+            en,
             symbol: SymbolDecoder,
             radix: RadixDecoder,
             user: UserModel::new(),
@@ -197,6 +310,41 @@ impl Session {
 
     pub fn mode(&self) -> Mode {
         self.mode
+    }
+
+    /// 当前语言 id（真相源）。自定义语言包下与 mode() 可能不同。
+    pub fn language(&self) -> &'static str {
+        self.language
+    }
+
+    /// 注册一个语言包。注册即生效，不需要改引擎里的任何分发分支。
+    pub fn register_language(&mut self, pack: Box<dyn LanguagePack>) -> bool {
+        self.packs.register(pack)
+    }
+
+    /// 按语言 id 切换。内置 id 走枚举门面，其余走注册表。
+    pub fn set_language(&mut self, id: &str) -> bool {
+        if let Some(mode) = Mode::from_id(id) {
+            self.set_mode(mode);
+            return true;
+        }
+        match self.packs.get(id) {
+            Some(pack) => {
+                self.language = pack.id();
+                self.clear();
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// 是否走中文解码路径。只看语言 id，不看 mode：自定义包不继承中文行为。
+    fn is_chinese(&self) -> bool {
+        CHINESE_LANGS.contains(&self.language)
+    }
+
+    fn is_emoji(&self) -> bool {
+        self.language == "emoji"
     }
 
     /// 候选是否以繁体呈现。
@@ -252,21 +400,34 @@ impl Session {
         Ok(n)
     }
 
-    /// 前端按键入口。只接受字母与 `'`、`;`（微软双拼 ing 键）；
+    /// 前端按键入口。ASCII 字母与 `'`、`;`（微软双拼 ing 键）直接收；
+    /// 非 ASCII 字符交给当前语言包的 `accepts`（变音符、谚文直打）；
     /// 下划线随时可入缓冲（代码标识符意图，getUser/get_user）；
     /// 英文串（纯字母组合解码不出中文）里允许续接网址/邮箱/版本号符号与数字；
     /// `@` 是无歧义的邮箱意图（缓冲非空即续接，张三@163.com 也能一路打完）；
     /// 学过网址习惯的字母段（原样上屏过 baidu.com）按「.」直接续接组合。
     pub fn feed(&mut self, ch: char) -> bool {
-        let identifier_underscore =
-            ch == '_' && matches!(self.mode, Mode::Pinyin | Mode::Shuangpin(_) | Mode::English);
+        let identifier_underscore = ch == '_' && (self.is_chinese() || self.language == "en");
         let ok = ch.is_ascii_alphabetic() || ch == '\'' || ch == ';' || identifier_underscore;
         if !ok {
+            // 非 ASCII 由语言包自己决定收不收（变音符、谚文直打）。
+            // 中文与英文不参与：它们的闸门固定是 ASCII，变音符不能污染拼音缓冲。
+            if !self.is_chinese()
+                && self.language != "en"
+                && self
+                    .packs
+                    .get(self.language)
+                    .is_some_and(|p| p.accepts(ch))
+            {
+                self.buffer.push(ch);
+                self.refresh();
+                return true;
+            }
             // 英文串续接：example.ai、http://、someone@example.com、v1.2——
             // 符号与数字直接进组合，空格/回车由前端原样上屏。
             // url_prefix_like 额外放行 `www.`/`http:` 这类「首字符点」：否则 `www`
             // 会命中整词短拼候选（万维网）被当作中文，网址就打不下去。
-            if matches!(self.mode, Mode::Pinyin | Mode::Shuangpin(_) | Mode::English)
+            if (self.is_chinese() || self.language == "en")
                 && (self.english_like() || self.url_prefix_like() || self.ascii_intent(ch))
                 && (ch.is_ascii_punctuation() || ch.is_ascii_digit())
             {
@@ -276,10 +437,12 @@ impl Session {
             }
             return false;
         }
-        match self.mode {
-            // 中文模式保留大小写：大写是「英文意图」信号，继续由解码器小写归一化
-            Mode::Pinyin | Mode::Shuangpin(_) | Mode::English => self.buffer.push(ch),
-            _ => self.buffer.push(ch.to_ascii_lowercase()),
+        // 中文与英文保留大小写：大写是「英文意图」信号，由解码器小写归一化；
+        // 其余语言（假名、自定义包）统一小写。
+        if self.is_chinese() || self.language == "en" {
+            self.buffer.push(ch);
+        } else {
+            self.buffer.push(ch.to_ascii_lowercase());
         }
         self.refresh();
         true
@@ -321,7 +484,7 @@ impl Session {
     pub fn english_like(&self) -> bool {
         let raw_len = self.buffer.chars().count();
         !self.buffer.is_empty()
-            && matches!(self.mode, Mode::Pinyin | Mode::Shuangpin(_) | Mode::English)
+            && (self.is_chinese() || self.language == "en")
             && (self.buffer.contains('_')
                 || self.url_prefix_like()
                 || !self.comp.candidates.iter().any(|c| {
@@ -360,8 +523,9 @@ impl Session {
     }
 
     pub fn set_mode(&mut self, mode: Mode) {
-        if self.mode != mode {
+        if self.mode != mode || self.language != mode.id() {
             self.mode = mode;
+            self.language = mode.id();
             self.clear();
         }
     }
@@ -388,7 +552,7 @@ impl Session {
             .unwrap_or(actual_top1);
         self.pending_eval = Some((actual_top1, base_top1));
         self.consume(cand.consumed);
-        if self.mode != Mode::Emoji {
+        if !self.is_emoji() {
             self.user.record(&learned);
             // 短语要用「上一段」的按键，必须排在 learn_context 之前
             self.learn_phrase(&keys, &learned, index > 0);
@@ -530,7 +694,7 @@ impl Session {
 
     /// 选择瞬间的待记账项：词 + 当时的上下文特征。表情模式不参与。
     fn evolution_pending(&self, word: &str) -> Option<(String, Vec<String>)> {
-        if !self.evolution_enabled || self.mode == Mode::Emoji || word.is_empty() {
+        if !self.evolution_enabled || self.is_emoji() || word.is_empty() {
             return None;
         }
         Some((word.to_string(), self.evolution_features()))
@@ -629,7 +793,7 @@ impl Session {
     /// remember_single（用户选了非首选）时，额外把「本次按键 → 本次词」单独记一条：
     /// 明确纠正过一次，同一个按键串下次就该先给这个词，而不是等第二、三次。
     fn learn_phrase(&mut self, keys: &str, text: &str, remember_single: bool) {
-        if !matches!(self.mode, Mode::Pinyin | Mode::Shuangpin(_)) {
+        if !self.is_chinese() {
             self.recent.clear();
             return;
         }
@@ -706,13 +870,13 @@ impl Session {
 
     fn refresh(&mut self) {
         self.origins.clear();
-        if self.buffer.is_empty() && self.mode != Mode::Emoji {
+        if self.buffer.is_empty() && !self.is_emoji() {
             self.comp = Composition::default();
             return;
         }
         // `u` 前缀进符号模式：普通话没有以 u 开头的音节，不会和拼音抢输入。
         // `uu` 前缀进拆字模式（部件读音拼字），优先于符号模式判定。
-        if self.mode == Mode::Pinyin && self.buffer.starts_with(liana_radix::TRIGGER) {
+        if self.language == "pinyin" && self.buffer.starts_with(liana_radix::TRIGGER) {
             let cands = self.radix.decode_buffer(&self.buffer);
             if !cands.is_empty() {
                 self.finish(cands, self.buffer.clone());
@@ -720,7 +884,7 @@ impl Session {
             }
         }
         let symbol_hit =
-            if self.mode == Mode::Pinyin && self.buffer.starts_with(liana_symbol::TRIGGER) {
+            if self.language == "pinyin" && self.buffer.starts_with(liana_symbol::TRIGGER) {
                 let c = self.symbol.decode_buffer(&self.buffer);
                 (!c.is_empty()).then_some(c)
             } else {
@@ -730,28 +894,27 @@ impl Session {
             self.finish(cands, self.buffer.clone());
             return;
         }
-        let (mut cands, preedit) = match self.mode {
-            Mode::Pinyin | Mode::Shuangpin(_) => {
-                let layout = match self.mode {
-                    Mode::Shuangpin(s) => Layout::Shuangpin(s),
-                    _ => Layout::Full,
-                };
-                let d = PinyinDecoder::new(self.dict.clone(), layout);
-                // 个人词频与营养词进入整句解码（不只是事后重排）
-                let user = &self.user;
-                let nutrition = &self.nutrition;
-                let boost = |w: &str| user.decode_bonus(w) + nutrition.bonus(w);
-                (d.candidates_with(&self.buffer, &boost), d.preedit(&self.buffer))
-            }
-            Mode::English => (self.en.decode(&self.buffer), self.buffer.clone()),
-            Mode::Japanese => {
-                let preedit =
-                    liana_ja::to_hiragana(&self.buffer).unwrap_or_else(|| self.buffer.clone());
-                (self.ja.decode(&self.buffer), preedit)
-            }
-            Mode::Emoji => (self.emoji.decode(&self.buffer), self.buffer.clone()),
+        let (mut cands, mut preedit) = if self.is_chinese() {
+            let layout = match self.mode {
+                Mode::Shuangpin(s) => Layout::Shuangpin(s),
+                _ => Layout::Full,
+            };
+            let d = PinyinDecoder::new(self.dict.clone(), layout);
+            // 个人词频与营养词进入整句解码（不只是事后重排）
+            let user = &self.user;
+            let nutrition = &self.nutrition;
+            let boost = |w: &str| user.decode_bonus(w) + nutrition.bonus(w);
+            (d.candidates_with(&self.buffer, &boost), d.preedit(&self.buffer))
+        } else if let Some(pack) = self.packs.get(self.language) {
+            // 语言包接管：英文、日文、表情与将来任何注册进来的语言走同一条路。
+            (pack.decode(&self.buffer), pack.preedit(&self.buffer))
+        } else {
+            // 注册表里没有这个 id：不出候选，前端按 preedit 原样上屏。
+            (Vec::new(), self.buffer.clone())
         };
-        if self.mode != Mode::Emoji {
+        if !self.is_emoji() {
+            // M2：不切模式也认另一种罗马字语言（拼音↔日文）。
+            self.merge_detected_language(&mut cands, &mut preedit);
             for c in &mut cands {
                 c.score += self.user.bonus(&c.text);
                 c.score += self.nutrition.bonus(&c.text);
@@ -759,7 +922,7 @@ impl Session {
                     c.score += self.user.pair_bonus(prev, &c.text);
                 }
             }
-            if matches!(self.mode, Mode::Pinyin | Mode::Shuangpin(_)) {
+            if self.is_chinese() {
                 self.push_phrase_candidates(&mut cands);
                 self.push_nutrition_candidates(&mut cands);
                 self.push_english_candidates(&mut cands);
@@ -767,6 +930,96 @@ impl Session {
             }
         }
         self.finish(cands, preedit);
+    }
+
+    /// 当前语言在脚本判定里的 id（中文四方案统一算 zh）。
+    fn script_id(&self) -> &'static str {
+        if self.is_chinese() {
+            "zh"
+        } else if self.language == "ja" {
+            "ja"
+        } else if self.language == "en" {
+            "en"
+        } else {
+            ""
+        }
+    }
+
+    /// M2：输入串明显更像另一门罗马字语言时，把那门语言的候选并进来。
+    ///
+    /// 只影响候选顺序与预编辑串，不改语言状态；用户选中文候选即照常上屏。
+    /// 外语候选的分数被归一化到当前语言首选附近，避免两套打分尺度直接相撞。
+    fn merge_detected_language(
+        &self,
+        cands: &mut Vec<liana_core::Candidate>,
+        preedit: &mut String,
+    ) {
+        let raw = self.buffer.clone();
+        let lower = raw.to_ascii_lowercase();
+        let chars = raw.chars().count();
+        if chars < 2
+            || chars > 32
+            || !raw
+                .chars()
+                .all(|c| c.is_ascii_alphabetic() || c == '\'')
+        {
+            return;
+        }
+        let active = self.script_id();
+        if active.is_empty() {
+            return;
+        }
+        let exact = self.en.contains(&lower);
+        let prefix = self.en.has_prefix(&lower);
+        let scores = script::detect(&lower, exact, prefix);
+        let active_score = scores.get(active);
+        let (best, best_score) = scores.best();
+        if best == active || best_score < 0.75 || best_score < active_score + 0.2 {
+            return;
+        }
+        // 极短输入不切：wo -> を、ai -> 愛 这类单音节词两种语言都合法，
+        // 切过去只会让预编辑串跳动。gao（高/好）也是完整拼音音节 + 日文 かお，
+        // 4 字母以内且拼音能完整切分时，优先当前语言。
+        if best == "ja" && chars < 3 {
+            return;
+        }
+        if best == "ja" && chars <= 4 && active_score >= 0.99 {
+            return;
+        }
+        let incoming = match best {
+            "ja" if active == "zh" => match self.packs.get("ja") {
+                Some(pack) => pack.decode(&raw),
+                None => return,
+            },
+            "zh" if active == "ja" => {
+                let d = PinyinDecoder::new(self.dict.clone(), Layout::Full);
+                let user = &self.user;
+                let nutrition = &self.nutrition;
+                let boost = |w: &str| user.decode_bonus(w) + nutrition.bonus(w);
+                d.candidates_with(&raw, &boost)
+            }
+            _ => return,
+        };
+        if incoming.is_empty() {
+            return;
+        }
+        let top = cands.first().map(|c| c.score).unwrap_or(0.0);
+        let delta = 1.0 + (best_score - active_score) * 4.0;
+        for (rank, mut c) in incoming.into_iter().take(3).enumerate() {
+            c.consumed = chars;
+            c.score = top + delta - rank as f64 * 0.1;
+            if c.comment.is_none() {
+                c.comment = Some(if best == "ja" { "日本語".into() } else { "中文".into() });
+            }
+            cands.push(c);
+        }
+        if best == "ja" {
+            if let Some(pack) = self.packs.get("ja") {
+                *preedit = pack.preedit(&raw);
+            }
+        } else {
+            *preedit = raw;
+        }
     }
 
     /// 候选收尾：分层排序 → 屏蔽剔除 → 知你重排 → 神经重排 → 钉选置顶 →
@@ -777,7 +1030,7 @@ impl Session {
         // 屏蔽的候选直接剔除（微信式「不再显示」）。
         cands.retain(|c| !self.user.is_banned(&c.text));
         // E3 反事实基线：重排前的顺序（简体原文空间，与 select 的 learned 同空间）。
-        self.base_order = if self.evolution_enabled && self.mode != Mode::Emoji && !cands.is_empty()
+        self.base_order = if self.evolution_enabled && !self.is_emoji() && !cands.is_empty()
         {
             Some(cands.iter().map(|c| c.text.clone()).collect())
         } else {
@@ -811,7 +1064,7 @@ impl Session {
     /// 连续段。封顶 ±3 加上只在层内换位，保证覆盖分层与「原样上屏垫底」的
     /// 不变式永不被学习打破（ADR-0008：学习只能微调，不能掀桌）。
     fn apply_evolution_rerank(&mut self, cands: &mut [Candidate]) {
-        if !self.evolution_enabled || self.mode == Mode::Emoji || cands.len() < 2 {
+        if !self.evolution_enabled || self.is_emoji() || cands.len() < 2 {
             return;
         }
         let features = self.evolution_features();
@@ -869,7 +1122,7 @@ impl Session {
     /// 返回 true 表示首选变了（前端据此刷新候选窗）。不改缓冲、不重解码。
     #[cfg(feature = "rerank")]
     pub fn pause_rerank(&mut self) -> bool {
-        if !matches!(self.mode, Mode::Pinyin | Mode::Shuangpin(_)) {
+        if !self.is_chinese() {
             return false;
         }
         let raw_len = self.buffer.chars().count();
@@ -994,7 +1247,7 @@ impl Session {
     /// 用候选读音反查词典验证；拼装句读音虽与所打一致，但整句不是词条。
     #[cfg(feature = "rerank")]
     fn apply_neural_rerank(&mut self, cands: &mut Vec<liana_core::Candidate>) {
-        if !matches!(self.mode, Mode::Pinyin | Mode::Shuangpin(_)) || cands.len() < 2 {
+        if !self.is_chinese() || cands.len() < 2 {
             return;
         }
         let weight = std::env::var("LIANA_NEURAL_WEIGHT")
@@ -1312,6 +1565,136 @@ mod tests {
             s.feed(ch);
         }
     }
+
+    /// 外部语言包：注册即可用——引擎里没有为它写过任何分支。
+    struct TestPack;
+
+    impl liana_core::LanguagePack for TestPack {
+        fn id(&self) -> &'static str {
+            "es-test"
+        }
+
+        fn label(&self) -> &'static str {
+            "Español (test)"
+        }
+
+        fn feed_policy(&self) -> liana_core::FeedPolicy {
+            liana_core::FeedPolicy::Unicode
+        }
+
+        fn decode(&self, input: &str) -> Vec<Candidate> {
+            vec![Candidate::new(
+                format!("ES:{input}"),
+                input.chars().count(),
+                CandidateKind::Word,
+                9.0,
+            )]
+        }
+    }
+
+    #[test]
+    fn external_language_pack_needs_no_engine_branch() {
+        let mut s = session(Mode::Pinyin);
+        assert_eq!(s.language(), "pinyin");
+        assert!(s.register_language(Box::new(TestPack)));
+
+        assert!(s.set_language("es-test"));
+        assert_eq!(s.language(), "es-test");
+        type_str(&mut s, "hola");
+        let cands = &s.composition().candidates;
+        assert_eq!(cands.first().map(|c| c.text.as_str()), Some("ES:hola"));
+
+        // 未知 id 不改现状。
+        assert!(!s.set_language("nope"));
+        assert_eq!(s.language(), "es-test");
+
+        // 切回内置语言仍走原路径。
+        assert!(s.set_language("pinyin"));
+        assert_eq!(s.language(), "pinyin");
+        type_str(&mut s, "nihao");
+        assert_eq!(s.composition().candidates[0].text, "你好");
+    }
+
+    /// 注册表接管后，日文预编辑串仍由包提供（不再写死在 refresh 里）。
+    #[test]
+    fn japanese_preedit_comes_from_the_pack() {
+        let mut s = session(Mode::Japanese);
+        type_str(&mut s, "nihon");
+        assert_eq!(s.composition().preedit, "にほん");
+        // M1 起首选是汉字；假名仍保留在候选里，用户可回退原样上屏。
+        assert_eq!(s.composition().candidates[0].text, "日本");
+        assert!(s.composition().candidates.iter().any(|c| c.text == "にほん"));
+    }
+
+    /// ASCII 策略的包：非 ASCII 一律拒收，和中文/英文同一道闸门。
+    struct AsciiPack;
+
+    impl liana_core::LanguagePack for AsciiPack {
+        fn id(&self) -> &'static str {
+            "ascii-test"
+        }
+
+        fn label(&self) -> &'static str {
+            "Ascii (test)"
+        }
+
+        fn feed_policy(&self) -> liana_core::FeedPolicy {
+            liana_core::FeedPolicy::Ascii
+        }
+
+        fn decode(&self, input: &str) -> Vec<Candidate> {
+            vec![Candidate::new(
+                format!("A:{input}"),
+                input.chars().count(),
+                CandidateKind::Word,
+                1.0,
+            )]
+        }
+    }
+
+    /// Unicode 包拿到的是「包自己说能收的键」，不是「引擎替它筛过的 ASCII」。
+    #[test]
+    fn unicode_pack_accepts_non_ascii_keystrokes() {
+        let mut s = session(Mode::Pinyin);
+        assert!(s.register_language(Box::new(TestPack)));
+        assert!(s.set_language("es-test"));
+
+        assert!(s.feed('ñ'), "Unicode 包应接受变音符");
+        assert_eq!(s.buffer(), "ñ");
+        assert_eq!(s.composition().candidates[0].text, "ES:ñ");
+
+        s.clear();
+        assert!(s.feed('한'), "Unicode 包应接受谚文");
+        assert!(s.feed('국'));
+        assert_eq!(s.buffer(), "한국");
+        assert_eq!(s.composition().candidates[0].text, "ES:한국");
+    }
+
+    /// 守卫：放开 Unicode 不等于放开中文/英文——变音符不能污染拼音缓冲。
+    #[test]
+    fn chinese_and_english_still_reject_non_ascii() {
+        let mut zh = session(Mode::Pinyin);
+        assert!(!zh.feed('ñ'), "拼音缓冲不能被变音符污染");
+        assert!(!zh.feed('한'), "拼音缓冲不能被谚文污染");
+        assert!(zh.buffer().is_empty());
+
+        let mut en = session(Mode::English);
+        assert!(!en.feed('ñ'));
+        assert!(en.buffer().is_empty());
+    }
+
+    /// Ascii 策略的包不因为「能注册」就得到 Unicode 权限。
+    #[test]
+    fn ascii_policy_pack_rejects_non_ascii() {
+        let mut s = session(Mode::Pinyin);
+        assert!(s.register_language(Box::new(AsciiPack)));
+        assert!(s.set_language("ascii-test"));
+        assert!(!s.feed('ñ'), "Ascii 策略的包不接受变音符");
+        assert!(s.feed('x'));
+        assert_eq!(s.buffer(), "x");
+    }
+
+
 
     #[test]
     fn pinyin_type_and_commit() {
@@ -1709,7 +2092,39 @@ mod tests {
         let mut s = session(Mode::Japanese);
         type_str(&mut s, "nihon");
         assert_eq!(s.composition().preedit, "にほん");
-        assert_eq!(s.composition().candidates[0].text, "にほん");
+        assert_eq!(s.composition().candidates[0].text, "日本");
+        assert!(s.composition().candidates.iter().any(|c| c.text == "にほん"));
+    }
+
+    #[test]
+    fn pinyin_mode_detects_japanese_romaji() {
+        let mut s = session(Mode::Pinyin);
+        type_str(&mut s, "nihon");
+        assert_eq!(s.composition().candidates[0].text, "日本");
+        assert_eq!(s.composition().preedit, "にほん");
+        assert_eq!(s.language(), "pinyin", "自动识别不改语言状态");
+    }
+
+    #[test]
+    fn pinyin_mode_detects_gakkou() {
+        let mut s = session(Mode::Pinyin);
+        type_str(&mut s, "gakkou");
+        assert_eq!(s.composition().candidates[0].text, "学校");
+    }
+
+    #[test]
+    fn japanese_mode_detects_pinyin() {
+        let mut s = session(Mode::Japanese);
+        type_str(&mut s, "nihao");
+        assert_eq!(s.composition().candidates[0].text, "你好");
+        assert_eq!(s.language(), "ja");
+    }
+
+    #[test]
+    fn pinyin_mode_keeps_pure_chinese() {
+        let mut s = session(Mode::Pinyin);
+        type_str(&mut s, "zhongguo");
+        assert_eq!(s.composition().candidates[0].text, "中国");
     }
 
     #[test]
@@ -2523,7 +2938,6 @@ mod tests {
 /// 「打得准就不出纠错」端到端守卫：完整全拼解码出真实词后，
     /// 部分覆盖的纠错候选整体消失（候选注释噪声的最大来源）。
     #[test]
-    #[test]
     fn well_typed_input_drops_partial_corrections() {
         let mut s = session(Mode::Pinyin);
         for input in ["nihao", "shuru", "diannao", "xihuan"] {
@@ -2549,7 +2963,6 @@ mod tests {
     }
 
     /// 整词纠错（gao→好）与补全（输入法 shu ru fa）不受抑制影响。
-    #[test]
     #[test]
     fn whole_word_corrections_survive() {
         let mut s = session(Mode::Pinyin);

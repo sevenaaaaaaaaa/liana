@@ -10,3 +10,15 @@
 # target 重建，10 个符号全部到位）。当时本机「直连 rust-lang 源」下载该 target
 # 会 connection reset，换 rsproxy 镜像后成功——这一步写在这里，下次重建不用再试错。
 #
+# 2026-11-24：M0/M2/M3 新增 3 个 C ABI（liana_languages / app_mode_observe_lang / app_mode_decide_lang）。
+# 鸿蒙 .a 已重建到位；Android 本机缺 cargo-ndk（crates.io 索引拉取超时），
+# 待有 Android NDK + cargo-ndk 的机器执行 platforms/android/build_native.sh 后删掉这 9 行。
+platforms/android/app/src/main/jniLibs/arm64-v8a/libliana_jni.so	liana_languages	2026-11-24 新符号；本机缺 cargo-ndk，待重建
+platforms/android/app/src/main/jniLibs/arm64-v8a/libliana_jni.so	liana_app_mode_observe_lang	2026-11-24 新符号；本机缺 cargo-ndk，待重建
+platforms/android/app/src/main/jniLibs/arm64-v8a/libliana_jni.so	liana_app_mode_decide_lang	2026-11-24 新符号；本机缺 cargo-ndk，待重建
+platforms/android/app/src/main/jniLibs/armeabi-v7a/libliana_jni.so	liana_languages	2026-11-24 新符号；本机缺 cargo-ndk，待重建
+platforms/android/app/src/main/jniLibs/armeabi-v7a/libliana_jni.so	liana_app_mode_observe_lang	2026-11-24 新符号；本机缺 cargo-ndk，待重建
+platforms/android/app/src/main/jniLibs/armeabi-v7a/libliana_jni.so	liana_app_mode_decide_lang	2026-11-24 新符号；本机缺 cargo-ndk，待重建
+platforms/android/app/src/main/jniLibs/x86_64/libliana_jni.so	liana_languages	2026-11-24 新符号；本机缺 cargo-ndk，待重建
+platforms/android/app/src/main/jniLibs/x86_64/libliana_jni.so	liana_app_mode_observe_lang	2026-11-24 新符号；本机缺 cargo-ndk，待重建
+platforms/android/app/src/main/jniLibs/x86_64/libliana_jni.so	liana_app_mode_decide_lang	2026-11-24 新符号；本机缺 cargo-ndk，待重建

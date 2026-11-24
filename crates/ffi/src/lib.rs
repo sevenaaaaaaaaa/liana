@@ -13,6 +13,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use liana_core::Mode;
 use liana_dict::Dictionary;
 use liana_engine::Session;
+use liana_engine::builtin_languages;
 use liana_engine::app_mode::AppModeMemory;
 use liana_engine::evolution::{self, EvolutionMemory};
 use liana_plugin::Pack as PluginPack;
@@ -377,14 +378,13 @@ pub unsafe extern "C" fn liana_set_mode(
     if session.is_null() {
         return 0;
     }
-    let mode = unsafe { cstr(mode) };
+    let id = unsafe { cstr(mode) };
     guard_int(|| {
-        let Some(m) = mode.as_deref().and_then(Mode::from_id) else {
+        let Some(id) = id.as_deref() else {
             return 0;
         };
         let session = unsafe { &mut *session };
-        session.inner.set_mode(m);
-        1
+        if session.inner.set_language(id) { 1 } else { 0 }
     })
 }
 
@@ -395,7 +395,29 @@ pub unsafe extern "C" fn liana_mode(session: *mut LianaSession) -> *mut c_char {
     }
     guard_ptr(|| {
         let session = unsafe { &*session };
-        into_c(session.inner.mode().id().to_string())
+        into_c(session.inner.language().to_string())
+    })
+}
+
+/// 内置语言清单（JSON 数组）：`[{"id","label","policy"}]`。
+/// id 可直接交给 `liana_set_mode`；policy 是该语言的输入闸门（ascii/unicode）。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn liana_languages() -> *mut c_char {
+    guard_ptr(|| {
+        let mut out = String::from("[");
+        for (i, (id, label, policy)) in builtin_languages().iter().enumerate() {
+            if i > 0 {
+                out.push(',');
+            }
+            out.push_str(&format!(
+                "{{\"id\":\"{}\",\"label\":\"{}\",\"policy\":\"{}\"}}",
+                json_escape(id),
+                json_escape(label),
+                json_escape(policy)
+            ));
+        }
+        out.push(']');
+        into_c(out)
     })
 }
 
@@ -1226,7 +1248,49 @@ pub unsafe extern "C" fn liana_app_mode_observe(
     guard_int(|| {
         let Some(app) = app else { return 0 };
         let memory = unsafe { &mut *memory };
-        i32::from(memory.inner.observe(&app, zh != 0, strong != 0, now))
+        i32::from(memory.inner.observe_chinese(&app, zh != 0, strong != 0, now))
+    })
+}
+
+/// 记录一次信号（按语言 id）：lang 为 zh/ja/en/ko/es...；strong 非 0 为手动切换。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn liana_app_mode_observe_lang(
+    memory: *mut LianaAppMode,
+    app_id: *const c_char,
+    lang: *const c_char,
+    strong: i32,
+    now: u64,
+) -> i32 {
+    if memory.is_null() {
+        return 0;
+    }
+    let app = unsafe { cstr(app_id) };
+    let lang = unsafe { cstr(lang) };
+    guard_int(|| {
+        let (Some(app), Some(lang)) = (app, lang) else { return 0 };
+        let memory = unsafe { &mut *memory };
+        i32::from(memory.inner.observe(&app, &lang, strong != 0, now))
+    })
+}
+
+/// 该应用现在最该用哪种语言？返回语言 id（调用方释放），NULL = 样本不足不干预。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn liana_app_mode_decide_lang(
+    memory: *mut LianaAppMode,
+    app_id: *const c_char,
+    now: u64,
+) -> *mut c_char {
+    if memory.is_null() {
+        return std::ptr::null_mut();
+    }
+    let app = unsafe { cstr(app_id) };
+    guard_ptr(|| {
+        let Some(app) = app else { return std::ptr::null_mut() };
+        let memory = unsafe { &*memory };
+        match memory.inner.decide(&app, now) {
+            Some(lang) => into_c(lang.to_string()),
+            None => std::ptr::null_mut(),
+        }
     })
 }
 
@@ -1244,7 +1308,7 @@ pub unsafe extern "C" fn liana_app_mode_decide(
     guard_int(|| {
         let Some(app) = app else { return -1 };
         let memory = unsafe { &*memory };
-        match memory.inner.decide(&app, now) {
+        match memory.inner.decide_chinese(&app, now) {
             Some(true) => 1,
             Some(false) => 0,
             None => -1,
@@ -1355,6 +1419,36 @@ mod tests {
             assert_eq!(liana_feed(std::ptr::null_mut(), c"a".as_ptr()), 0);
             assert!(liana_select(std::ptr::null_mut(), 0).is_null());
             assert_eq!(liana_set_mode(std::ptr::null_mut(), c"en".as_ptr()), 0);
+        }
+    }
+
+    #[test]
+    fn languages_json_lists_every_builtin() {
+        let json = unsafe { call_str(|| liana_languages()) }.unwrap();
+        assert!(json.starts_with('[') && json.ends_with(']'), "{json}");
+        assert_eq!(json.matches("\"id\":").count(), 9, "{json}");
+        for id in ["pinyin", "flypy", "mspy", "zrm", "en", "ja", "ko", "es", "emoji"] {
+            assert!(
+                json.contains(&format!("\"id\":\"{id}\"")),
+                "清单缺 {id}: {json}"
+            );
+        }
+        assert!(json.contains("\"label\":\"日本語\""), "{json}");
+        assert!(json.contains("\"label\":\"한국어\""), "{json}");
+        assert!(json.contains("\"label\":\"Español\""), "{json}");
+        assert!(json.contains("\"id\":\"es\",\"label\":\"Español\",\"policy\":\"unicode\""), "{json}");
+        assert!(json.contains("\"policy\":\"ascii\""), "{json}");
+    }
+
+    #[test]
+    fn set_mode_accepts_language_ids_and_reports_them() {
+        let session = unsafe { liana_new(c"pinyin".as_ptr()) };
+        unsafe {
+            assert_eq!(liana_set_mode(session, c"ja".as_ptr()), 1);
+            assert_eq!(call_str(|| liana_mode(session)).unwrap(), "ja");
+            assert_eq!(liana_set_mode(session, c"nope".as_ptr()), 0, "未注册 id 应失败");
+            assert_eq!(call_str(|| liana_mode(session)).unwrap(), "ja");
+            liana_free(session);
         }
     }
 

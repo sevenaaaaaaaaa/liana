@@ -11,6 +11,7 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+mod eval_words;
 mod gram;
 
 use liana_dict::Dictionary;
@@ -39,6 +40,7 @@ fn run(args: &[String]) -> Result<(), String> {
         }
         Some("accuracy") => accuracy_cmd(),
         Some("eval-corpus") => eval_corpus_cmd(&args[1..]),
+        Some("eval-words") => eval_words::run(&args[1..]),
         Some("learn-eval") => learn_eval_cmd(&args[1..]),
         Some("query") => query_cmd(&args[1..]),
         Some("lm") => lm_cmd(&args[1..]),
@@ -1033,6 +1035,7 @@ fn eval_corpus_cmd(args: &[String]) -> Result<(), String> {
     let mut limit: usize = usize::MAX;
     let mut dump_path: Option<String> = None;
     let mut show = 10usize;
+    let mut lang = "pinyin".to_string();
     let mut rerank_path: Option<String> = None;
     let mut no_rerank = false;
     let mut i = 0;
@@ -1046,6 +1049,7 @@ fn eval_corpus_cmd(args: &[String]) -> Result<(), String> {
             "--limit" => limit = args.get(i + 1).ok_or("--limit 缺值")?.parse().map_err(|_| "--limit 需要数字")?,
             "--dump" => dump_path = Some(args.get(i + 1).ok_or("--dump 缺值")?.clone()),
             "--show" => show = args.get(i + 1).ok_or("--show 缺值")?.parse().map_err(|_| "--show 需要数字")?,
+            "--lang" => lang = args.get(i + 1).ok_or("--lang 缺值")?.clone(),
             "--rerank" => rerank_path = Some(args.get(i + 1).ok_or("--rerank 缺值")?.clone()),
             "--no-rerank" => {
                 no_rerank = true;
@@ -1102,6 +1106,19 @@ fn eval_corpus_cmd(args: &[String]) -> Result<(), String> {
         None
     };
 
+    // 语言清单来自内核注册表：加一门语言不必再改这里。
+    if lang != "mix"
+        && !liana_engine::builtin_languages()
+            .iter()
+            .any(|(id, _, _)| *id == lang)
+    {
+        let ids: Vec<&str> = liana_engine::builtin_languages()
+            .iter()
+            .map(|(id, _, _)| *id)
+            .collect();
+        return Err(format!("未知语言 {lang}；可用：{}", ids.join(", ")));
+    }
+
     // 词典与搭配模型（同 accuracy --hard 的加载方式；未指定 --lm 时回落生产 base.lm）
     let mut dict = if dict_path.ends_with(".ifd") {
         let bytes = std::fs::read(&dict_path).map_err(|e| format!("读不到 {dict_path}: {e}"))?;
@@ -1144,6 +1161,23 @@ fn eval_corpus_cmd(args: &[String]) -> Result<(), String> {
         .filter(|p| matches!(p.extension().and_then(|x| x.to_str()), Some("txt") | Some("tsv")))
         .collect();
     paths.sort();
+    // 语料按语言隔离：ja 只跑日文语料，其它语言跳过日文文件（否则 kana 会被
+    // ASCII 过滤成空串，白白计入 skipped）。
+    if lang == "mix" {
+        paths.retain(|p| p.file_name().and_then(|x| x.to_str()).is_some_and(|n| n.contains("mix")));
+    } else if lang == "ja" {
+        paths.retain(|p| {
+            p.file_name()
+                .and_then(|x| x.to_str())
+                .is_some_and(|n| n.contains("ja") && !n.contains("words"))
+        });
+    } else {
+        paths.retain(|p| {
+            p.file_name().and_then(|x| x.to_str()).is_some_and(|n| {
+                !n.contains("-ja") && !n.contains("mix")
+            })
+        });
+    }
     if let Some(f) = &filter {
         paths.retain(|p| p.file_name().and_then(|x| x.to_str()).is_some_and(|n| n.contains(f)));
     }
@@ -1171,6 +1205,7 @@ fn eval_corpus_cmd(args: &[String]) -> Result<(), String> {
     let mut grand = Metrics::default();
 
     println!("\n═══ 松萝固定语料整句评测 ══");
+    println!("  语言 {lang}");
     println!("  语料集               N    整句Top-1   Top-3     字准确率    长句连打Top-1");
 
     for path in &paths {
@@ -1193,11 +1228,19 @@ fn eval_corpus_cmd(args: &[String]) -> Result<(), String> {
                 3 => (cols[0].to_string(), cols[1], cols[2]),
                 _ => continue,
             };
-            let py: String = py
-                .chars()
-                .filter(|c| c.is_ascii_alphabetic())
-                .map(|c| c.to_ascii_lowercase())
-                .collect();
+            // 日文语料第二列是假名，不能按 ASCII 过滤；其它语言保持原口径。
+            let py: String = if lang == "ja" {
+                py.to_string()
+            } else if lang == "mix" {
+                py.chars()
+                    .filter(|c| c.is_ascii_alphabetic() || c.is_whitespace())
+                    .collect()
+            } else {
+                py.chars()
+                    .filter(|c| c.is_ascii_alphabetic())
+                    .map(|c| c.to_ascii_lowercase())
+                    .collect()
+            };
             let text = text.trim().to_string();
             if py.is_empty() || text.is_empty() {
                 continue;
@@ -1213,9 +1256,72 @@ fn eval_corpus_cmd(args: &[String]) -> Result<(), String> {
         for (idx, (cat, py, text)) in cases.iter().enumerate() {
             let letters: Vec<char> = py.chars().collect();
             let expected: Vec<char> = text.chars().collect();
+            if lang == "mix" {
+                // 混输：按空格分段，每段用独立会话（拼音模式 + 脚本自动识别）。
+                // 测的是「不切模式，每段都能出对」；段与段之间不共享上下文。
+                let mut got = String::new();
+                for seg in py.split_whitespace() {
+                    let mut s = Session::with_mode(dict.clone(), Mode::Pinyin);
+                    for ch in seg.chars() {
+                        s.feed(ch);
+                    }
+                    if let Some(top) = s.composition().candidates.first() {
+                        got.push_str(&top.text);
+                    }
+                }
+                let got_chars: Vec<char> = got.chars().collect();
+                let hit = got_chars == expected;
+                m.n += 1;
+                m.whole_n += 1;
+                m.chars += expected.len();
+                m.dist += edit_distance(&got_chars, &expected);
+                if hit {
+                    m.top1 += 1;
+                }
+                if !hit && misses.len() < show {
+                    misses.push(format!("  [{cat}] {} → 期望「{text}」实际「{got}」", short_pinyin(&py)));
+                }
+                dump.push_str(&format!(
+                    "{set}\t{idx}\t整句\t{py}\t{text}\t{got}\t{}\t\n",
+                    hit as u8
+                ));
+                continue;
+            }
+            if lang == "ja" {
+                // 假名 → 汉字：口径固定为整句，不经过罗马字与 feed。
+                let cands = liana_ja::decode_kana(&py);
+                let top1 = cands.first().map(|c| c.text.clone()).unwrap_or_default();
+                let top3 = cands.iter().take(3).any(|c| c.text == *text);
+                let got: Vec<char> = top1.chars().collect();
+                let hit = got == expected;
+                m.n += 1;
+                m.whole_n += 1;
+                m.chars += expected.len();
+                m.dist += edit_distance(&got, &expected);
+                if hit {
+                    m.top1 += 1;
+                }
+                if top3 {
+                    m.top3 += 1;
+                }
+                if !hit && misses.len() < show {
+                    misses.push(format!(
+                        "  [{cat}] {} → 期望「{text}」实际「{top1}」",
+                        short_pinyin(&py)
+                    ));
+                }
+                dump.push_str(&format!(
+                    "{set}\t{idx}\t整句\t{py}\t{text}\t{top1}\t{}\t{top3}\n",
+                    hit as u8
+                ));
+                continue;
+            }
             if letters.len() <= CORPUS_MAX_LETTERS {
                 // 整句口径
                 let mut s = Session::with_mode(dict.clone(), Mode::Pinyin);
+                if lang != "pinyin" && !s.set_language(&lang) {
+                    return Err(format!("语言 {lang} 切换失败"));
+                }
                 #[cfg(feature = "rerank")]
                 if let Some(model) = &rerank_model {
                     s.set_sentence_reranker(model.clone());
@@ -1253,6 +1359,9 @@ fn eval_corpus_cmd(args: &[String]) -> Result<(), String> {
             } else {
                 // 分段口径：喂 60 字母 → 选首选 → 续打
                 let mut s = Session::with_mode(dict.clone(), Mode::Pinyin);
+                if lang != "pinyin" && !s.set_language(&lang) {
+                    return Err(format!("语言 {lang} 切换失败"));
+                }
                 #[cfg(feature = "rerank")]
                 if let Some(model) = &rerank_model {
                     s.set_sentence_reranker(model.clone());

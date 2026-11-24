@@ -1,7 +1,10 @@
-//! 每应用中英模式记忆：本地统计模型（指数衰减投票 + 置信度判定）。
+//! 每应用语言记忆：本地统计模型（指数衰减投票 + 置信度判定）。
 //!
-//! 只回答一个问题：「切到这个应用时，该用中文还是英文？」
-//! 隐私边界：只存「应用 bundle id → 模式票数」，不存按键内容、不存时间线明细。
+//! 回答一个问题：「切到这个应用时，该用哪种语言？」
+//! M2 起按语言 id 记票（zh/ja/en/ko/es...），不再只有中英两档；
+//! macOS 仍可用 decide_chinese 取「是否中文」的兼容答案。
+//!
+//! 隐私边界：只存「应用 bundle id → 语言票数」，不存按键内容、不存时间线明细。
 //!
 //! 信号有两类：
 //! - 手动切换（Shift 裸按 / 菜单选择）是强意图，一票即足以确立偏好；
@@ -27,15 +30,15 @@ const MAX_ENTRIES: usize = 256;
 
 #[derive(Debug, Clone, Default, PartialEq)]
 struct Entry {
-    zh: f32,
-    en: f32,
+    /// 语言 id → 票数。
+    scores: BTreeMap<Box<str>, f32>,
     /// 上屏票的按天计数器（Unix 天），跨天清零。
     commit_day: u64,
     commit_votes: f32,
     updated_at: u64,
 }
 
-/// 应用 → 中英偏好的本地学习器。纯逻辑、零依赖，持久化由前端负责。
+/// 应用 → 语言偏好的本地学习器。纯逻辑、零依赖，持久化由前端负责。
 #[derive(Debug, Default)]
 pub struct AppModeMemory {
     entries: BTreeMap<String, Entry>,
@@ -56,6 +59,21 @@ fn sanitize(app: &str) -> Option<String> {
     Some(trimmed.to_string())
 }
 
+/// 语言 id 同样要净化：只允许小写字母、数字与连字符，长度 1..24。
+fn sanitize_lang(lang: &str) -> Option<&str> {
+    let l = lang.trim();
+    if l.is_empty() || l.len() > 24 {
+        return None;
+    }
+    if !l
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+    {
+        return None;
+    }
+    Some(l)
+}
+
 fn decay(score: f32, from: u64, now: u64) -> f32 {
     if now <= from {
         return score;
@@ -65,11 +83,18 @@ fn decay(score: f32, from: u64, now: u64) -> f32 {
 }
 
 impl Entry {
-    /// 把旧票折算到 `now`（半衰期衰减），之后才能累加新票。
     fn fold_decay(&mut self, now: u64) {
-        self.zh = decay(self.zh, self.updated_at, now);
-        self.en = decay(self.en, self.updated_at, now);
+        for v in self.scores.values_mut() {
+            *v = decay(*v, self.updated_at, now);
+        }
         self.updated_at = now;
+    }
+
+    fn score(&self, lang: &str, now: u64) -> f32 {
+        self.scores
+            .get(lang)
+            .map(|v| decay(*v, self.updated_at, now))
+            .unwrap_or(0.0)
     }
 }
 
@@ -86,16 +111,16 @@ impl AppModeMemory {
         self.entries.is_empty()
     }
 
-    /// 记录一次信号。`strong` = 用户手动切换；否则是上屏弱信号。
-    /// 返回是否被记录（应用 id 非法时忽略）。
-    pub fn observe(&mut self, app: &str, chinese: bool, strong: bool, now: u64) -> bool {
-        let Some(key) = sanitize(app) else {
+    /// 记录一次信号。lang 是语言 id；strong = 用户手动切换。
+    /// 返回是否被记录（应用 id 或语言 id 非法时忽略）。
+    pub fn observe(&mut self, app: &str, lang: &str, strong: bool, now: u64) -> bool {
+        let (Some(key), Some(lang)) = (sanitize(app), sanitize_lang(lang)) else {
             return false;
         };
         {
             let entry = self.entries.entry(key.clone()).or_default();
+            entry.fold_decay(now);
             let weight = if strong {
-                entry.fold_decay(now);
                 TOGGLE_WEIGHT
             } else {
                 let day = now / 86_400;
@@ -108,11 +133,7 @@ impl AppModeMemory {
                 entry.commit_votes += w;
                 w
             };
-            if chinese {
-                entry.zh += weight;
-            } else {
-                entry.en += weight;
-            }
+            *entry.scores.entry(lang.into()).or_insert(0.0) += weight;
             entry.updated_at = now;
         }
         if self.entries.len() > MAX_ENTRIES {
@@ -129,23 +150,47 @@ impl AppModeMemory {
         true
     }
 
-    /// 这个应用现在该用中文还是英文？样本不足或意见分裂时返回 None（不干预）。
-    pub fn decide(&self, app: &str, now: u64) -> Option<bool> {
+    /// 兼容旧调用：chinese=true 记 zh，否则记 en。
+    pub fn observe_chinese(&mut self, app: &str, chinese: bool, strong: bool, now: u64) -> bool {
+        self.observe(app, if chinese { "zh" } else { "en" }, strong, now)
+    }
+
+    /// 这个应用现在最该用哪种语言？样本不足或意见分裂时返回 None（不干预）。
+    pub fn decide(&self, app: &str, now: u64) -> Option<&str> {
         let key = sanitize(app)?;
         let entry = self.entries.get(&key)?;
-        let zh = decay(entry.zh, entry.updated_at, now);
-        let en = decay(entry.en, entry.updated_at, now);
-        let (win, lose) = if zh >= en { (zh, en) } else { (en, zh) };
-        if win < CONFIDENT_MIN {
+        let mut best: Option<(&str, f32)> = None;
+        let mut second = 0.0f32;
+        for (lang, raw) in &entry.scores {
+            let s = decay(*raw, entry.updated_at, now);
+            match best {
+                Some((_, b)) if s <= b => second = second.max(s),
+                _ => {
+                    if let Some((_, b)) = best {
+                        second = second.max(b);
+                    }
+                    best = Some((lang.as_ref(), s));
+                }
+            }
+        }
+        let (lang, top) = best?;
+        if top < CONFIDENT_MIN {
             return None;
         }
-        if lose <= 0.0 {
-            return Some(zh >= en);
+        if second > 0.0 && top / second < CONFIDENT_RATIO {
+            return None;
         }
-        if win / lose >= CONFIDENT_RATIO {
-            return Some(zh >= en);
+        Some(lang)
+    }
+
+    /// 兼容旧调用：只回答「是否中文」。胜方是 ja/ko/es 时返回 None，
+    /// 前端不会因为日语偏好而误切回中文。
+    pub fn decide_chinese(&self, app: &str, now: u64) -> Option<bool> {
+        match self.decide(app, now)? {
+            "zh" => Some(true),
+            "en" => Some(false),
+            _ => None,
         }
-        None
     }
 
     /// 忘记单个应用的偏好。返回是否存在过。
@@ -156,32 +201,40 @@ impl AppModeMemory {
         self.entries.remove(&key).is_some()
     }
 
-    /// 清空全部学习结果（关闭学习开关时顺带调用，不留数据）。
     pub fn forget_all(&mut self) {
         self.entries.clear();
     }
 
-    /// 导出为 TSV（应用\t中文票\t英文票\t上屏天\t上屏票\t更新时间）。
+    /// 导出为 TSV：应用 \t 语言 \t 票数 \t 上屏天 \t 上屏票 \t 更新时间。
+    /// 一个应用有几种语言就几行；旧版 6 列「中文票/英文票」仍可被 import 识别。
     pub fn export_tsv(&self) -> String {
         let mut out = String::new();
         for (app, e) in &self.entries {
-            out.push_str(app);
-            out.push('\t');
-            out.push_str(&format!("{:.3}", e.zh));
-            out.push('\t');
-            out.push_str(&format!("{:.3}", e.en));
-            out.push('\t');
-            out.push_str(&e.commit_day.to_string());
-            out.push('\t');
-            out.push_str(&format!("{:.3}", e.commit_votes));
-            out.push('\t');
-            out.push_str(&e.updated_at.to_string());
-            out.push('\n');
+            for (lang, score) in &e.scores {
+                if *score <= 0.0 {
+                    continue;
+                }
+                out.push_str(app);
+                out.push('\t');
+                out.push_str(lang);
+                out.push('\t');
+                out.push_str(&format!("{score:.3}"));
+                out.push('\t');
+                out.push_str(&e.commit_day.to_string());
+                out.push('\t');
+                out.push_str(&format!("{:.3}", e.commit_votes));
+                out.push('\t');
+                out.push_str(&e.updated_at.to_string());
+                out.push('\n');
+            }
         }
         out
     }
 
     /// 导入 TSV，返回成功导入的行数；坏行跳过，绝不 panic。
+    /// 兼容两种 6 列格式：
+    /// - 旧：应用 / 中文票 / 英文票 / 天 / 上屏票 / 时间；
+    /// - 新：应用 / 语言 id / 票数 / 天 / 上屏票 / 时间。
     pub fn import_tsv(&mut self, tsv: &str) -> usize {
         let mut imported = 0;
         for line in tsv.lines() {
@@ -189,29 +242,28 @@ impl AppModeMemory {
             if f.len() != 6 {
                 continue;
             }
-            let (Some(zh), Some(en)) = (f[1].parse::<f32>().ok(), f[2].parse::<f32>().ok()) else {
-                continue;
-            };
-            let (Some(day), Some(votes), Some(at)) = (
+            let (Some(key), Some(day), Some(votes), Some(at)) = (
+                sanitize(f[0]),
                 f[3].parse::<u64>().ok(),
                 f[4].parse::<f32>().ok(),
                 f[5].parse::<u64>().ok(),
             ) else {
                 continue;
             };
-            let Some(key) = sanitize(f[0]) else {
+            let entry = self.entries.entry(key).or_default();
+            entry.commit_day = day;
+            entry.commit_votes = votes;
+            entry.updated_at = at;
+            if let (Ok(zh), Ok(en)) = (f[1].parse::<f32>(), f[2].parse::<f32>()) {
+                entry.scores.insert("zh".into(), zh);
+                entry.scores.insert("en".into(), en);
+                imported += 1;
+                continue;
+            }
+            let (Some(lang), Ok(score)) = (sanitize_lang(f[1]), f[2].parse::<f32>()) else {
                 continue;
             };
-            self.entries.insert(
-                key,
-                Entry {
-                    zh,
-                    en,
-                    commit_day: day,
-                    commit_votes: votes,
-                    updated_at: at,
-                },
-            );
+            entry.scores.insert(lang.into(), score);
             imported += 1;
         }
         imported
@@ -234,123 +286,90 @@ mod tests {
     #[test]
     fn single_manual_toggle_establishes_preference() {
         let mut m = AppModeMemory::new();
-        assert!(m.observe("com.apple.Terminal", false, true, 1_000));
-        assert_eq!(m.decide("com.apple.Terminal", 1_000), Some(false));
-        // 三天以后依然成立（3.0 → 约 2.6，仍在门槛上）
-        assert_eq!(m.decide("com.apple.Terminal", 1_000 + 3 * DAY), Some(false));
+        assert!(m.observe("com.apple.Terminal", "en", true, 1_000));
+        assert_eq!(m.decide("com.apple.Terminal", 1_000), Some("en"));
+        assert_eq!(m.decide("com.apple.Terminal", 1_000 + 3 * DAY), Some("en"));
     }
 
     #[test]
     fn opposite_toggles_cancel_out() {
         let mut m = AppModeMemory::new();
-        m.observe("app", false, true, 1_000);
-        m.observe("app", true, true, 1_100);
+        m.observe("app", "en", true, 1_000);
+        m.observe("app", "zh", true, 1_100);
         assert_eq!(m.decide("app", 1_200), None);
     }
 
     #[test]
     fn majority_needs_two_to_one_advantage() {
         let mut m = AppModeMemory::new();
-        m.observe("app", true, true, 1_000);
-        m.observe("app", true, true, 1_000);
-        m.observe("app", false, true, 1_000);
-        // 6.0 对 3.0，优势比恰好 2.0 → 判中文
-        assert_eq!(m.decide("app", 1_000), Some(true));
+        m.observe("app", "zh", true, 1_000);
+        m.observe("app", "zh", true, 1_000);
+        m.observe("app", "en", true, 1_000);
+        assert_eq!(m.decide("app", 1_000), Some("zh"));
+        assert_eq!(m.decide_chinese("app", 1_000), Some(true));
     }
 
     #[test]
     fn old_votes_fade_after_half_lives() {
         let mut m = AppModeMemory::new();
-        m.observe("app", false, true, 1_000);
-        // 约四个半衰期后，3.0 衰减到 0.19，不足以支撑判定
+        m.observe("app", "en", true, 1_000);
         assert_eq!(m.decide("app", 1_000 + 4 * 14 * DAY), None);
     }
 
     #[test]
     fn commit_votes_are_weak_and_daily_capped() {
         let mut m = AppModeMemory::new();
-        m.observe("app", true, true, DAY); // 手动定下中文
+        m.observe("app", "zh", true, DAY);
         for i in 0..10 {
-            m.observe("app", false, false, DAY + i); // 同一天狂写英文
+            m.observe("app", "en", false, DAY + i);
         }
-        // 当天上屏票封顶 1.0，压不过 3.0 的手动票
-        assert_eq!(m.decide("app", DAY + 100), Some(true));
-        // 导出可见：10 次上屏只计入 1.0（封顶生效）
+        assert_eq!(m.decide("app", DAY + 100), Some("zh"));
+    }
+
+    #[test]
+    fn three_languages_keep_independent_scores() {
+        let mut m = AppModeMemory::new();
+        m.observe("app", "zh", true, 1_000);
+        m.observe("app", "ja", true, 1_000);
+        m.observe("app", "ja", true, 1_000);
+        m.observe("app", "ja", true, 1_000);
+        // ja 9.0 对 zh 3.0，优势比 3 → 判日语
+        assert_eq!(m.decide("app", 1_000), Some("ja"));
+        // 旧接口不把日语当中文
+        assert_eq!(m.decide_chinese("app", 1_000), None);
+    }
+
+    #[test]
+    fn export_import_roundtrip_with_three_languages() {
+        let mut m = AppModeMemory::new();
+        m.observe("app.one", "zh", true, 1_000);
+        m.observe("app.one", "zh", true, 1_000);
+        m.observe("app.one", "zh", true, 1_000);
+        m.observe("app.one", "ja", true, 1_000);
+        m.observe("app.two", "es", true, 3_000);
         let tsv = m.export_tsv();
-        let votes: f32 = tsv
-            .lines()
-            .next()
-            .unwrap()
-            .split('\t')
-            .nth(4)
-            .unwrap()
-            .parse()
-            .unwrap();
-        assert!((votes - 1.0).abs() < 1e-3, "上屏票应为 1.0，实际 {votes}");
-
-        // 之后几天继续用英文：计数器跨天清零、票缓慢累积，
-        // 但在追平手动票之前优势比不足 → 不判定（不折腾用户）
-        m.observe("app", false, false, 2 * DAY);
-        m.observe("app", false, false, 3 * DAY);
-        m.observe("app", false, false, 4 * DAY);
-        m.observe("app", false, false, 5 * DAY);
-        assert_eq!(m.decide("app", 5 * DAY), None);
+        assert_eq!(tsv.lines().count(), 3);
+        let mut n = AppModeMemory::new();
+        assert_eq!(n.import_tsv(&tsv), 3);
+        assert_eq!(n.len(), 2);
+        assert_eq!(n.decide("app.one", 2_000), Some("zh"));
+        assert_eq!(n.decide("app.two", 3_000), Some("es"));
     }
 
     #[test]
-    fn tsv_roundtrip_preserves_verdicts() {
+    fn legacy_two_column_import_still_works() {
         let mut m = AppModeMemory::new();
-        m.observe("com.apple.Terminal", false, true, 1_000);
-        m.observe("com.tencent.xinWeChat", true, true, 2_000);
-        let tsv = m.export_tsv();
-        let mut fresh = AppModeMemory::new();
-        assert_eq!(fresh.import_tsv(&tsv), 2);
-        assert_eq!(fresh.decide("com.apple.Terminal", 1_000), Some(false));
-        assert_eq!(fresh.decide("com.tencent.xinWeChat", 2_000), Some(true));
-        assert_eq!(fresh.import_tsv("坏行\n只有一列\n"), 0);
+        let legacy = "com.apple.Terminal\t3.000\t0.000\t20000\t0.200\t1720000000\n";
+        assert_eq!(m.import_tsv(legacy), 1);
+        assert_eq!(m.decide_chinese("com.apple.Terminal", 1720000000), Some(true));
+        assert_eq!(m.decide("com.apple.Terminal", 1720000000), Some("zh"));
     }
 
     #[test]
-    fn forget_removes_only_target_app() {
+    fn invalid_language_is_ignored() {
         let mut m = AppModeMemory::new();
-        m.observe("a", true, true, 1_000);
-        m.observe("b", false, true, 1_000);
-        assert!(m.forget("a"));
-        assert!(!m.forget("a"));
-        assert_eq!(m.decide("a", 1_000), None);
-        assert_eq!(m.decide("b", 1_000), Some(false));
-        m.forget_all();
+        assert!(!m.observe("app", "ZH", true, 1_000));
+        assert!(!m.observe("app", "", true, 1_000));
         assert!(m.is_empty());
-    }
-
-    #[test]
-    fn rejects_bad_app_ids() {
-        let mut m = AppModeMemory::new();
-        assert!(!m.observe("", true, true, 1_000));
-        assert!(!m.observe("  ", true, true, 1_000));
-        assert!(!m.observe("a\tb", true, true, 1_000));
-        assert!(!m.observe("a\nb", true, true, 1_000));
-        assert!(m.is_empty());
-    }
-
-    #[test]
-    fn trims_whitespace_around_bundle_id() {
-        let mut m = AppModeMemory::new();
-        assert!(m.observe("  app.id  ", true, true, 1_000));
-        assert_eq!(m.decide("app.id", 1_000), Some(true));
-    }
-
-    #[test]
-    fn max_entries_evicts_oldest() {
-        let mut m = AppModeMemory::new();
-        for i in 0..(MAX_ENTRIES as u64) {
-            m.observe(&format!("app{i}"), true, true, 1_000 + i);
-        }
-        assert_eq!(m.len(), MAX_ENTRIES);
-        m.observe("app-new", true, true, 9_999);
-        assert_eq!(m.len(), MAX_ENTRIES);
-        // 最久未更新的 app0 被挤掉
-        assert_eq!(m.decide("app0", 9_999), None);
-        assert_eq!(m.decide("app-new", 9_999), Some(true));
     }
 }

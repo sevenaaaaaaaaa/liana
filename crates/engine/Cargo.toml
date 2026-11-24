@@ -12,6 +12,8 @@ liana-dict = { workspace = true }
 liana-pinyin = { workspace = true }
 liana-en = { workspace = true }
 liana-ja = { workspace = true }
+liana-ko = { workspace = true }
+liana-es = { workspace = true }
 liana-emoji = { workspace = true }
 liana-symbol = { workspace = true }
 liana-radix = { workspace = true }

@@ -1,0 +1,10 @@
+[package]
+name = "liana-ko"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "松萝韩语输入：2-beolsik 直打 + 音节组合（纯本地）"
+
+[dependencies]
+liana-core = { workspace = true }

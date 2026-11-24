@@ -8,6 +8,12 @@
 build/
 target/
 *.app/
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 数据构建缓存（JMdict / UD 语料原始文件，按需重新下载）
+.cache/
 *.ifd
 *.xpi
 *.dmg
@@ -31,3 +37,47 @@ platforms/macos/build/
 
 # Local operations workspace (process docs, release journals, purge notes) — never on GitHub
 /ops/
+
+# ─── gh-ops 隐私闸门（本机自动生成；删掉这段就不再有仓库内可见的规则）───
+# 依据：~/.qclaw/workspace/SOUL.md「Private things stay private. Period.」
+# 这些内容永远不进仓库：密钥 / 令牌 / 服务器凭据 / 用户数据
+
+# 密钥与证书
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+!debug.keystore
+*.jks
+*.mobileprovision
+*.p8
+id_rsa*
+id_ed25519*
+id_ecdsa*
+.ssh/
+
+# 环境与凭据
+.env
+.env.local
+.env.*.local
+secrets/
+secrets.json
+secrets.yaml
+secrets.yml
+credentials.json
+DEPLOY-SECRETS*
+*.session
+.kiwivm.env
+
+# 运行时数据与备份
+data/*.db
+data/*.db-shm
+data/*.db-wal
+*.sqlite
+*.sqlite3
+backup-*.tgz
+
+# 本机杂项
+.DS_Store
+# ─── 闸门结束 ───

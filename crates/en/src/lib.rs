@@ -76,6 +76,15 @@ impl EnDecoder {
     }
 
     /// 词表里是否存在该词（大小写不敏感）。
+    /// 是否存在以该前缀开头的英文词（脚本判定用）。
+    pub fn has_prefix(&self, prefix: &str) -> bool {
+        let lower = prefix.to_lowercase();
+        let Some(first) = lower.chars().next() else { return false };
+        self.index
+            .get(&first)
+            .is_some_and(|ids| ids.iter().any(|&i| self.words[i].0.starts_with(&lower)))
+    }
+
     pub fn contains(&self, word: &str) -> bool {
         self.exact.contains(&word.to_lowercase())
     }

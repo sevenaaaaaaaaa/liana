@@ -51,6 +51,25 @@ FAIL=0
 awk -v v="$top1" -v m="$MIN_TOP1" 'BEGIN{exit !(v+0 >= m+0)}' || { echo "✗ 整句 Top-1 ${top1}% < 门槛 ${MIN_TOP1}%" >&2; FAIL=1; }
 awk -v v="$top3" -v m="$MIN_TOP3" 'BEGIN{exit !(v+0 >= m+0)}' || { echo "✗ Top-3 ${top3}% < 门槛 ${MIN_TOP3}%" >&2; FAIL=1; }
 awk -v v="$char" -v m="$MIN_CHAR" 'BEGIN{exit !(v+0 >= m+0)}' || { echo "✗ 字准确率 ${char}% < 门槛 ${MIN_CHAR}%" >&2; FAIL=1; }
+
+[[ $FAIL -eq 0 ]] || { echo "RESULT: accuracy gate failed"; exit 1; }
+
+# —— 英文补全闸门 ——
+# 129 条（前缀 → 词表内该前缀词频最高的词）。这条闸门守的是「补全排序别乱动」，
+# 不是「英文输入质量」：期望值由词表词频派生，因此 100% 是正常的，低于 99% 说明排序退化了。
+echo "==> 跑英文补全语料（129 条）"
+EN_OUT="$(cargo run -q --release -p xtask -- eval-corpus --set liana-en --lang en --show 0 2>&1 | tail -20)"
+EN_LINE="$(echo "$EN_OUT" | awk '/^  liana-en/ {print; exit}')"
+if [[ -z "$EN_LINE" ]]; then
+  echo "✗ 没能解析到 liana-en 结果行" >&2
+  echo "RESULT: accuracy gate error"; exit 2
+fi
+EN_TOP1="$(echo "$EN_LINE" | awk '{gsub("%","",$3); print $3}')"
+echo "英文解析：Top-1=${EN_TOP1}%"
+EN_MIN_TOP1=99
+awk -v v="$EN_TOP1" -v m="$EN_MIN_TOP1" 'BEGIN{exit !(v+0 >= m+0)}' || { echo "✗ 英文补全 Top-1 ${EN_TOP1}% < 门槛 ${EN_MIN_TOP1}%" >&2; FAIL=1; }
+
+# 延迟放最后：它受机器负载影响最大，红了也不该吞掉前面语料段的结果。
 if [[ -n "${p95:-}" ]]; then
   awk -v v="$p95" -v m="$MAX_P95" 'BEGIN{exit !(v+0 <= m+0)}' || { echo "✗ 逐键延迟 p95 ${p95}ms > 上限 ${MAX_P95}ms" >&2; FAIL=1; }
 fi

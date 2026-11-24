@@ -414,6 +414,8 @@ enum LianaMode: String, CaseIterable {
     case zrm
     case en
     case ja
+    case ko
+    case es
 
     var title: String {
         switch self {
@@ -423,17 +425,25 @@ enum LianaMode: String, CaseIterable {
         case .zrm: return "自然码"
         case .en: return "English"
         case .ja: return "日本語"
+        case .ko: return "한국어"
+        case .es: return "Español"
         }
     }
 
     /// 中英切换时记住上一个中文模式。
-    var isChinese: Bool { self != .en }
+    /// 日文不算中文：中英切换不该把日语当回退目标（此前 `self != .en` 把 ja 也算成了中文）。
+    var isChinese: Bool {
+        switch self {
+        case .pinyin, .flypy, .mspy, .zrm: return true
+        case .en, .ja, .ko, .es: return false
+        }
+    }
 
     /// 使用中文全角标点的模式（日语标点后续单独处理）。
     var usesChinesePunctuation: Bool {
         switch self {
         case .pinyin, .flypy, .mspy, .zrm: return true
-        case .en, .ja: return false
+        case .en, .ja, .ko, .es: return false
         }
     }
 }

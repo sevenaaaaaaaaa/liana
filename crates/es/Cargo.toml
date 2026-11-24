@@ -1,0 +1,10 @@
+[package]
+name = "liana-es"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "松萝西语输入：变音符直打 + 词形补全（纯本地）"
+
+[dependencies]
+liana-core = { workspace = true }

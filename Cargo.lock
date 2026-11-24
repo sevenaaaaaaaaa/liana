@@ -61,11 +61,20 @@ dependencies = [
  "liana-dict",
  "liana-emoji",
  "liana-en",
+ "liana-es",
  "liana-ja",
+ "liana-ko",
  "liana-pinyin",
  "liana-radix",
  "liana-symbol",
  "liana-zhconv",
+]
+
+[[package]]
+name = "liana-es"
+version = "0.31.0"
+dependencies = [
+ "liana-core",
 ]
 
 [[package]]
@@ -87,6 +96,13 @@ version = "0.31.0"
 
 [[package]]
 name = "liana-ja"
+version = "0.31.0"
+dependencies = [
+ "liana-core",
+]
+
+[[package]]
+name = "liana-ko"
 version = "0.31.0"
 dependencies = [
  "liana-core",
@@ -237,6 +253,7 @@ dependencies = [
  "liana-core",
  "liana-dict",
  "liana-engine",
+ "liana-ja",
  "liana-plugin",
 ]
 

@@ -13,6 +13,7 @@ rerank = ["liana-engine/rerank"]
 
 [dependencies]
 liana-dict = { workspace = true }
+liana-ja = { workspace = true }
 liana-plugin = { workspace = true }
 liana-core = { workspace = true }
 liana-engine = { workspace = true }

@@ -1,0 +1,52 @@
+# 混输语料（M2）：中文拼音 15 + 日文罗马字 15 + 英文 15 + 混排 5
+# 格式：lang <TAB> 输入（空格分段；中文段是连续拼音，不按词切）<TAB> 期望
+zh	nihaoma	你好吗
+zh	woxihuanxuexi	我喜欢学习
+zh	jintiantianqihenhao	今天天气很好
+zh	womenyiqiquba	我们一起去吧
+zh	zhegewentihennan	这个问题很难
+zh	tazaigongzuo	他在工作
+zh	woxianghecha	我想喝茶
+zh	mingtianjian	明天见
+zh	xiexieni	谢谢你
+zh	duibuqi	对不起
+zh	qingwen	请问
+zh	meiguanxi	没关系
+zh	zaijian	再见
+zh	wanshanghao	晚上好
+zh	shengrikuaile	生日快乐
+ja	nihon	日本
+ja	gakkou	学校
+ja	toukyou	東京
+ja	sensei	先生
+ja	gakusei	学生
+ja	kaisha	会社
+ja	denwa	電話
+ja	jikan	時間
+ja	shigoto	仕事
+ja	kazoku	家族
+ja	tomodachi	友達
+ja	tabemasu	食べます
+ja	ikimasu	行きます
+ja	arigatou	ありがとう
+ja	konnichiwa	こんにちは
+en	hello	hello
+en	world	world
+en	input	input
+en	method	method
+en	keyboard	keyboard
+en	privacy	privacy
+en	local	local
+en	engine	engine
+en	system	system
+en	network	network
+en	design	design
+en	project	project
+en	light	light
+en	future	future
+en	simple	simple
+mix	woxihuan nihon	我喜欢日本
+mix	wozai toukyou	我在東京
+mix	nihonno gakkou	日本の学校
+mix	woxue nihongo	我学日本語
+mix	konnichiwa sekai	こんにちは世界

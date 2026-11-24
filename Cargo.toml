@@ -6,6 +6,8 @@ members = [
     "crates/pinyin",
     "crates/en",
     "crates/ja",
+    "crates/ko",
+    "crates/es",
     "crates/emoji",
     "crates/symbol",
     "crates/radix",
@@ -35,6 +37,8 @@ liana-dict = { path = "crates/dict" }
 liana-pinyin = { path = "crates/pinyin" }
 liana-en = { path = "crates/en" }
 liana-ja = { path = "crates/ja" }
+liana-ko = { path = "crates/ko" }
+liana-es = { path = "crates/es" }
 liana-emoji = { path = "crates/emoji" }
 liana-symbol = { path = "crates/symbol" }
 liana-radix = { path = "crates/radix" }
