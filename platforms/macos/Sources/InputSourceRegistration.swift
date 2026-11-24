@@ -51,8 +51,25 @@ struct InputSourceRegistration {
     }
 
     func isCanonical(hitoolbox: [Entry], thirdParty: [Entry]) -> Bool {
-        !hitoolbox.contains(where: owns)
-            && Self.equalIgnoringOrder(thirdParty.filter(owns), canonicalEntries)
+        // 只要求「没有重复、没有旧 ID、没有跨表」；不要求每个声明模式都被系统持久化。
+        // macOS 只保留用户实际启用的模式（默认通常只有主模式），把「全部声明模式都在」
+        // 当成唯一性条件会在多语言包里永远误报。
+        !hitoolbox.contains(where: owns) && canonicalSubset(thirdParty.filter(owns))
+    }
+
+    /// 容器恰好一条；模式 ID 必须来自 Info.plist 声明、不得重复；至少一条模式。
+    private func canonicalSubset(_ entries: [Entry]) -> Bool {
+        let containers = entries.filter { $0["InputSourceKind"] as? String == "Keyboard Input Method" }
+        guard containers.count == 1 else { return false }
+        let allowed = Set(modeIDs)
+        var seen = Set<String>()
+        var modes = 0
+        for entry in entries where entry["InputSourceKind"] as? String == "Input Mode" {
+            guard let id = entry["Input Mode"] as? String, allowed.contains(id) else { return false }
+            guard seen.insert(id).inserted else { return false }
+            modes += 1
+        }
+        return modes > 0
     }
 
     static func equal(_ left: [Entry], _ right: [Entry]) -> Bool {
