@@ -182,7 +182,7 @@ void CopyToClipboard(const std::string& utf8) {
     const int wideLen = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, nullptr, 0);
     if (wideLen <= 1) return;
     std::wstring wide(static_cast<size_t>(wideLen), L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, wide.data(), wideLen);
+    MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, &wide[0], wideLen);
     if (!OpenClipboard(nullptr)) return;
     EmptyClipboard();
     const size_t bytes = wide.size() * sizeof(wchar_t);
