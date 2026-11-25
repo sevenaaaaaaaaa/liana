@@ -43,6 +43,9 @@ run pet-gaze-gate \
   platforms/macos/tests/PetGazeGateTests.swift
 
 echo "==> iOS 纯逻辑（不依赖 UIKit）"
+run language-catalog \
+  platforms/ios/Keyboard/LanguageCatalog.swift \
+  platforms/ios/Tests/LanguageCatalogTests.swift
 run command-catalog \
   platforms/ios/Keyboard/CommandCatalog.swift \
   platforms/ios/Tests/CommandCatalogTests.swift

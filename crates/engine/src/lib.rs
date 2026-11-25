@@ -35,6 +35,8 @@ pub use app_mode::AppModeMemory;
 pub const MAX_CANDIDATES: usize = 30;
 /// 中英混输时最多掺入的英文候选数。
 const MAX_MIXED_ENGLISH: usize = 5;
+/// 候选栏里给目标语言留的格数（"打中文出英文"）：3 条够选，再多就把中文挤下去。
+const MAX_TARGET_CANDIDATES: usize = 3;
 /// 中英混输里「精确英文词」判定的最短长度（避免 `he`/`an` 这类拼音噪声；3 字词 get/run/map 放行）。
 const MIN_EXACT_ENGLISH: usize = 3;
 /// 神经重排的上文窗口：最近几段上屏拼接交给模型（上下文窗口强化，P1）。
@@ -212,6 +214,9 @@ pub struct Session {
     traditional: bool,
     /// 与 `comp.candidates` 同下标的简体原文，仅在繁体显示时非空。
     origins: Vec<String>,
+    /// 目标语言候选（「打中文，候选里直接出英文」）：`Some("en")` 表示在中文候选
+    /// 末尾追加英文词义。默认关闭——中文用户不该被英文候选打扰。
+    target_language: Option<&'static str>,
     /// 知你账本（ADR-0008）：FFI 注入进程级共享实例，独立使用时是私有账本。
     evolution: Arc<Mutex<EvolutionMemory>>,
     /// 营养库（ADR-0008 喂食层）：营养词的加分与按键召回都从这里出，
@@ -272,6 +277,7 @@ impl Session {
             recent: Vec::new(),
             traditional: false,
             origins: Vec::new(),
+            target_language: None,
             evolution: Arc::new(Mutex::new(EvolutionMemory::new())),
             nutrition: feed::NutritionLibrary::new(),
             evolution_enabled: true,
@@ -336,6 +342,30 @@ impl Session {
             }
             None => false,
         }
+    }
+
+    /// 目标语言候选开关：`Some("en")` 或 `None`。
+    ///
+    /// 这不是"翻译模式"，是候选能力：中文候选照常排在最前，英文词义追加在末尾，
+    /// 用户想上英文就点它，想上中文照旧点第一个。目前只有中英词表（3 万条）。
+    pub fn set_target_language(&mut self, code: &str) -> bool {
+        let code = code.trim();
+        if code.is_empty() || code.eq_ignore_ascii_case("off") || code == "zh" {
+            self.target_language = None;
+            self.refresh();
+            return true;
+        }
+        if !code.eq_ignore_ascii_case("en") {
+            // 其它语言还没有词表：明确拒绝，不要静默装作开了。
+            return false;
+        }
+        self.target_language = Some("en");
+        self.refresh();
+        true
+    }
+
+    pub fn target_language(&self) -> Option<&'static str> {
+        self.target_language
     }
 
     /// 是否走中文解码路径。只看语言 id，不看 mode：自定义包不继承中文行为。
@@ -1041,6 +1071,8 @@ impl Session {
         self.apply_neural_rerank(&mut cands);
         self.apply_pins(&mut cands);
         cands.truncate(MAX_CANDIDATES);
+        // 目标语言候选先按简体原文算好，再统一走繁体转换与 origins 对齐。
+        let mut targets = self.target_candidates(&cands);
         if self.traditional {
             self.origins.clear();
             self.origins.reserve(cands.len());
@@ -1053,6 +1085,10 @@ impl Session {
                 }
             }
         }
+        if self.traditional {
+            self.origins.extend(targets.iter().map(|c| c.text.clone()));
+        }
+        cands.append(&mut targets);
         self.comp = Composition {
             raw: self.buffer.clone(),
             preedit,
@@ -1451,6 +1487,55 @@ impl Session {
     /// 锚定插入：有全覆盖中文在场时，最优英文候选（精确词/标识符）的分数
     /// 顶到中文最高分之下 0.5——排进候选窗首屏（紧随中文首选），不再沉底
     /// 十几位开外。选过一次后 user.bonus 按文本加分，同前缀下次更靠前。
+    /// 目标语言候选：把中文候选翻成目标语言的词，追加在候选栏末尾。
+    ///
+    /// 三条硬规则，都是为了不让它破坏中文输入：
+    /// 1. 只查**整词命中**的词表（不做前缀、不做模糊），查不到就不给；
+    /// 2. 只翻覆盖全部输入的中文候选，缺字的半截候选不翻；
+    /// 3. 追加在末尾、分数低于对应中文候选，中文首选永远是第一条。
+    fn target_candidates(&self, cands: &[liana_core::Candidate]) -> Vec<liana_core::Candidate> {
+        use liana_core::CandidateKind;
+        let Some(lang) = self.target_language else {
+            return Vec::new();
+        };
+        if !self.is_chinese() || self.buffer.is_empty() {
+            return Vec::new();
+        }
+        // 词表只有中英；别的语言在 set_target_language 就被拒了，这里再兜一次。
+        if lang != "en" {
+            return Vec::new();
+        }
+        let glossary = liana_gloss::EnGlossary::shared();
+        let consumed = self.buffer.chars().count();
+        let mut out: Vec<liana_core::Candidate> = Vec::new();
+        let mut seen: Vec<&str> = cands.iter().map(|c| c.text.as_str()).collect();
+        for c in cands {
+            if c.consumed != consumed {
+                continue;
+            }
+            let Some(word) = glossary.word(&c.text) else {
+                continue;
+            };
+            if seen.contains(&word) {
+                continue;
+            }
+            seen.push(word);
+            out.push(
+                liana_core::Candidate::new(
+                    word.to_string(),
+                    consumed,
+                    CandidateKind::Word,
+                    c.score - 0.5,
+                )
+                .with_comment(lang.to_uppercase()),
+            );
+            if out.len() >= MAX_TARGET_CANDIDATES {
+                break;
+            }
+        }
+        out
+    }
+
     fn push_english_candidates(&self, cands: &mut Vec<liana_core::Candidate>) {
         use liana_core::CandidateKind;
         let raw = self.buffer.as_str();
@@ -1843,6 +1928,43 @@ mod tests {
     }
 
     #[test]
+    /// 「打中文，候选里直接出英文」：中文首选不许被顶掉，英文追加在末尾，关掉就消失。
+    #[test]
+    fn target_language_appends_english_candidates() {
+        let mut s = session(Mode::Pinyin);
+        type_str(&mut s, "nihao");
+        let zh_top = s.composition().candidates.first().unwrap().text.clone();
+        assert_eq!(zh_top, "你好");
+        assert!(
+            s.composition().candidates.iter().all(|c| c.comment.as_deref() != Some("EN")),
+            "默认不该有英文候选：用户没开"
+        );
+
+        assert!(s.set_target_language("en"));
+        let cands = &s.composition().candidates;
+        let en: Vec<_> = cands
+            .iter()
+            .filter(|c| c.comment.as_deref() == Some("EN"))
+            .collect();
+        assert_eq!(en.len(), 1, "nihao 应给一条英文候选：{:?}", cands.iter().map(|c| (&c.text, &c.comment)).collect::<Vec<_>>());
+        assert_eq!(en[0].text, "hello");
+        assert_eq!(cands.first().unwrap().text, "你好", "中文首选被英文顶掉了");
+        assert_eq!(cands.last().unwrap().text, "hello", "英文候选必须排在末尾");
+
+        // 选中英文候选要真能上屏（索引与候选栏一致）。
+        let index = cands.iter().position(|c| c.text == "hello").unwrap();
+        assert_eq!(s.select(index).as_deref(), Some("hello"));
+
+        assert!(s.set_target_language("off"));
+        assert!(
+            s.composition().candidates.iter().all(|c| c.comment.as_deref() != Some("EN")),
+            "关掉以后英文候选应立即消失"
+        );
+        // 没有词表的语言必须明确拒绝，不能装作开了。
+        assert!(!s.set_target_language("ja"));
+        assert_eq!(s.target_language(), None);
+    }
+
     fn candidates_keep_coverage_tiers() {
         let mut s = session(Mode::Pinyin);
         type_str(&mut s, "nihao");

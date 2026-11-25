@@ -69,7 +69,7 @@ final class KeyboardToolsPanel: UIView {
         message.isHidden = true
         switch tabs.selectedSegmentIndex {
         case 0:
-            let order: [MobileInputMethod] = [.pinyin,.t9,.handwriting,.flypy,.mspy,.zrm,.wubi]
+            let order: [MobileInputMethod] = [.pinyin,.t9,.handwriting,.flypy,.mspy,.zrm,.wubi,.ja,.ko,.es]
             var items: [UIView] = order.map { mode in
                 let key = button(mode.title, id: "method." + mode.rawValue) { [weak self] in self?.onMethod?(mode) }
                 key.isSelected = mode == method; key.accessibilityTraits.formUnion(mode == method ? .selected : [])

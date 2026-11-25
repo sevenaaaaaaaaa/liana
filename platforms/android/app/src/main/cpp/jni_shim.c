@@ -94,6 +94,13 @@ Java_dev_liana_ime_LianaJni_nativeMode(JNIEnv *env, jclass cls, jlong session) {
     return to_jstring(env, liana_mode(SESSION));
 }
 
+/* 内置语言清单（JSON）：菜单的唯一来源，Kotlin 侧不再写死 pinyin/en。 */
+JNIEXPORT jstring JNICALL
+Java_dev_liana_ime_LianaJni_nativeLanguages(JNIEnv *env, jclass cls) {
+    (void)cls;
+    return to_jstring(env, liana_languages());
+}
+
 JNIEXPORT jint JNICALL
 Java_dev_liana_ime_LianaJni_nativeSetTraditional(JNIEnv *env, jclass cls,
                                                  jlong session, jint on) {

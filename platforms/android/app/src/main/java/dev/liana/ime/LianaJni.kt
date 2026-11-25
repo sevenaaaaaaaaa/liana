@@ -27,6 +27,9 @@ object LianaJni {
     external fun nativeUserImport(session: Long, tsv: String): Int
     external fun nativeVersion(): String
 
+    /** 内核语言清单（JSON）。签入的 .so 未重建时该符号不存在，调用方必须能忍。 */
+    external fun nativeLanguages(): String?
+
     fun new(mode: String): Long = nativeNew(mode)
     fun newWithDict(mode: String, dictPath: String): Long = nativeNewWithDict(mode, dictPath)
     fun free(session: Long) = nativeFree(session)
@@ -44,4 +47,10 @@ object LianaJni {
     fun userExport(session: Long): String? = nativeUserExport(session)
     fun userImport(session: Long, tsv: String): Boolean = nativeUserImport(session, tsv) >= 0
     fun version(): String = nativeVersion()
+
+    /**
+     * 语言清单。`.so` 未重建时 JNI 会抛 UnsatisfiedLinkError，这里吃掉返回 null，
+     * 由 LanguageMenu.load() 回退到内置 9 项——菜单少了语言可以，崩不行。
+     */
+    fun languages(): String? = runCatching { nativeLanguages() }.getOrNull()
 }

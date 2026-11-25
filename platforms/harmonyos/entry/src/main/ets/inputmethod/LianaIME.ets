@@ -3,13 +3,15 @@
 // 内核经 NAPI 模块 liana 调用（同一份 liana.h C ABI）。
 import inputMethod from '@ohos.inputMethod';
 import liana from 'libliana.so';
+import { loadLanguages, menuOrder, nextLanguageId } from './LanguageList';
 
 const TAG = 'LianaIME';
-const MODES: string[] = ['pinyin', 'en'];
 
 export default class LianaIME extends inputMethod.InputMethodExtensionAbility {
   private session: number = 0;
-  private modeIdx: number = 0;
+  // 语言清单来自内核注册表（liana.languages()），加载前先用两门兜底，不能让键盘没模式。
+  private languages: string[] = ['pinyin', 'en'];
+  private currentMode: string = 'pinyin';
   private panel: inputMethod.Panel | null = null;
 
   onCreate(): void {
@@ -27,6 +29,7 @@ export default class LianaIME extends inputMethod.InputMethodExtensionAbility {
       // 词典缺失回退内核内置词典
     }
     this.session = dictPath ? liana.newWithDict('pinyin', dictPath) : liana.new('pinyin');
+    this.languages = this.loadKernelLanguages();
     this.createPanel();
   }
 
@@ -86,11 +89,27 @@ export default class LianaIME extends inputMethod.InputMethodExtensionAbility {
     return liana.commitRaw(this.session) ?? '';
   }
 
+  /// 内核清单：NAPI 缺失（老 .so）或 JSON 坏掉时，loadLanguages 回退到内置 9 项。
+  private loadKernelLanguages(): string[] {
+    let json: string | null = null;
+    try {
+      json = liana.languages();
+    } catch (e) {
+      json = null;
+    }
+    return menuOrder(loadLanguages(json), []);
+  }
+
   public toggleMode(): string {
-    this.modeIdx = (this.modeIdx + 1) % MODES.length;
-    liana.setMode(this.session, MODES[this.modeIdx]);
+    this.currentMode = nextLanguageId(this.languages, this.currentMode);
+    liana.setMode(this.session, this.currentMode);
     liana.clear(this.session);
-    return MODES[this.modeIdx];
+    return this.currentMode;
+  }
+
+  /// 供面板显示：当前语言 id。
+  public modeId(): string {
+    return this.currentMode;
   }
 }
 

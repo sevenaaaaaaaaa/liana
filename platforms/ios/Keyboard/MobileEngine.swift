@@ -1,7 +1,10 @@
 import Foundation
 
+/// 键盘能切的方案。rawValue 就是交给内核的语言 id（见 `liana_languages()`），
+/// ja/ko/es 与另外四门中文方案同构：内核注册了什么，这里就能切到什么。
 enum MobileInputMethod: String, CaseIterable {
     case pinyin, t9, flypy, mspy, zrm, wubi, handwriting
+    case ja, ko, es
     var title: String {
         switch self {
         case .pinyin: return "全拼"
@@ -11,6 +14,35 @@ enum MobileInputMethod: String, CaseIterable {
         case .zrm: return "自然码双拼"
         case .wubi: return "五笔 86"
         case .handwriting: return "手写"
+        case .ja: return "日本語"
+        case .ko: return "한국어"
+        case .es: return "Español"
+        }
+    }
+    /// 平台自有、内核注册表里没有的方案。菜单把它们接在内核清单后面。
+    static let platformOnly: [MobileInputMethod] = [.t9, .wubi, .handwriting]
+    /// 模式键上的一两个字：12pt 的键放不下全名。
+    var badge: String {
+        switch self {
+        case .pinyin: return "中"
+        case .t9: return "九"
+        case .flypy: return "鹤"
+        case .mspy: return "微"
+        case .zrm: return "自"
+        case .wubi: return "五"
+        case .handwriting: return "手"
+        case .ja: return "あ"
+        case .ko: return "한"
+        case .es: return "ES"
+        }
+    }
+    /// 交给系统的首选语言（影响候选栏、系统预测与听写）。
+    var textLanguage: String {
+        switch self {
+        case .ja: return "ja-JP"
+        case .ko: return "ko-KR"
+        case .es: return "es-ES"
+        default: return "zh-Hans"
         }
     }
     static var saved: Self { Self(rawValue: UserDefaults.standard.string(forKey: "keyboard.method") ?? "") ?? .pinyin }

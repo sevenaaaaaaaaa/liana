@@ -70,6 +70,11 @@ Napi::Value Version(const Napi::CallbackInfo &info) {
     return Napi::String::New(info.Env(), liana_version());
 }
 
+// 内置语言清单（JSON）。菜单的唯一来源：ArkTS 侧不再写死 ['pinyin','en']。
+Napi::Value Languages(const Napi::CallbackInfo &info) {
+    return Napi::String::New(info.Env(), take(liana_languages()));
+}
+
 Napi::Object InitLiana(Napi::Env env, Napi::Object exports) {
     exports.Set("new", Napi::Function::New(env, New));
     exports.Set("newWithDict", Napi::Function::New(env, NewWithDict));
@@ -82,6 +87,7 @@ Napi::Object InitLiana(Napi::Env env, Napi::Object exports) {
     exports.Set("select", Napi::Function::New(env, Select));
     exports.Set("commitRaw", Napi::Function::New(env, CommitRaw));
     exports.Set("version", Napi::Function::New(env, Version));
+    exports.Set("languages", Napi::Function::New(env, Languages));
     return exports;
 }
 

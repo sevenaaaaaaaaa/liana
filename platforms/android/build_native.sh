@@ -49,9 +49,30 @@ else
     echo "词典已是最新，跳过"
 fi
 
-echo "==> 1/2 cargo-ndk 构建 Rust 静态库（NDK: $(basename "$NDK")）"
-cargo ndk -t arm64-v8a -t armeabi-v7a -t x86_64 --platform 24 \
-    -- build --release -p liana-ffi
+echo "==> 1/2 构建 Rust 静态库（NDK: $(basename "$NDK")）"
+# cargo-ndk 只是把 NDK clang 塞进 cargo 的 env，不是必需品：
+# 2026-11-24 就是卡在它（crates.io 索引拉取超时）导致 9 个符号的欠账。
+# 没有它时直接按 target 指定 CC/AR/LINKER，产出一模一样。
+if cargo ndk --version >/dev/null 2>&1; then
+    cargo ndk -t arm64-v8a -t armeabi-v7a -t x86_64 --platform 24 \
+        -- build --release -p liana-ffi
+else
+    echo "    cargo-ndk 不可用，改用 NDK clang 直接交叉编译"
+    for abi in $ABIS; do
+        case "$abi" in
+            arm64-v8a)   cargo_target=aarch64-linux-android;  cc_prefix=aarch64-linux-android24 ;;
+            armeabi-v7a) cargo_target=armv7-linux-androideabi; cc_prefix=armv7a-linux-androideabi24 ;;
+            x86_64)      cargo_target=x86_64-linux-android;   cc_prefix=x86_64-linux-android24 ;;
+            *) echo "未知 ABI：$abi" >&2; exit 1 ;;
+        esac
+        env_upper="$(echo "$cargo_target" | tr 'a-z-' 'A-Z_')"
+        env \
+            "CC_$(echo "$cargo_target" | tr '-' '_')=$NDK_TOOLCHAIN/$cc_prefix-clang" \
+            "AR_$(echo "$cargo_target" | tr '-' '_')=$NDK_TOOLCHAIN/llvm-ar" \
+            "CARGO_TARGET_${env_upper}_LINKER=$NDK_TOOLCHAIN/$cc_prefix-clang" \
+            cargo build --release -p liana-ffi --target "$cargo_target"
+    done
+fi
 
 echo "==> 2/2 NDK clang 链接 JNI 垫片"
 mkdir -p "$HERE/app/src/main/jniLibs"

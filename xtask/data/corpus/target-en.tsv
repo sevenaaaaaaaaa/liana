@@ -1,0 +1,33 @@
+# 目标语言候选评测集（M1）：打中文拼音，候选栏末尾应出现的英文。
+# 格式：拼音<TAB>期望英文（大小写不敏感；只要出现在 EN 候选里就算命中）
+# 只收「用户真会为写英文而打的中文词」，不收成语与专名。
+nihao	hello
+xiexie	thank you
+mima	password
+diannao	computer
+wenjian	file
+shijian	time
+dizhi	address
+mingzi	name
+shouji	cell phone
+gongsi	company
+gongzuo	work
+xuexi	learn
+xihuan	like
+mingtian	tomorrow
+pengyou	friend
+laoshi	teacher
+yiyuan	hospital
+yinhang	bank
+huoche	train
+feiji	plane
+jichang	airport
+kafei	coffee
+pingguo	apple
+zhongguo	China
+meiguo	America
+tianqi	weather
+wenti	question|problem
+banfa	way
+zaoshang	morning
+wanshang	evening|night

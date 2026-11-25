@@ -10,10 +10,12 @@ import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.Menu
 import android.view.View
 import android.view.ViewGroup
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
+import android.widget.PopupMenu
 import android.widget.ScrollView
 import android.widget.TextView
 import org.json.JSONObject
@@ -51,7 +53,10 @@ class LianaImeService : InputMethodService() {
 
     // ---- 输入状态（与视图生命周期解耦：折叠/展开重建视图不得丢失） ----
     private var session: Long = 0
-    private var modeIdx = 0
+    /** 语言清单来自内核注册表（liana_languages）；加载前先两门兜底，不能让键盘没模式。 */
+    private var modes: List<String> = listOf("pinyin", "en")
+    private var currentModeId: String = "pinyin"
+    private var languageLabels: Map<String, String> = emptyMap()
     private var candidates: List<String> = emptyList()
     private var rawInput: String = ""
     private var composingText: String = ""
@@ -101,6 +106,7 @@ class LianaImeService : InputMethodService() {
         val dictPath = if (dictFile.exists()) dictFile.absolutePath else null
         session = (dictPath?.let { LianaJni.newWithDict("pinyin", it) } ?: 0L)
             .takeIf { it != 0L } ?: LianaJni.new("pinyin")
+        refreshModes()
         importUserLexicon()
     }
 
@@ -239,6 +245,7 @@ class LianaImeService : InputMethodService() {
         val spaceWidth = maxOf(72f, avail - 5 * fnWidth - 5 * layout.gapDp)
 
         modeButton = slotKey("中", fnWidth) { onModeToggle() }
+        attachModeMenu(modeButton)
         tradButton = slotKey("简", fnWidth) { onTraditionalToggle() }
         row.addView(modeButton)
         row.addView(tradButton)
@@ -286,6 +293,7 @@ class LianaImeService : InputMethodService() {
             gravity = Gravity.START
         }
         modeButton = slotKey("中", fnWidth) { onModeToggle() }
+        attachModeMenu(modeButton)
         tradButton = slotKey("简", fnWidth) { onTraditionalToggle() }
         leftFn.addView(modeButton)
         leftFn.addView(tradButton)
@@ -577,8 +585,37 @@ class LianaImeService : InputMethodService() {
     }
 
     private fun onModeToggle() {
-        modeIdx = (modeIdx + 1) % MODES.size
+        currentModeId = LanguageMenu.nextId(modes, currentModeId)
         applyMode()
+    }
+
+    /** 长按模式键：内核注册表里的语言全列出来，当前那门打勾。 */
+    private fun attachModeMenu(button: TextView?) {
+        button ?: return
+        button.setOnLongClickListener {
+            val popup = PopupMenu(this, button)
+            modes.forEachIndexed { index, id ->
+                val label = languageLabels[id] ?: id
+                val item = popup.menu.add(Menu.NONE, index, index, "${LanguageMenu.badge(id)} · $label")
+                item.isCheckable = true
+                item.isChecked = id == currentModeId
+            }
+            popup.setOnMenuItemClickListener { item ->
+                currentModeId = modes.getOrElse(item.itemId) { currentModeId }
+                applyMode()
+                true
+            }
+            popup.show()
+            true
+        }
+    }
+
+    /** 内核清单：拿不到（老 .so）就回退内置 9 项；当前语言不在清单里时回到第一项。 */
+    private fun refreshModes() {
+        val languages = LanguageMenu.load(LianaJni.languages())
+        modes = LanguageMenu.order(languages, emptyList())
+        languageLabels = languages.associate { it.id to it.label }
+        if (modes.isNotEmpty() && modes.none { it == currentModeId }) currentModeId = modes.first()
     }
 
     private fun onTraditionalToggle() {
@@ -591,18 +628,13 @@ class LianaImeService : InputMethodService() {
 
     private fun applyMode() {
         if (session == 0L) return
-        val mode = MODES[modeIdx]
-        LianaJni.setMode(session, mode)
+        LianaJni.setMode(session, currentModeId)
         LianaJni.clear(session)
-        modeButton?.text = when (mode) {
-            "pinyin" -> "中"
-            "en" -> "EN"
-            else -> mode
-        }
+        modeButton?.text = LanguageMenu.badge(currentModeId)
         refreshCandidates()
     }
 
-    private fun currentMode(): String = MODES[modeIdx]
+    private fun currentMode(): String = currentModeId
 
     private fun selectCandidate(index: Int, strong: Boolean = false) {
         val text = LianaJni.select(session, index) ?: return
@@ -723,6 +755,5 @@ class LianaImeService : InputMethodService() {
         private const val KEY_INSET_DP = 2f   // 槽位左右留白（槽宽 = pitch 时，可见键宽 = pitch - 4dp）
         private const val ROW_INSET_DP = 4f   // 槽位上下留白（可见键高 46dp）
         private const val KEY_SOLO_PITCH = "layout.pitchSolo"
-        private val MODES = arrayOf("pinyin", "en")
     }
 }

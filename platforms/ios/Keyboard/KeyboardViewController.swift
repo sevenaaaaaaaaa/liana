@@ -1588,8 +1588,8 @@ class KeyboardViewController: UIInputViewController {
 
     private func applyMode() {
         send(.mode(currentMode()))
-        modeButton?.setTitle(english ? "EN" : "中", for: .normal)
-        primaryLanguage = english ? "en-US" : "zh-Hans"
+        modeButton?.setTitle(english ? "EN" : method.badge, for: .normal)
+        primaryLanguage = english ? "en-US" : method.textLanguage
         layoutSignature = ""
         rebuildKeyboardIfNeeded(animated: false)
     }
@@ -1598,7 +1598,7 @@ class KeyboardViewController: UIInputViewController {
 
     /// 视图重建后把状态重新贴回按钮（按钮是新建的，默认显示"中/简"）。
     private func syncModeLabels() {
-        modeButton?.setTitle(english ? "EN" : "中", for: .normal)
+        modeButton?.setTitle(english ? "EN" : method.badge, for: .normal)
         tradButton?.setTitle(traditional ? "繁" : "简", for: .normal)
         configureModeMenu()
     }
@@ -1849,10 +1849,43 @@ class KeyboardViewController: UIInputViewController {
 
 
 extension KeyboardViewController {
+    /// 菜单的语言部分来自内核注册表（`liana_languages()`），平台只补内核没有的方案。
+    /// 内核将来多一门语言，这里不用改一行代码——这正是这次对齐要的效果。
     private func configureModeMenu() {
-        modeButton?.menu = UIMenu(title: "输入方案（点按切换中英）", children: MobileInputMethod.allCases.map { item in
-            UIAction(title: item.title, state: method == item && !english ? .on : .off) { [weak self] _ in self?.chooseMethod(item) }
-        } + [UIAction(title: "输入工具 · 词库／语音／表情／同步") { [weak self] _ in self?.toggleTools() }])
+        let kernel = LanguageCatalog.load(fetch: kernelLanguagesJSON)
+        let labels = Dictionary(kernel.map { ($0.id, $0.label) }, uniquingKeysWith: { first, _ in first })
+        let order = LanguageCatalog.menuOrder(
+            kernel: kernel,
+            platformIDs: MobileInputMethod.platformOnly.map(\.rawValue)
+        )
+        var children: [UIAction] = []
+        for id in order {
+            let title = labels[id] ?? MobileInputMethod(rawValue: id)?.title ?? id
+            if id == "en" {
+                children.append(UIAction(title: title, state: english ? .on : .off) { [weak self] _ in
+                    self?.chooseEnglish()
+                })
+            } else if let item = MobileInputMethod(rawValue: id) {
+                children.append(UIAction(title: title, state: method == item && !english ? .on : .off) { [weak self] _ in
+                    self?.chooseMethod(item)
+                })
+            }
+            // 其余 id（如 emoji）本键盘没有对应界面，不放进菜单，也不假装能切。
+        }
+        children.append(UIAction(title: "输入工具 · 词库／语音／表情／同步") { [weak self] _ in self?.toggleTools() })
+        modeButton?.menu = UIMenu(title: "语言与方案 · 内核注册表", children: children)
+    }
+
+    /// 内核语言清单的原始 JSON；拿不到就返回 nil，由 LanguageCatalog 回退内置 9 项。
+    private func kernelLanguagesJSON() -> String? {
+        guard let raw = liana_languages() else { return nil }
+        defer { liana_free_string(raw) }
+        return String(cString: raw)
+    }
+
+    private func chooseEnglish() {
+        english = true
+        applyMode()
     }
     private func chooseMethod(_ item: MobileInputMethod) {
         method = item; english = false; page = .letters

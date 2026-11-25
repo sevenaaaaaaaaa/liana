@@ -155,3 +155,23 @@ cargo run --release -p xtask -- lm prune platforms/macos/build/base.lm \
 
 本项目人工维护的 367 条高频词/短语，供 `cargo test`、无外部词典的兜底场景使用，
 并在大词典生成时作为高优先权重来源参与合并。
+
+## `glossary/zh-en.tsv` 与 `crates/gloss/data/zh-en.tsv`（跨语言候选词表，3 万条多字词）
+
+| 来源 | 说明 | 许可 |
+|---|---|---|
+| [CC-CEDICT](https://www.mdbg.net/chinese/dictionary?page=cc-cedict) | 中英词典 12.5 万词条（本仓库 2026-11-24 下载版） | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) |
+| `crates/en/data/words.txt` | 英文词频，用来在多条释义里挑「最像日常词」的那条 | MIT |
+| `base-large.tsv` | 词频与词形交集，按频率裁剪 | 见本文上半部分 |
+
+生成命令（`crates/gloss/data/zh-en.tsv` 是产物，勿手改）：
+
+```bash
+curl -L -o /tmp/cedict.txt.gz https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz
+gzip -dc /tmp/cedict.txt.gz > /tmp/cedict.txt
+python3 tools/build_zh_en_gloss.py /tmp/cedict.txt crates/gloss/data/zh-en.tsv --limit 30000
+```
+
+**署名义务**：CC BY-SA 4.0 要求保留作者与许可声明并注明改动。本仓库对 CEDICT 做了
+裁剪（只留多字词、每词一条释义、按词频排序），这些改动记录在生成脚本里。
+与 AGPL-3.0-only 的兼容性属法务判断，分发前需确认。

@@ -55,6 +55,14 @@ int32_t liana_backspace(LianaSession *session);
 void liana_clear(LianaSession *session);
 
 /* 切换模式，返回 1 表示成功。 */
+/* 目标语言候选（目前只有 "en"）：打开后中文候选照常在最前，目标语言的词义
+ * 追加在候选栏末尾。传 "" 或 "off" 关闭；不支持的语言返回 0。
+ * 候选 JSON 里用 comment:"EN" 标记这一类候选。 */
+int32_t liana_set_target_language(LianaSession *session, const char *lang);
+
+/* 当前目标语言（"en" 或空串）；返回值由调用方用 liana_free_string 释放。 */
+char *liana_target_language(LianaSession *session);
+
 int32_t liana_set_mode(LianaSession *session, const char *mode);
 
 /* 当前语言 id（自定义语言包下可能与 mode 枚举不同）。 */

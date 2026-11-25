@@ -71,6 +71,17 @@ final class LianaEngine {
         if handle == nil {
             handle = mode.withCString { liana_new($0) }
         }
+        applyTargetLanguage()
+    }
+
+    /// 目标语言候选（「打中文，候选里直接出英文」）。
+    ///
+    /// 默认打开 `en`：中文候选仍排第一，英文词义只追加在候选栏末尾。
+    /// 关掉的办法是 `defaults write dev.inputflow.inputmethod liana.targetLanguage off`。
+    private func applyTargetLanguage() {
+        guard let handle else { return }
+        let code = UserDefaults.standard.string(forKey: "liana.targetLanguage") ?? "en"
+        code.withCString { _ = liana_set_target_language(handle, $0) }
     }
 
     deinit {

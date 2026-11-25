@@ -62,6 +62,7 @@ dependencies = [
  "liana-emoji",
  "liana-en",
  "liana-es",
+ "liana-gloss",
  "liana-ja",
  "liana-ko",
  "liana-pinyin",

@@ -91,7 +91,24 @@ fn json_escape(s: &str) -> String {
 
 impl LianaSession {
     fn new(dict: Arc<Dictionary>, mode: Mode, base_path: Option<&str>) -> Self {
-        let mut inner = Session::with_mode(dict, mode);
+        Self::finish(Session::with_mode(dict, mode), base_path)
+    }
+
+    /// 按注册表 id 建会话。
+    ///
+    /// `Mode` 只有四个中文枚举，`liana_new("ja")` 光靠它会被悄悄建成拼音会话——
+    /// 于是「菜单能切、内核没切」这种假对齐。注册表 id 因此走 `set_language`，
+    /// 与 `liana_set_mode` 同义：从建会话第一步起，语言就是真的。
+    fn new_for(dict: Arc<Dictionary>, id: Option<&str>, base_path: Option<&str>) -> Self {
+        let mut inner = Session::with_mode(dict, mode_of(id.map(str::to_string)));
+        if let Some(id) = id {
+            // 未注册的 id 保持 Mode 兜底（拼音），前端从 liana_languages() 看得到真相。
+            inner.set_language(id);
+        }
+        Self::finish(inner, base_path)
+    }
+
+    fn finish(mut inner: Session, base_path: Option<&str>) -> Self {
         // 知你账本是进程级单例：IMK 下每个应用各有一个会话，
         // 学习必须跨应用沉淀才叫「越用越懂你」。
         inner.set_evolution_memory(shared_evolution());
@@ -99,6 +116,8 @@ impl LianaSession {
         // 找不到就是「不启用」，零行为差异。
         #[cfg(feature = "rerank")]
         attach_reranker(&mut inner, base_path);
+        #[cfg(not(feature = "rerank"))]
+        let _ = base_path;
         Self { inner }
     }
 }
@@ -192,9 +211,9 @@ fn guard_int<F: FnOnce() -> i32>(f: F) -> i32 {
 pub unsafe extern "C" fn liana_new(mode: *const c_char) -> *mut LianaSession {
     let mode = unsafe { cstr(mode) };
     catch_unwind(AssertUnwindSafe(|| {
-        Box::into_raw(Box::new(LianaSession::new(
+        Box::into_raw(Box::new(LianaSession::new_for(
             Arc::new(Dictionary::embedded()),
-            mode_of(mode),
+            mode.as_deref(),
             None,
         )))
     }))
@@ -214,9 +233,9 @@ pub unsafe extern "C" fn liana_new_with_dict(
             .and_then(|p| std::fs::read(p).ok())
             .and_then(|b| Dictionary::from_bytes(&b).ok())
             .unwrap_or_else(Dictionary::embedded);
-        Box::into_raw(Box::new(LianaSession::new(
+        Box::into_raw(Box::new(LianaSession::new_for(
             Arc::new(dict),
-            mode_of(mode),
+            mode.as_deref(),
             path.as_deref(),
         )))
     }))
@@ -311,9 +330,9 @@ pub unsafe extern "C" fn liana_new_with_layers(
     let layers = unsafe { cstr(layers_dir) };
     catch_unwind(AssertUnwindSafe(|| {
         let dict = load_layered(path.as_deref(), layers.as_deref());
-        Box::into_raw(Box::new(LianaSession::new(
+        Box::into_raw(Box::new(LianaSession::new_for(
             dict,
-            mode_of(mode),
+            mode.as_deref(),
             path.as_deref(),
         )))
     }))
@@ -418,6 +437,41 @@ pub unsafe extern "C" fn liana_languages() -> *mut c_char {
         }
         out.push(']');
         into_c(out)
+    })
+}
+
+/// 目标语言候选开关（目前只有 `en`；传空串或 `off` 关闭）。
+///
+/// 打开后中文候选照常排在最前，目标语言的词义追加在候选栏末尾——
+/// 「打中文，候选里直接出英文」的那条通道。返回 1 表示设置成功。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn liana_set_target_language(
+    session: *mut LianaSession,
+    lang: *const c_char,
+) -> i32 {
+    if session.is_null() {
+        return 0;
+    }
+    let lang = unsafe { cstr(lang) };
+    guard_int(|| {
+        let session = unsafe { &mut *session };
+        i32::from(
+            session
+                .inner
+                .set_target_language(lang.as_deref().unwrap_or_default()),
+        )
+    })
+}
+
+/// 当前目标语言（"en" 或空串）。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn liana_target_language(session: *mut LianaSession) -> *mut c_char {
+    if session.is_null() {
+        return std::ptr::null_mut();
+    }
+    guard_ptr(|| {
+        let session = unsafe { &*session };
+        into_c(session.inner.target_language().unwrap_or_default().to_string())
     })
 }
 
@@ -1438,6 +1492,79 @@ mod tests {
         assert!(json.contains("\"label\":\"Español\""), "{json}");
         assert!(json.contains("\"id\":\"es\",\"label\":\"Español\",\"policy\":\"unicode\""), "{json}");
         assert!(json.contains("\"policy\":\"ascii\""), "{json}");
+    }
+
+    /// 菜单只切界面、内核没切，是这一层最容易犯的错：
+    /// `liana_new("ja")` 过去会静默建成拼音会话（Mode 只有四个中文枚举）。
+    #[test]
+    fn new_honours_registry_language() {
+        for id in ["ja", "ko", "es", "en", "flypy", "zrm"] {
+            let c = CString::new(id).unwrap();
+            let session = unsafe { liana_new(c.as_ptr()) };
+            assert!(!session.is_null(), "{id} 建会话失败");
+            let mode = unsafe { call_str(|| liana_mode(session)) }.unwrap();
+            assert_eq!(mode, id, "liana_new({id}) 建出来的会话语言不是 {id}");
+            unsafe { liana_free(session) };
+        }
+        // 未注册的 id 不该 panic，也不该谎称自己是那门语言：保持拼音兜底。
+        let unknown = CString::new("nope").unwrap();
+        let session = unsafe { liana_new(unknown.as_ptr()) };
+        assert!(!session.is_null());
+        let mode = unsafe { call_str(|| liana_mode(session)) }.unwrap();
+        assert_eq!(mode, "pinyin", "未知 id 应回落到拼音");
+        unsafe { liana_free(session) };
+    }
+
+    /// 「打中文，候选里直接出英文」走完 C ABI 全链路。
+    #[test]
+    fn target_language_via_c_abi() {
+        let session = unsafe { liana_new(c"pinyin".as_ptr()) };
+        assert!(!session.is_null());
+        unsafe {
+            for ch in ["n", "i", "h", "a", "o"] {
+                let c = CString::new(ch).unwrap();
+                liana_feed(session, c.as_ptr());
+            }
+            let before = call_str(|| liana_composition_json(session)).unwrap();
+            assert!(!before.contains("\"comment\":\"EN\""), "默认不该有英文候选");
+
+            assert_eq!(liana_set_target_language(session, c"en".as_ptr()), 1);
+            assert_eq!(
+                call_str(|| liana_target_language(session)).as_deref(),
+                Some("en")
+            );
+            let after = call_str(|| liana_composition_json(session)).unwrap();
+            assert!(after.contains("\"text\":\"hello\""), "没出 hello: {after}");
+            assert!(after.contains("\"comment\":\"EN\""), "英文候选没打标签: {after}");
+            assert!(after.contains("\"text\":\"你好\""), "中文候选丢了: {after}");
+
+            // 没有词表的语言必须拒绝
+            assert_eq!(liana_set_target_language(session, c"ja".as_ptr()), 0);
+            assert_eq!(liana_set_target_language(session, c"off".as_ptr()), 1);
+            let off = call_str(|| liana_composition_json(session)).unwrap();
+            assert!(!off.contains("\"comment\":\"EN\""));
+            liana_free(session);
+        }
+    }
+
+    /// 建出来的日文会话必须真的走日文解码，而不是只有一个正确的 id。
+    #[test]
+    fn japanese_session_decodes_romaji() {
+        let id = CString::new("ja").unwrap();
+        let session = unsafe { liana_new(id.as_ptr()) };
+        assert!(!session.is_null());
+        unsafe {
+            for ch in ["n", "i", "h", "o", "n"] {
+                let c = CString::new(ch).unwrap();
+                assert_eq!(liana_feed(session, c.as_ptr()), 1, "{ch} 未进组合");
+            }
+            let json = call_str(|| liana_composition_json(session)).unwrap();
+            assert!(
+                json.contains("日本"),
+                "日文会话打 nihon 没出「日本」: {json}"
+            );
+            liana_free(session);
+        }
     }
 
     #[test]

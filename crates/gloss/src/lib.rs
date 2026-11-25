@@ -71,6 +71,55 @@ impl Lang {
     }
 }
 
+/// 中文→英文候选对照表（`tools/build_zh_en_gloss.py` 从 CC-CEDICT 生成）。
+///
+/// 与上面那张 7 列对照表分工不同：那张回答「把这句中文翻成一行外语」（整句、
+/// 最长匹配、虚词省略）；这张回答「打这个词的拼音时，候选栏里能不能直接给英文」——
+/// 所以只收多字词、只收一个释义、按词频排序，查不到就不给。
+const ZH_EN: &str = include_str!("../data/zh-en.tsv");
+
+/// 词级中英对照（3 万条）。进程内只解析一次。
+pub struct EnGlossary {
+    map: HashMap<&'static str, &'static str>,
+}
+
+impl EnGlossary {
+    pub fn shared() -> &'static EnGlossary {
+        static INSTANCE: OnceLock<EnGlossary> = OnceLock::new();
+        INSTANCE.get_or_init(EnGlossary::parse)
+    }
+
+    fn parse() -> EnGlossary {
+        let mut map = HashMap::with_capacity(30_000);
+        for line in ZH_EN.lines() {
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            let Some((zh, en)) = line.split_once('\t') else {
+                continue;
+            };
+            if zh.is_empty() || en.is_empty() {
+                continue;
+            }
+            map.insert(zh, en);
+        }
+        EnGlossary { map }
+    }
+
+    /// 精确查词：只有整词命中才给英文候选（不做前缀/模糊，避免候选栏出现半个词）。
+    pub fn word(&self, zh: &str) -> Option<&'static str> {
+        self.map.get(zh).copied()
+    }
+
+    pub fn len(&self) -> usize {
+        self.map.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.map.is_empty()
+    }
+}
+
 pub struct Glossary {
     map: HashMap<&'static str, [&'static str; COLUMNS]>,
     max_len: usize,
@@ -247,5 +296,18 @@ mod tests {
             seen.insert(tr("今天天气很好", lang));
         }
         assert!(seen.len() >= 3, "至少三种语言输出应互不相同: {:?}", seen);
+    }
+
+    #[test]
+    fn en_glossary_covers_daily_words() {
+        let g = EnGlossary::shared();
+        assert!(g.len() >= 20_000, "词级中英表太小：{} 条", g.len());
+        assert_eq!(g.word("你好"), Some("hello"));
+        assert_eq!(g.word("密码"), Some("password"));
+        assert_eq!(g.word("电脑"), Some("computer"));
+        assert_eq!(g.word("喜欢"), Some("like"));
+        // 查不到就给 None —— 候选栏宁可不给，也不给半截词。
+        assert_eq!(g.word("这个词表里没有"), None);
+        assert_eq!(g.word(""), None);
     }
 }

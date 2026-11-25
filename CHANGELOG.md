@@ -6,6 +6,34 @@
 
 （下一次改动写在这里。发版前整理成 `## X.Y.0 — 日期 · 主题` 小节。）
 
+## 0.33.0 — 2026-11-25 · 打中文，候选里出英文
+
+### 打拼音写英文
+
+- 打 `xiexie`：候选栏第一格照旧是「谢谢」，末尾多一条「thank you」，带 `EN` 角标。
+- 中英词表 3 万条（CC-CEDICT 裁剪，只收多字词），完全离线：不联网、不上传输入内容。
+- 最多追加 3 条，中文排序一个位置都不动；`defaults write dev.inputflow.inputmethod liana.targetLanguage off` 可关。
+- 评测：30 个日常词命中 29（96.7%）；开与不开，中文 Top-1 都是 53.3/71.7/92.8。
+
+### 修掉一个真问题：切了语言，内核没切
+
+- `liana_new("ja")` 以前会静默建成拼音会话（内核 `Mode` 只有四个中文枚举），菜单能切、引擎不动。现在建会话即按注册表 id 定语言，`japanese_session_decodes_romaji` 守住这条。
+
+### 三端菜单不再各写一份
+
+- iOS / Android / 鸿蒙的语言菜单改读内核注册表 `liana_languages()`，回退清单三端一致；新增 `scripts/check-language-menus.sh`（38 项）进 CI。
+- Android 长按模式键弹出全部语言；鸿蒙模式键按内核清单循环；iOS 菜单显示内核语言名。
+
+### 原生库
+
+- Android 三 ABI、鸿蒙 `libliana_ffi.a` 重建，67 个 C ABI 符号齐全，`native-artifacts-known-stale.txt` 欠账清零。
+- `build_native.sh` 在没有 cargo-ndk 的机器上改用 NDK clang 直接交叉编译——那 9 行欠账就是卡在这里。
+
+### 数字
+
+- cargo test 360 passed / 0 failed；iOS 键盘扩展 `xcodebuild` 通过；macOS `Liana.app` 构建通过。
+- 中文闸门 53.3/71.7/92.8、英文 100%，与 0.32.0 持平。
+
 ## 0.32.0 — 2026-11-24 · 多语言输入
 
 ### 加一门语言不再改 120 处枚举
