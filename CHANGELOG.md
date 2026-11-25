@@ -34,6 +34,12 @@
 - cargo test 360 passed / 0 failed；iOS 键盘扩展 `xcodebuild` 通过；macOS `Liana.app` 构建通过。
 - 中文闸门 53.3/71.7/92.8、英文 100%，与 0.32.0 持平。
 
+### 0.33.1 — 2026-11-25  修复：v0.33.0 的 Android / Linux 产物没发出来
+
+- 原因：`crates/ffi` 新增的两个 C ABI（`liana_set_target_language` / `liana_target_language`）没随签入的 Android / 鸿蒙原生库重建，Release 工作流的 `check-native-artifacts` 判红，Android 产物因此没上传。
+- 修复：Android 三 ABI 与鸿蒙 `.a` 重建，69 个符号齐全（提交 `d573de7`）。
+- 功能无变化：两端目前都还没调用这两个新符号，只是让签入的库和内核一致。
+
 ## 0.32.0 — 2026-11-24 · 多语言输入
 
 ### 加一门语言不再改 120 处枚举
