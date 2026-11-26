@@ -137,6 +137,17 @@ for entry in Liana.app Applications "打不开？双击我.command" "安装说�
 done
 hdiutil detach "$MOUNT" -quiet
 
+# ──────────────────── 3.5 构建 iOS IPA ────────────────────
+
+# 正式版也带 IPA：以前只有 Nightly 出 iOS 包，正式 Release 没有与版本号一致的
+# iPhone 安装包（release.yml 四平台也没有 iOS job）。未签名，装机方自行重签。
+log "构建 iPhone IPA（未签名）"
+platforms/ios/build.sh device || die "iOS build 失败"
+IPA="$(ls -t dist/Liana-iOS-"$VERSION"-build*-unsigned.ipa 2>/dev/null | head -1)"
+[[ -f "$IPA" ]] || die "没有找到 dist/Liana-iOS-$VERSION-build*-unsigned.ipa"
+IPA_SUM="$IPA.sha256"
+[[ -f "$IPA_SUM" ]] || (cd dist && shasum -a 256 "$(basename "$IPA")" > "$(basename "$IPA_SUM")")
+
 # ──────────────────── 4. 推送 + GitHub Release ────────────────────
 
 log "推送 main 与 $TAG"
@@ -150,7 +161,13 @@ NOTES="$(mktemp)"
     echo
     cat .github/release-notes-template.md
     cat "$DMG_SUM"
+    cat "$IPA_SUM"
     echo '```'
+    IOS_BUILD="$(basename "$IPA" | sed -n -E 's/-build([0-9]+)-unsigned\.ipa$/\1/p')"
+    echo "### iOS 预览版"
+    echo
+    echo "- 包内版本：\`$VERSION ($IOS_BUILD)\`；iOS 15+、iPhone arm64，未签名。使用自己的工具同时重签主 App 与内嵌键盘扩展。"
+    echo '- 安装后：设置 → 通用 → 键盘 → 键盘 → 添加新键盘 → 松萝键盘；长按地球键切换。普通输入无需完全访问。'
 } > "$NOTES"
 TITLE_THEME="$(head -1 <<<"$SECTION" | sed -n -E 's/^#+ [^·]*· *(.*)$/\1/p')"
 TITLE="$TAG${TITLE_THEME:+ — $TITLE_THEME}"
@@ -160,11 +177,11 @@ if gh release view "$TAG" >/dev/null 2>&1; then
     log "Release $TAG 已存在：更新说明并补传缺失产物"
     gh release edit "$TAG" --title "$TITLE" --notes-file "$NOTES" --latest || die "gh release edit 失败"
     existing="$(gh release view "$TAG" --json assets -q '.assets[].name')"
-    for f in "$DMG" "$DMG_SUM"; do
+    for f in "$DMG" "$DMG_SUM" "$IPA" "$IPA_SUM"; do
         grep -qxF "$(basename "$f")" <<<"$existing" || gh release upload "$TAG" "$f" || die "上传 $f 失败"
     done
 else
-    gh release create "$TAG" --verify-tag --latest --title "$TITLE" --notes-file "$NOTES" "$DMG" "$DMG_SUM" \
+    gh release create "$TAG" --verify-tag --latest --title "$TITLE" --notes-file "$NOTES" "$DMG" "$DMG_SUM" "$IPA" "$IPA_SUM" \
         || die "gh release create 失败"
 fi
 rm -f "$NOTES"
