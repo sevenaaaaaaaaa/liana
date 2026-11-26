@@ -40,6 +40,8 @@ final class InputCoach {
     private let storageKey = "coach.days.v2"
     private let defaults: UserDefaults
     private var days: [String: Day]
+    /// 合并落盘的定时任务；见 scheduleFlush。
+    private var flushWork: DispatchWorkItem?
 
     private static let dayKey: DateFormatter = {
         let formatter = DateFormatter()
@@ -87,6 +89,22 @@ final class InputCoach {
         var today = days[key] ?? Day()
         change(&today)
         days[key] = today
+        scheduleFlush()
+    }
+
+    /// 落盘合并：打字期每个按键都全量 JSON 编码 + 写 plist 太重，
+    /// 1 秒内的记账合成一次写。内存里的数字始终是准的，只是晚一点进磁盘。
+    private func scheduleFlush() {
+        flushWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.save() }
+        flushWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
+    }
+
+    /// 立即落盘（键盘收起时调用；进程被杀最多丢 1 秒账）。
+    func flush() {
+        flushWork?.cancel()
+        flushWork = nil
         save()
     }
 
@@ -117,6 +135,8 @@ final class InputCoach {
     func today() -> Day { days[Self.dayKey.string(from: Date())] ?? Day() }
 
     func reset() {
+        flushWork?.cancel()
+        flushWork = nil
         days = [:]
         defaults.removeObject(forKey: storageKey)
     }

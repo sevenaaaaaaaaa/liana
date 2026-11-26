@@ -96,10 +96,6 @@ class KeyboardViewController: UIInputViewController {
     private var chromeRoot: UIStackView!
     private var chromeHeader: UIView!
     private var stripHeight: NSLayoutConstraint!
-    private var inlineConstraints: [NSLayoutConstraint] = []
-    private var inlineLeading: [NSLayoutConstraint] = []
-    private var inlineWidths: [NSLayoutConstraint] = []
-    private var stripsInline = false
     private var candidateScroll: UIScrollView!
     private var translationChip: LianaPressButton!
     private var translationChipWidth: NSLayoutConstraint!
@@ -125,6 +121,10 @@ class KeyboardViewController: UIInputViewController {
     private var repeatTimer: Timer?
     private let hapticLight = UIImpactFeedbackGenerator(style: .light)
     private let hapticStrong = UIImpactFeedbackGenerator(style: .medium)
+    /// 内核语言清单缓存：会话里注册表不会变，而菜单在每次键盘重建都要重建，
+    /// 不缓存的话连按个 Shift 都会跨界调 FFI 再解析一遍 JSON。
+    private var cachedMenuOrder: [String]?
+    private var cachedMenuLabels: [String: String]?
 
     private static let rowSpacing: CGFloat = 5
     /// 顶栏快捷入口：6 个同尺寸图标，与语音设备入口同一排。
@@ -166,6 +166,7 @@ class KeyboardViewController: UIInputViewController {
 
     override func viewWillDisappear(_ animated: Bool) {
         saveWork?.cancel()
+        InputCoach.shared.flush()
         visibleForInput = false
         featurePanel?.removeFromSuperview(); featurePanel = nil
         adjustmentPanel?.removeFromSuperview(); adjustmentPanel = nil
@@ -682,11 +683,17 @@ class KeyboardViewController: UIInputViewController {
         composing.text = composingText.isEmpty ? "候选 · 光标" : composingText
         wbHint?.isHidden = !candidates.isEmpty
         for (offset, row) in grid.arrangedSubviews.dropFirst().enumerated() { row.isHidden = offset*2 >= candidates.count }
+        let firstFont = UIFont.systemFont(ofSize: CGFloat(preferences.candidateFont), weight: .semibold)
+        let restFont = UIFont.systemFont(ofSize: CGFloat(preferences.candidateFont), weight: .regular)
         for (index, button) in wbButtons.enumerated() {
             button.isHidden = index >= candidates.count
             if index < candidates.count {
-                if button.title(for: .normal) != candidates[index] { UIView.performWithoutAnimation { button.setTitle(candidates[index], for: .normal) } }
-                button.titleLabel?.font = .systemFont(ofSize: CGFloat(preferences.candidateFont), weight: index == 0 ? .semibold : .regular)
+                let word = candidates[index]
+                let font = index == 0 ? firstFont : restFont
+                if button.title(for: .normal) != word || button.titleLabel?.font != font {
+                    UIView.performWithoutAnimation { button.setTitle(word, for: .normal) }
+                    button.titleLabel?.font = font
+                }
             }
         }
     }
@@ -766,43 +773,36 @@ class KeyboardViewController: UIInputViewController {
         if animated && isViewLoaded && LianaMotion.enabled { UIView.transition(with: view, duration: 0.16, options: [.transitionCrossDissolve, .allowUserInteraction], animations: apply) } else { apply() }
     }
 
-    /// 候选条（含译文入口）固定占一行；横屏不再把它并进顶栏，
+    /// 候选条（含译文入口）固定占一行；不再有「并进顶栏」的横屏变体，
     /// 避免切换方向时高度和命中区域同时变化。
-    private func updateStripPlacement() {
-        stripsInline = false
-    }
-
     private func updateGeometry() {
-        updateStripPlacement()
         // 键盘高度恒定：候选条的 46pt 永远预留。若跟着「有没有候选」伸缩，
         // 每输入一个词键盘都会上下跳一次，快速连点必然错行。
-        let requested = Self.headerHeight + (stripsInline ? 0 : Self.stripHeight) + keyboardAreaHeight + view.safeAreaInsets.bottom + 12 + CGFloat(preferences.bottomPadding)
-        heightConstraint?.constant = requested
-        (inputView as? KeyboardInputView)?.requestedHeight = requested
-        preferredContentSize = CGSize(width: view.bounds.width, height: requested)
-        areaHeight?.constant = keyboardAreaHeight
-        rootBottom?.constant = -8 - CGFloat(preferences.bottomPadding)
+        let requested = Self.headerHeight + Self.stripHeight + keyboardAreaHeight + view.safeAreaInsets.bottom + 12 + CGFloat(preferences.bottomPadding)
+        // 这里在每次击键的候选渲染路径上：给常量赋同一个值也会把布局标记为脏，
+        // 全部先比对再赋值，值没变就不做任何事。
+        if heightConstraint?.constant != requested { heightConstraint?.constant = requested }
+        if let keyboardView = inputView as? KeyboardInputView, keyboardView.requestedHeight != requested { keyboardView.requestedHeight = requested }
+        let preferred = CGSize(width: view.bounds.width, height: requested)
+        if preferredContentSize != preferred { preferredContentSize = preferred }
+        if areaHeight?.constant != keyboardAreaHeight { areaHeight?.constant = keyboardAreaHeight }
+        let bottom = -8 - CGFloat(preferences.bottomPadding)
+        if rootBottom?.constant != bottom { rootBottom?.constant = bottom }
         guard entryDock != nil else { return }
         let travel = max(0, view.bounds.width - Self.dockWidth - 16)
         let x = 8 + travel * CGFloat(preferences.entryPosition)
-        entryLeading.constant = x
+        if entryLeading.constant != x { entryLeading.constant = x }
         let leftSpace = x - 12
         let rightSpace = view.bounds.width - x - Self.dockWidth - 12
-        compositionLeading.constant = leftSpace >= rightSpace ? 8 : x + Self.dockWidth + 8
+        let leading = leftSpace >= rightSpace ? 8 : x + Self.dockWidth + 8
+        if compositionLeading.constant != leading { compositionLeading.constant = leading }
         let available = max(0, max(leftSpace, rightSpace))
         // 顶栏被 6 个入口占掉后，窄屏要优先保证组合串可见：空间不足时先收起清空按钮。
         clearSuppressed = !rawInput.isEmpty && available < 64
         if rawInput.isEmpty || clearSuppressed { clearButton?.isHidden = true }
         let clearWidth: CGFloat = rawInput.isEmpty || clearSuppressed ? 0 : 44
-        compositionWidth.constant = stripsInline ? min(112, max(52, available*0.22)) : max(0, available-clearWidth)
-        if stripsInline {
-            // 横屏一行式：候选条紧接组合串，但不能压到右侧 6 个入口上。
-            let start = compositionLeading.constant + compositionWidth.constant + clearWidth + 8
-            let dockStart = max(0, entryLeading.constant - 4)
-            let boundedStart = min(start, dockStart)
-            inlineLeading.forEach { $0.constant = boundedStart }
-            inlineWidths.forEach { $0.constant = max(0, dockStart - boundedStart) }
-        }
+        let widthConstant = max(0, available - clearWidth)
+        if compositionWidth.constant != widthConstant { compositionWidth.constant = widthConstant }
         if let adjustmentPanel { keyboardArea.bringSubviewToFront(adjustmentPanel) }
         if let devicePanel { keyboardArea.bringSubviewToFront(devicePanel) }
         if let featurePanel { keyboardArea.bringSubviewToFront(featurePanel) }
@@ -951,7 +951,7 @@ class KeyboardViewController: UIInputViewController {
 
         let headline = report.activeDays == 0
             ? "还没有记录。打几句话，这里就开始记账了。"
-            : "最近 7 天有 (report.activeDays) 天在输入"
+            : "最近 7 天有 \(report.activeDays) 天在输入"
         stack.addArrangedSubview(LianaUI.label(headline, size: 20, weight: .semibold))
 
         let metrics = UIStackView(); metrics.spacing = 8; metrics.distribution = .fillEqually
@@ -997,7 +997,7 @@ class KeyboardViewController: UIInputViewController {
 
     private func learnedRow(word: String, count: Int, stack: UIStackView) -> UIView {
         let name = LianaUI.label(word, size: 15, weight: .medium)
-        let times = LianaUI.label("学过 (count) 次", size: 11, muted: true)
+        let times = LianaUI.label("学过 \(count) 次", size: 11, muted: true)
         let remove = LianaUI.button("删掉", role: .plain, id: "coach.forget.\(word)") { [weak self] in
             guard let self else { return }
             self.engine.forget(word)
@@ -1631,20 +1631,26 @@ class KeyboardViewController: UIInputViewController {
         updateGeometry()
         clearButton?.isHidden = rawInput.isEmpty || clearSuppressed
         for button in returnButtons { button.accessibilityLabel = rawInput.isEmpty ? "换行" : "确认候选" }
-        refreshTranslation()
         guard renderedCandidates != candidates || renderedCandidateFont != preferences.candidateFont else { return }
         renderedCandidates = candidates; renderedCandidateFont = preferences.candidateFont
+        // 译文只跟首位候选走：候选没变就不重挂，云端那路也不再重新起定时器。
+        refreshTranslation()
         while candidateButtons.count < candidates.count {
             let button = candidateButton("", index: candidateButtons.count)
             candidateButtons.append(button); candidateStrip.addArrangedSubview(button)
         }
         let learned = engine.learnedSet()
+        let firstFont = UIFont.systemFont(ofSize: CGFloat(preferences.candidateFont), weight: .semibold)
+        let restFont = UIFont.systemFont(ofSize: CGFloat(preferences.candidateFont), weight: .regular)
         for (i, button) in candidateButtons.enumerated() {
             button.isHidden = i >= candidates.count
             if i < candidates.count {
                 let word = candidates[i]
-                UIView.performWithoutAnimation { button.setTitle(word, for: .normal) }
-                button.titleLabel?.font = .systemFont(ofSize: CGFloat(preferences.candidateFont), weight: i == 0 ? .semibold : .regular)
+                let font = i == 0 ? firstFont : restFont
+                if button.title(for: .normal) != word || button.titleLabel?.font != font {
+                    UIView.performWithoutAnimation { button.setTitle(word, for: .normal) }
+                    button.titleLabel?.font = font
+                }
                 // 学过的小圆点：不用长按也能看出「这个是我教出来的」
                 markLearned(button, isLearned: learned.contains(word))
             } else {
@@ -1653,10 +1659,14 @@ class KeyboardViewController: UIInputViewController {
         }
     }
 
-    /// 候选右上角的小圆点：这个词有学习记录。
+    /// 候选右上角的小圆点：这个词有学习记录。圆点常驻按钮上，只切可见性——
+    /// 每次击键都拆装一层约束是白花的功夫。
     private func markLearned(_ button: UIButton, isLearned: Bool) {
         let tag = 0x1EAD
-        button.viewWithTag(tag)?.removeFromSuperview()
+        if let dot = button.viewWithTag(tag) {
+            dot.isHidden = !isLearned
+            return
+        }
         guard isLearned else { return }
         let dot = UIView()
         dot.tag = tag
@@ -1852,12 +1862,16 @@ extension KeyboardViewController {
     /// 菜单的语言部分来自内核注册表（`liana_languages()`），平台只补内核没有的方案。
     /// 内核将来多一门语言，这里不用改一行代码——这正是这次对齐要的效果。
     private func configureModeMenu() {
-        let kernel = LanguageCatalog.load(fetch: kernelLanguagesJSON)
-        let labels = Dictionary(kernel.map { ($0.id, $0.label) }, uniquingKeysWith: { first, _ in first })
-        let order = LanguageCatalog.menuOrder(
-            kernel: kernel,
-            platformIDs: MobileInputMethod.platformOnly.map(\.rawValue)
-        )
+        if cachedMenuOrder == nil {
+            let kernel = LanguageCatalog.load(fetch: kernelLanguagesJSON)
+            cachedMenuLabels = Dictionary(kernel.map { ($0.id, $0.label) }, uniquingKeysWith: { first, _ in first })
+            cachedMenuOrder = LanguageCatalog.menuOrder(
+                kernel: kernel,
+                platformIDs: MobileInputMethod.platformOnly.map(\.rawValue)
+            )
+        }
+        let labels = cachedMenuLabels ?? [:]
+        let order = cachedMenuOrder ?? []
         var children: [UIAction] = []
         for id in order {
             let title = labels[id] ?? MobileInputMethod(rawValue: id)?.title ?? id

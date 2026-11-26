@@ -71,6 +71,13 @@ class LianaImeService : InputMethodService() {
     private var wbComposing: TextView? = null
     private var wbGrid: LinearLayout? = null
 
+    // ---- 视图复用池：打字期每击键都重刷候选，反复建视图/Drawable 只会喂 GC ----
+    private var composingView: TextView? = null
+    private val candidatePool: MutableList<TextView> = ArrayList()
+    private val wbRows: MutableList<LinearLayout> = ArrayList()
+    private val wbCells: MutableList<TextView> = ArrayList()
+    private var wbHintView: TextView? = null
+
     private var layoutSignature = ""
     private var building = false
     private var inputViewRef: View? = null
@@ -139,6 +146,9 @@ class LianaImeService : InputMethodService() {
     // ---- 键盘 UI（程序化构建，无 XML 布局） ----
 
     override fun onCreateInputView(): View {
+        // 输入视图重建时旧池一并作废，避免把挂在旧条上的视图再挂回来
+        candidatePool.clear()
+        composingView = null
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(LianaTheme.BG)
@@ -201,6 +211,9 @@ class LianaImeService : InputMethodService() {
         tradButton = null
         wbComposing = null
         wbGrid = null
+        wbRows.clear()
+        wbCells.clear()
+        wbHintView = null
         when (layout.mode) {
             FoldLayout.Mode.SOLO -> buildSolo(layout, widthDp)
             FoldLayout.Mode.SPLIT -> buildSplit(layout)
@@ -365,12 +378,44 @@ class LianaImeService : InputMethodService() {
         gutter.addView(composing, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, dp(16)))
 
-        // 候选网格：可竖向滚动，每个候选热区 ≥ 52dp
+        // 候选网格：可竖向滚动，每个候选热区 ≥ 52dp。
+        // 行与格子一次建齐，之后每击键只改文字与可见性（视图复用，见 renderWorkbench）。
         val gridScroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false }
         val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         gridScroll.addView(grid, ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         wbGrid = grid
+
+        val hint = TextView(this).apply {
+            text = "候选随输入出现在这里"
+            textSize = 11f
+            setTextColor(LianaTheme.SECONDARY)
+            gravity = Gravity.CENTER
+        }
+        wbHintView = hint
+        grid.addView(hint, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(52)))
+
+        var index = 0
+        while (index < MAX_CANDIDATES) {
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            for (offset in 0..1) {
+                val cellIndex = index + offset
+                val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
+                lp.setMargins(dp(2), dp(2), dp(2), dp(2))
+                if (cellIndex < MAX_CANDIDATES) {
+                    val cell = workbenchCandidate(cellIndex)
+                    wbCells.add(cell)
+                    row.addView(cell, lp)
+                } else {
+                    row.addView(View(this), lp)
+                }
+            }
+            wbRows.add(row)
+            grid.addView(row, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(52)))
+            index += 2
+        }
         gutter.addView(gridScroll, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
@@ -385,52 +430,40 @@ class LianaImeService : InputMethodService() {
     }
 
     private fun renderWorkbench() {
-        val grid = wbGrid ?: return
+        if (wbGrid == null) return
         wbComposing?.text = if (composingText.isEmpty()) "中缝 · 候选与光标" else composingText
-        grid.removeAllViews()
-
+        wbHintView?.visibility = if (candidates.isEmpty()) View.VISIBLE else View.GONE
         val shown = candidates.take(MAX_CANDIDATES)
-        if (shown.isEmpty()) {
-            val hint = TextView(this).apply {
-                text = "候选随输入出现在这里"
-                textSize = 11f
-                setTextColor(LianaTheme.SECONDARY)
-                gravity = Gravity.CENTER
+        for (i in wbCells.indices) {
+            val cell = wbCells[i]
+            if (i < shown.size) {
+                cell.visibility = View.VISIBLE
+                if (cell.text != shown[i]) cell.text = shown[i]
+            } else {
+                // 用 INVISIBLE 占位：整行的两列宽度节奏不变（对齐旧版补空位的行为）
+                cell.visibility = View.INVISIBLE
             }
-            grid.addView(hint, LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(52)))
-            return
         }
-
         var index = 0
-        while (index < shown.size) {
-            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            for (offset in 0..1) {
-                val i = index + offset
-                val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
-                lp.setMargins(dp(2), dp(2), dp(2), dp(2))
-                if (i < shown.size) {
-                    row.addView(workbenchCandidate(shown[i], i), lp)
-                } else {
-                    row.addView(View(this), lp)
-                }
-            }
-            grid.addView(row, LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(52)))
+        for (row in wbRows) {
+            row.visibility = if (index < shown.size) View.VISIBLE else View.GONE
             index += 2
         }
     }
 
-    private fun workbenchCandidate(text: String, index: Int): TextView {
-        return baseKey(text).apply {
+    /** 中缝候选格（复用视图）：点击选中。候选索引走 view.tag，监听器整池共享一份状态。 */
+    private fun workbenchCandidate(index: Int): TextView {
+        return baseKey("").apply {
             textSize = LianaTheme.FONT_CANDIDATE
             background = GradientDrawable().apply {
                 cornerRadius = dp(6).toFloat()
                 setColor(LianaTheme.KEY_PRESSED)
             }
-            setOnClickListener {
+            tag = index
+            setOnClickListener { v ->
+                val i = v.tag as? Int ?: return@setOnClickListener
                 haptic(HapticFeedbackConstants.LONG_PRESS)
-                selectCandidate(index)
+                selectCandidate(i)
             }
         }
     }
@@ -690,30 +723,48 @@ class LianaImeService : InputMethodService() {
 
     private fun renderCandidates() {
         if (!::candidateStrip.isInitialized) return
-        candidateStrip.removeAllViews()
-        if (composingText.isNotEmpty()) {
-            val composing = TextView(this).apply {
-                text = composingText
-                textSize = 14f
-                setTextColor(LianaTheme.SECONDARY)
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(8), 0, dp(12), 0)
-            }
-            candidateStrip.addView(composing)
+        // 复用池：只改文字与可见性，不在打字路径上建视图（每次 removeAllViews 会喂 GC）
+        val composing = ensureComposingView()
+        if (composing.parent !== candidateStrip) candidateStrip.addView(composing)
+        composing.text = composingText
+        composing.visibility = if (composingText.isNotEmpty()) View.VISIBLE else View.GONE
+        while (candidatePool.size < candidates.size) {
+            val view = candidatePoolView(candidatePool.size)
+            candidatePool.add(view)
+            if (view.parent !== candidateStrip) candidateStrip.addView(view)
         }
-        candidates.forEachIndexed { i, text ->
-            candidateStrip.addView(candidateView(text, i))
+        for (i in candidatePool.indices) {
+            val view = candidatePool[i]
+            view.tag = i
+            if (i < candidates.size) {
+                view.visibility = View.VISIBLE
+                if (view.text != candidates[i]) view.text = candidates[i]
+            } else {
+                view.visibility = View.GONE
+            }
         }
         renderWorkbench()
     }
 
-    /** 候选条目：点击选中；上滑 ≥ 24dp 直接着该候选上屏（§3.2）。 */
-    private fun candidateView(text: String, index: Int): TextView {
+    private fun ensureComposingView(): TextView {
+        composingView?.let { return it }
+        val view = TextView(this).apply {
+            textSize = 14f
+            setTextColor(LianaTheme.SECONDARY)
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), 0, dp(12), 0)
+        }
+        composingView = view
+        return view
+    }
+
+    /** 候选条目（复用视图）：点击选中；上滑 ≥ 24dp 直接着该候选上屏（§3.2）。索引走 view.tag。 */
+    private fun candidatePoolView(initialIndex: Int): TextView {
         val swipeUpThreshold = dp(24)
         var downY = 0f
         var swiped = false
         return TextView(this).apply {
-            this.text = text
+            tag = initialIndex
             textSize = LianaTheme.FONT_CANDIDATE
             setTextColor(LianaTheme.TEXT)
             typeface = Typeface.DEFAULT_BOLD
@@ -728,20 +779,21 @@ class LianaImeService : InputMethodService() {
             lp.setMargins(dp(3), 0, dp(3), 0)
             layoutParams = lp
             setOnTouchListener { v, ev ->
+                val index = v.tag as? Int ?: -1
                 when (ev.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
                         downY = ev.y; swiped = false
                         true
                     }
                     MotionEvent.ACTION_MOVE -> {
-                        if (!swiped && downY - ev.y > swipeUpThreshold) {
+                        if (!swiped && index >= 0 && downY - ev.y > swipeUpThreshold) {
                             swiped = true
                             selectCandidate(index)
                         }
                         true
                     }
                     MotionEvent.ACTION_UP -> {
-                        if (!swiped) selectCandidate(index)
+                        if (!swiped && index >= 0) selectCandidate(index)
                         true
                     }
                     else -> false

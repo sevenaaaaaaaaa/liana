@@ -80,4 +80,8 @@ backup-*.tgz
 
 # 本机杂项
 .DS_Store
+# 安全扫描插件的本地缓存
+.mimosa/
+# Android APK 构建时注入的产物：词典由 build_native.sh 生成、语言模型由 gradle copySharedModel 拷入
+platforms/android/app/src/main/assets/
 # ─── 闸门结束 ───
