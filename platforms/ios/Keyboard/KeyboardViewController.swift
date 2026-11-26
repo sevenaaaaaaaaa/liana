@@ -10,7 +10,7 @@ enum LianaTheme {
     static var text: UIColor { LianaPalette.ink }
     static var secondary: UIColor { LianaPalette.muted }
     static var accent: UIColor { LianaPalette.ink }
-    static let fontCandidate: CGFloat = 17
+    static let fontCandidate: CGFloat = 18
     static let fontKey: CGFloat = 20
     static let padSplitMinWidth: CGFloat = 600
 }
@@ -126,14 +126,16 @@ class KeyboardViewController: UIInputViewController {
     private var cachedMenuOrder: [String]?
     private var cachedMenuLabels: [String: String]?
 
-    private static let rowSpacing: CGFloat = 5
+    private static let rowSpacing: CGFloat = 7
     /// 顶栏快捷入口：6 个同尺寸图标，与语音设备入口同一排。
     private static let dockEntryWidth: CGFloat = 44
     private static let dockCount: CGFloat = 6
     private static var dockWidth: CGFloat { dockCount * dockEntryWidth }
-    private static let stripHeight: CGFloat = 46
-    private static let headerHeight: CGFloat = 58
-    private static let dockHeight: CGFloat = 54
+    /// 候选栏 50pt：字号 18 + 上下 6pt 内边距后仍留出呼吸空间，
+    /// 触控热区也比 46pt 时多出一线（候选是键盘上点得最多的目标）。
+    private static let stripHeight: CGFloat = 50
+    private static let headerHeight: CGFloat = 52
+    private static let dockHeight: CGFloat = 48
     private static let cursorRowHeight: CGFloat = 44
     private static let wbCandidateRowHeight: CGFloat = 44
     private var keyboardAreaHeight: CGFloat { 4 * CGFloat(preferences.keyHeight) + 3 * Self.rowSpacing }
@@ -223,7 +225,7 @@ class KeyboardViewController: UIInputViewController {
         candidates = update.snapshot.candidates
         rawInput = update.snapshot.raw
         candidateRaw = rawInput
-        if let message = update.snapshot.message { featurePanel?.status(message) }
+        if let message = update.snapshot.message { announce(message) }
         composingText = update.snapshot.message ?? update.snapshot.preedit
         renderCandidates()
     }
@@ -341,7 +343,7 @@ class KeyboardViewController: UIInputViewController {
         candidateStrip = UIStackView()
         candidateStrip.translatesAutoresizingMaskIntoConstraints = false
         candidateStrip.axis = .horizontal
-        candidateStrip.spacing = 8
+        candidateStrip.spacing = 10
         candidateStrip.layoutMargins = UIEdgeInsets(top: 1, left: 8, bottom: 1, right: 8)
         candidateStrip.isLayoutMarginsRelativeArrangement = true
         candidateStrip.insetsLayoutMarginsFromSafeArea = false
@@ -486,7 +488,7 @@ class KeyboardViewController: UIInputViewController {
                 items.append((title, i == 2 ? geometry.keyWidth : p, { [weak self] in self?.onCharacter(ch) }))
             }
             if i == 2 { items.append(("⌫", sideWidth, { [weak self] in self?.onBackspace() })) }
-            let row = letterRow(items, height: layout.keyHeight)
+            let row = letterRow(items, height: layout.keyHeight, gap: layout.gap)
             column.addArrangedSubview(row)
         }
 
@@ -505,7 +507,7 @@ class KeyboardViewController: UIInputViewController {
             (!english && method == .mspy ? ";" : (!english ? "，" : ","), fnWidth, { [weak self] in self?.onPunctuation() }),
             ("⏎", fnWidth, { [weak self] in self?.onEnter() }),
         ]
-        let row = letterRow(items, height: layout.keyHeight)
+        let row = letterRow(items, height: layout.keyHeight, gap: layout.gap)
         modeButton = row.arrangedSubviews[2] as? UIButton
         configureModeMenu()
         return row
@@ -552,8 +554,8 @@ class KeyboardViewController: UIInputViewController {
             ("⏎", fnWidth, { [weak self] in self?.onEnter() }),
         ]
 
-        let leftFn = letterRow(leftFnItems, height: layout.keyHeight)
-        let rightFn = letterRow(rightFnItems, height: layout.keyHeight)
+        let leftFn = letterRow(leftFnItems, height: layout.keyHeight, gap: layout.gap)
+        let rightFn = letterRow(rightFnItems, height: layout.keyHeight, gap: layout.gap)
         modeButton = leftFn.arrangedSubviews[2] as? UIButton
 
         // 左侧键组贴左边缘、右侧贴右边缘：中缝吸收全部富余宽度
@@ -600,7 +602,7 @@ class KeyboardViewController: UIInputViewController {
             let used = CGFloat(titles.count) * layout.pitch + CGFloat(titles.count) * layout.gap
             items.append(("⌫", max(layout.pitch, layout.clusterWidth - used), { [weak self] in self?.onBackspace() }))
         }
-        let row = letterRow(items, height: layout.keyHeight)
+        let row = letterRow(items, height: layout.keyHeight, gap: layout.gap)
         return row
     }
 
@@ -850,30 +852,31 @@ class KeyboardViewController: UIInputViewController {
             panel.topAnchor.constraint(equalTo: keyboardArea.topAnchor),
             panel.bottomAnchor.constraint(equalTo: keyboardArea.bottomAnchor),
         ])
+        // 下滑关闭：面板不再只有角落里一个 44pt 的 ✕ 逃生口
+        panel.addGestureRecognizer(PanelSwipeDown(target: self, action: #selector(onPanelSwipeDown(_:))))
         syncToolbarState()
         LianaMotion.reveal(panel)
     }
 
-    /// 选配色。十套按顺序列出，当前那套打勾。
-    private func chooseColorway() {
-        let sheet = UIAlertController(title: "键盘配色", message: "浅色与深色各有一套，跟随系统外观自动切换。", preferredStyle: .actionSheet)
-        for colorway in LianaColorway.allCases {
-            let mark = colorway == LianaPalette.colorway ? " ✓" : ""
-            sheet.addAction(UIAlertAction(title: colorway.title + " · " + colorway.note + mark, style: .default) { [weak self] _ in
-                guard let self else { return }
-                LianaPalette.colorway = colorway
-                self.applyAppearance(animated: true)
-                self.rebuildKeyboardIfNeeded(animated: true)
-                // 面板上的按钮文字要跟着变：关掉再开一次最省事
-                self.toggleAdjustments(); self.toggleAdjustments()
-            })
-        }
-        sheet.addAction(UIAlertAction(title: "取消", style: .cancel))
-        if let pop = sheet.popoverPresentationController {
-            pop.sourceView = view
-            pop.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
-        }
-        present(sheet, animated: true)
+    /// 统一的面板关闭路径：下滑手势与各返回键都走这里，不管开着的是哪个面板。
+    private func closeActivePanel() {
+        if let panel = adjustmentPanel { adjustmentPanel = nil; syncToolbarState(); LianaMotion.dismiss(panel); return }
+        if let panel = featurePanel { featurePanel = nil; syncToolbarState(); LianaMotion.dismiss(panel); return }
+        if let panel = devicePanel { panel.stop(); devicePanel = nil; syncToolbarState(); LianaMotion.dismiss(panel); return }
+        if let sheet = commandSheet { commandSheet = nil; syncToolbarState(); LianaMotion.dismiss(sheet); return }
+        if let panel = coachPanel { coachPanel = nil; LianaMotion.dismiss(panel); return }
+        closeGesturePanel()
+        hideGestureHint()
+    }
+
+    @objc private func onPanelSwipeDown(_ gesture: UISwipeGestureRecognizer) {
+        closeActivePanel()
+    }
+
+    /// 操作反馈的唯一出口：面板开着就写进面板状态行，没开就用悬浮提示，
+    /// 不再出现「点了没反应，提示不知道去哪了」。
+    private func announce(_ text: String) {
+        if let panel = featurePanel { panel.status(text) } else { showGestureHint(text) }
     }
 
     /// 把用户送回宿主 App 录音。没有「完全访问」时 openURL 会被系统拒绝。
@@ -1010,25 +1013,6 @@ class KeyboardViewController: UIInputViewController {
         return row
     }
 
-    /// 选点击特效。九种按顺序列出，当前那种打勾。
-    private func chooseKeyEffect() {
-        let sheet = UIAlertController(title: "点击特效", message: "按下按键时的一层短动画，不影响输入。", preferredStyle: .actionSheet)
-        for effect in KeyEffect.allCases {
-            let mark = effect == KeyEffectSettings.current ? " ✓" : ""
-            sheet.addAction(UIAlertAction(title: effect.title + mark, style: .default) { [weak self] _ in
-                guard let self else { return }
-                KeyEffectSettings.current = effect
-                self.toggleAdjustments(); self.toggleAdjustments()
-            })
-        }
-        sheet.addAction(UIAlertAction(title: "取消", style: .cancel))
-        if let pop = sheet.popoverPresentationController {
-            pop.sourceView = view
-            pop.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
-        }
-        present(sheet, animated: true)
-    }
-
     /// 编辑符号页的三行。每行最多 10 个字符，留空的行不显示。
     private func editSymbolRows() {
         let alert = UIAlertController(title: "符号页", message: "每行一条，最多 10 个字符；留空则不显示该行。", preferredStyle: .alert)
@@ -1092,14 +1076,15 @@ class KeyboardViewController: UIInputViewController {
             UserDefaults.standard.set(theme.selectedSegmentIndex, forKey: "keyboard.appearance"); self.applyAppearance(animated: true)
         }, for: .valueChanged); stack.addArrangedSubview(theme)
 
-        // 十套配色：键盘、候选条、工具面板一起换。
-        stack.addArrangedSubview(LianaUI.button("配色 · \(LianaPalette.colorway.title)", icon: "paintpalette", role: .utility, id: "layout.colorway") { [weak self] in
-            self?.chooseColorway()
+        // 配色网格：当场预览，点一下立即生效（键盘、候选条、面板一起换）。
+        stack.addArrangedSubview(LianaUI.label("配色", size: 14, weight: .semibold))
+        stack.addArrangedSubview(ColorwayGrid { [weak self] in
+            self?.applyAppearance(animated: true)
+            self?.rebuildKeyboardIfNeeded(animated: true)
         })
-        // 点击特效：九种，按下瞬间在键上叠一层短动画。
-        stack.addArrangedSubview(LianaUI.button("点击特效 · \(KeyEffectSettings.current.title)", icon: "sparkles", role: .utility, id: "layout.effect") { [weak self] in
-            self?.chooseKeyEffect()
-        })
+        // 点击特效网格：九种，按下任意键当场试出效果。
+        stack.addArrangedSubview(LianaUI.label("点击特效", size: 14, weight: .semibold))
+        stack.addArrangedSubview(EffectGrid())
         // 双语模式：候选条下方常显首选候选的目标语言译文。
         let bilingualState = BilingualSettings.isOn ? "开" : "关"
         stack.addArrangedSubview(LianaUI.button("双语模式 · " + bilingualState, icon: "character.bubble", role: .utility, id: "layout.bilingual") { [weak self] in
@@ -1233,10 +1218,10 @@ class KeyboardViewController: UIInputViewController {
         installPanel(panel)
     }
 
-    private func letterRow(_ items: [(String, CGFloat, () -> Void)], height: CGFloat) -> UIStackView {
+    private func letterRow(_ items: [(String, CGFloat, () -> Void)], height: CGFloat, gap: CGFloat = FoldLayout.gapConst) -> UIStackView {
         let row = UIStackView()
         row.axis = .horizontal
-        row.spacing = FoldLayout.gapConst
+        row.spacing = gap
         row.alignment = .fill
         for (title, width, action) in items {
             let b = keyButton(title, action: action)
@@ -1803,8 +1788,9 @@ class KeyboardViewController: UIInputViewController {
         b.setTitle(text, for: .normal)
         b.titleLabel?.font = .systemFont(ofSize: CGFloat(preferences.candidateFont), weight: index == 0 ? .semibold : .regular)
         b.rounded = 8
-        b.contentEdgeInsets = UIEdgeInsets(top: 4, left: 12, bottom: 4, right: 12)
-        b.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        // 内边距上下 6pt：在 50pt 候选栏里吃满整行热区，相邻候选间距只隔 10pt
+        b.contentEdgeInsets = UIEdgeInsets(top: 6, left: 14, bottom: 6, right: 14)
+        b.widthAnchor.constraint(greaterThanOrEqualToConstant: 48).isActive = true
         b.tag = index
         b.accessibilityIdentifier = "candidate.\(index)"
         if index == 0 { b.accessibilityValue = "首选词" }
@@ -1913,7 +1899,7 @@ extension KeyboardViewController {
         NSLayoutConstraint.activate([content.leadingAnchor.constraint(equalTo: keyboardArea.leadingAnchor, constant: 5),content.trailingAnchor.constraint(equalTo: keyboardArea.trailingAnchor, constant: -5),content.topAnchor.constraint(equalTo: keyboardArea.topAnchor),content.bottomAnchor.constraint(equalTo: keyboardArea.bottomAnchor)])
     }
     private func basicFunctions(showsNumbers: Bool = true) -> UIStackView {
-        let row = UIStackView(); row.spacing = 5; row.distribution = .fillEqually
+        let row = UIStackView(); row.spacing = Self.rowSpacing; row.distribution = .fillEqually
         var items: [(String, () -> Void)] = []
         // 九键的数字 1 已经是页面键，不再需要独立的 123。
         if showsNumbers { items.append(("123", { [weak self] in self?.togglePage() })) }
@@ -1929,10 +1915,10 @@ extension KeyboardViewController {
             return
         }
         resetKeyboardArea()
-        let column = UIStackView(); column.axis = .vertical; column.spacing = 5; column.distribution = .fillEqually
+        let column = UIStackView(); column.axis = .vertical; column.spacing = Self.rowSpacing; column.distribution = .fillEqually
         let values = [["1 · 符号", "2 ABC", "3 DEF"],["4 GHI", "5 JKL", "6 MNO"],["7 PQRS", "8 TUV", "9 WXYZ"]]
         for titles in values {
-            let row = UIStackView(); row.spacing = 5; row.distribution = .fillEqually
+            let row = UIStackView(); row.spacing = Self.rowSpacing; row.distribution = .fillEqually
             for title in titles {
                 let key = keyButton(title) { [weak self] in
                     guard let self else { return }
@@ -2054,7 +2040,7 @@ extension KeyboardViewController {
         let canvas = HandwritingPanel(); handwritingPanel = canvas
         canvas.accessibilityLabel = "手写区域"; canvas.onStrokes = { [weak self] in self?.send(.handwriting($0)) }
         column.addArrangedSubview(canvas)
-        let row = UIStackView(); row.spacing = 5; row.distribution = .fillEqually
+        let row = UIStackView(); row.spacing = Self.rowSpacing; row.distribution = .fillEqually
         row.addArrangedSubview(keyButton("撤销一笔") { [weak canvas] in canvas?.undo() })
         row.addArrangedSubview(keyButton("清空") { [weak self, weak canvas] in canvas?.clear(); self?.send(.clear) })
         row.addArrangedSubview(keyButton("⌫") { [weak self] in self?.onBackspace() })
@@ -2178,41 +2164,41 @@ extension KeyboardViewController {
         receiveHostContent()
     }
     private func receiveHostContent() {
-        guard hasFullAccess else { featurePanel?.status("请先在系统键盘设置中允许完全访问，才能接收剪贴板内容。"); return }
+        guard hasFullAccess else { announce("请先在系统键盘设置中允许完全访问，才能接收剪贴板内容。"); return }
         do {
-            guard let payload = try KeyboardPayload.read() else { featurePanel?.status("请先打开主 App，复制文字／词库／GIF 或 Mac 配对内容，再回到这里接收。"); return }
+            guard let payload = try KeyboardPayload.read() else { announce("请先打开主 App，复制文字／词库／GIF 或 Mac 配对内容，再回到这里接收。"); return }
             switch payload.kind {
-            case "words": send(.importWords(payload.words ?? [])); featurePanel?.status("正在导入本地词库…")
-            case "text": insertText(payload.text ?? ""); featurePanel?.status("已插入文字。")
-            case "gif": try KeyboardToolsPanel.saveGIF(payload.gif ?? Data()); toggleTools(); toggleTools(); featurePanel?.status("GIF 已导入，点缩略图复制后粘贴。")
+            case "words": send(.importWords(payload.words ?? [])); announce("正在导入本地词库…")
+            case "text": insertText(payload.text ?? ""); announce("已插入文字。")
+            case "gif": try KeyboardToolsPanel.saveGIF(payload.gif ?? Data()); toggleTools(); toggleTools(); announce("GIF 已导入，点缩略图复制后粘贴。")
             case "phrases":
                 importPhrases(payload.text ?? "")
             case "pairing":
                 let profile = try PetLink.Profile.parse(payload.text ?? "")
                 try PetLink.store(profile, account: "keyboard.mac")
-                featurePanel?.status("Mac 配对已保存在键盘钥匙串，可发送／接收剪贴板。")
+                announce("Mac 配对已保存在键盘钥匙串，可发送／接收剪贴板。")
             default: throw MobileImportError.message("不支持的内容类型。")
             }
-        } catch { featurePanel?.status(error.localizedDescription) }
+        } catch { announce(error.localizedDescription) }
     }
     /// 主 App 的常用短语：每行一条，去空行/去重/最多 20 条/每条 ≤50 字。
     @discardableResult
     func importPhrases(_ text: String) -> Int {
         let saved = MobilePhrases.save(text: text)
         guard !saved.isEmpty else {
-            featurePanel?.status("没有可保存的常用短语；每行一条，最多 20 条。")
+            announce("没有可保存的常用短语；每行一条，最多 20 条。")
             return 0
         }
         featurePanel?.refresh()
-        featurePanel?.status("已保存 \(saved.count) 条常用短语")
+        announce("已保存 \(saved.count) 条常用短语")
         return saved.count
     }
     private func clipboardToMac(pull: Bool) {
-        guard hasFullAccess else { featurePanel?.status("同步剪贴板需要允许键盘完全访问。"); return }
-        guard let profile = PetLink.load(account: "keyboard.mac") else { featurePanel?.status("先在主 App「移动输入工具」复制 Mac 配对，再在这里接收 App 内容。"); return }
+        guard hasFullAccess else { announce("同步剪贴板需要允许键盘完全访问。"); return }
+        guard let profile = PetLink.load(account: "keyboard.mac") else { announce("先在主 App「移动输入工具」复制 Mac 配对，再在这里接收 App 内容。"); return }
         let text: String?
         if pull { text = nil } else {
-            guard let value = UIPasteboard.general.string else { featurePanel?.status("当前剪贴板没有文字。"); return }; text = value
+            guard let value = UIPasteboard.general.string else { announce("当前剪贴板没有文字。"); return }; text = value
         }
         clipboardSender?.disconnect()
         let defaults = UserDefaults.standard
@@ -2220,26 +2206,44 @@ extension KeyboardViewController {
         defaults.set(id.uuidString, forKey: "PetLink.keyboardID")
         let sender = PetLinkSender(deviceID: id, deviceName: "松萝 iOS 键盘")
         clipboardSender = sender
-        sender.onStatus = { [weak self] in self?.featurePanel?.status($0) }
+        sender.onStatus = { [weak self] in self?.announce($0) }
         sender.onReady = { [weak sender] in sender?.clipboard(text: text) }
         sender.onClipboard = { [weak self, weak sender] value in
-            if let value { UIPasteboard.general.string = value; self?.featurePanel?.status("Mac 文字已复制到 iPhone 剪贴板，请粘贴。") }
+            if let value { UIPasteboard.general.string = value; self?.announce("Mac 文字已复制到 iPhone 剪贴板，请粘贴。") }
             sender?.disconnect(silent: true); self?.clipboardSender = nil
         }
         sender.onFailure = { [weak self, weak sender] in sender?.disconnect(silent: true); self?.clipboardSender = nil }
         sender.connect(profile: profile)
     }
     private func importSystemLexicon() {
-        featurePanel?.status("正在读取系统公开的补充词库…")
+        announce("正在读取系统公开的补充词库…")
         requestSupplementaryLexicon { [weak self] lexicon in
             DispatchQueue.global(qos: .userInitiated).async {
                 let words = lexicon.entries.prefix(20000).compactMap { entry -> MobileWord? in
                     let code = entry.userInput.allSatisfy({ $0.isASCII && $0.isLetter }) && !entry.userInput.isEmpty ? entry.userInput : MobileDictionaryImport.reading(entry.documentText)
                     return code.isEmpty ? nil : MobileWord(word:entry.documentText,code:code,kind:"pinyin",reading:MobileDictionaryImport.reading(entry.documentText))
                 }
-                DispatchQueue.main.async { self?.send(.importWords(words)); self?.featurePanel?.status("已提交 \(words.count) 条补充词条（联系人、文本替换等）；iOS 不开放完整系统词库。") }
+                DispatchQueue.main.async { self?.send(.importWords(words)); self?.announce("已提交 \(words.count) 条补充词条（联系人、文本替换等）；iOS 不开放完整系统词库。") }
             }
         }
+    }
+}
+
+/// 面板下滑关闭手势：滚动视图里的下滑仍是滚动，不当作关闭。
+private final class PanelSwipeDown: UISwipeGestureRecognizer, UIGestureRecognizerDelegate {
+    override init(target: Any?, action: Selector?) {
+        super.init(target: target, action: action)
+        direction = .down
+        cancelsTouchesInView = false
+        delegate = self
+    }
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        var view = touch.view
+        while let v = view {
+            if v is UIScrollView { return false }
+            view = v.superview
+        }
+        return true
     }
 }
 

@@ -40,7 +40,7 @@ struct KeyboardPreferences: Codable, Equatable {
     var keyHeight: Double = 46
     var width: Double = 1
     var alignment: Double = 0.5
-    var candidateFont: Double = 17
+    var candidateFont: Double = 18
     var bottomPadding: Double = 0
     var entryPosition: Double = 1
     /// 九键布局形态。旧版本保存的数据里没有这个字段，解码时回落为新默认（侧栏）。
@@ -62,7 +62,7 @@ struct KeyboardPreferences: Codable, Equatable {
         keyHeight = try values.decodeIfPresent(Double.self, forKey: .keyHeight) ?? 46
         width = try values.decodeIfPresent(Double.self, forKey: .width) ?? 1
         alignment = try values.decodeIfPresent(Double.self, forKey: .alignment) ?? 0.5
-        candidateFont = try values.decodeIfPresent(Double.self, forKey: .candidateFont) ?? 17
+        candidateFont = try values.decodeIfPresent(Double.self, forKey: .candidateFont) ?? 18
         bottomPadding = try values.decodeIfPresent(Double.self, forKey: .bottomPadding) ?? 0
         entryPosition = try values.decodeIfPresent(Double.self, forKey: .entryPosition) ?? 1
         nineKeyLayout = try values.decodeIfPresent(NineKeyLayout.self, forKey: .nineKeyLayout) ?? .sidebar
@@ -74,7 +74,7 @@ struct KeyboardPreferences: Codable, Equatable {
         keyHeight = Self.clamp(keyHeight, 44...64, fallback: 46)
         width = Self.clamp(width, 0.78...1, fallback: 1)
         alignment = Self.clamp(alignment, 0...1, fallback: 0.5)
-        candidateFont = Self.clamp(candidateFont, 14...24, fallback: 17)
+        candidateFont = Self.clamp(candidateFont, 14...24, fallback: 18)
         bottomPadding = Self.clamp(bottomPadding, 0...24, fallback: 0)
         entryPosition = Self.clamp(entryPosition, 0...1, fallback: 1)
         gestureHold = Self.clamp(gestureHold, 0.5...2, fallback: KeyboardGestureDefaults.hold)

@@ -23,6 +23,10 @@ struct FoldLayout {
 
     // ---- 常量（两形态恒等） ----
     static let gapConst: CGFloat = 4
+    /// 宽屏（≥360pt）键间隙升到 6pt：对齐系统键盘的防误触余量。
+    /// 窄屏维持 4pt——320pt 下功能键必须 ≥44pt，间隙再让就不够了。
+    static let wideGapConst: CGFloat = 6
+    static let wideGapMinWidth: CGFloat = 360
     static let marginConst: CGFloat = 4
     static let keyHeightConst: CGFloat = 46
     static let minPitch: CGFloat = 34
@@ -33,8 +37,12 @@ struct FoldLayout {
     /// 单侧 5 列（qwertyuiop / asdfghjkl / zxcvbnm 的首行均取 5 列）。
     static let columnsPerHalf = 5
 
-    static func soloPitch(for width: CGFloat) -> CGFloat {
-        let raw = (width - 2 * marginConst - 9 * gapConst) / 10
+    static func gap(for width: CGFloat) -> CGFloat {
+        width >= wideGapMinWidth ? wideGapConst : gapConst
+    }
+
+    static func soloPitch(for width: CGFloat, gap: CGFloat) -> CGFloat {
+        let raw = (width - 2 * marginConst - 9 * gap) / 10
         return max(1, min(raw, maxSoloPitch))
     }
 
@@ -49,18 +57,19 @@ struct FoldLayout {
     ///   - regularWidth: horizontalSizeClass == .regular
     ///   - rememberedSoloPitch: 该设备最近一次窄屏（<600pt）的键距；无则 nil
     static func derive(width: CGFloat, regularWidth: Bool, rememberedSoloPitch: CGFloat?, keyHeight: CGFloat = keyHeightConst) -> FoldLayout {
+        let gap = self.gap(for: width)
         let split = regularWidth && width >= splitMinWidth
         guard split else {
-            let p = soloPitch(for: width)
-            return FoldLayout(mode: .solo, pitch: p, gap: gapConst, margin: marginConst,
+            let p = soloPitch(for: width, gap: gap)
+            return FoldLayout(mode: .solo, pitch: p, gap: gap, margin: marginConst,
                               keyHeight: keyHeight,
                               clusterWidth: width - 2 * marginConst, gutterWidth: 0)
         }
         let base = rememberedSoloPitch ?? 44
         let pitch = min(max(base * 1.10, minPitch), maxSplitPitch)
-        let cluster = CGFloat(columnsPerHalf) * pitch + CGFloat(columnsPerHalf - 1) * gapConst
+        let cluster = CGFloat(columnsPerHalf) * pitch + CGFloat(columnsPerHalf - 1) * wideGapConst
         let gutter = max(minGutter, width - 2 * cluster - 2 * marginConst)
-        return FoldLayout(mode: .split, pitch: pitch, gap: gapConst, margin: marginConst,
+        return FoldLayout(mode: .split, pitch: pitch, gap: wideGapConst, margin: marginConst,
                           keyHeight: keyHeight, clusterWidth: cluster, gutterWidth: gutter)
     }
 

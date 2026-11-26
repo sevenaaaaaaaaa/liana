@@ -1,10 +1,11 @@
 import UIKit
 
-/// 十套配色。每套都备了浅色与深色两份语义色，切换主题时键盘、候选条、
+/// 三十一套配色。每套都备了浅色与深色两份语义色，切换主题时键盘、候选条、
 /// 工具面板一起换，不需要分别改。
 ///
 /// 色值不是随手挑的：正文色对背景 ≥ 7:1（AAA），次要文字 ≥ 4.5:1，
-/// 主按钮上的文字对主色 ≥ 4.5:1——十套全部实测通过（见 Tools/ThemeContrast 校验）。
+/// 主按钮上的文字对主色 ≥ 4.5:1——全部实测通过（校验脚本按本文件源码
+/// 解析全部 hex 计算 WCAG 比率，新增配色跑一遍即可）。
 enum LianaColorway: String, CaseIterable, Codable {
     case mist
     case graphite
@@ -25,6 +26,18 @@ enum LianaColorway: String, CaseIterable, Codable {
     case cyberpunk
     case gothic
     case mecha
+    case mint
+    case matcha
+    case bamboo
+    case amber
+    case coral
+    case rose
+    case lapis
+    case navy
+    case grape
+    case cream
+    case aurora
+    case obsidian
 
     /// 语义角色。名字与 LianaPalette 的属性一一对应。
     enum Role {
@@ -52,6 +65,18 @@ enum LianaColorway: String, CaseIterable, Codable {
         case .cyberpunk: return "赛博朋克"
         case .gothic: return "暗黑"
         case .mecha: return "机甲"
+        case .mint: return "薄荷"
+        case .matcha: return "抹茶"
+        case .bamboo: return "竹青"
+        case .amber: return "琥珀"
+        case .coral: return "珊瑚"
+        case .rose: return "玫瑰"
+        case .lapis: return "琉璃"
+        case .navy: return "藏青"
+        case .grape: return "葡萄"
+        case .cream: return "奶油"
+        case .aurora: return "极光"
+        case .obsidian: return "曜石"
         }
     }
 
@@ -76,6 +101,18 @@ enum LianaColorway: String, CaseIterable, Codable {
         case .cyberpunk: return "黑底霓虹青，雨夜的电路"
         case .gothic: return "近黑与酒红，烛光里的石材"
         case .mecha: return "冷灰与警示黄，硬边与铆钉"
+        case .mint: return "凉薄荷绿，含在嘴里的一口气"
+        case .matcha: return "茶筅抹出的黄绿，微苦回甘"
+        case .bamboo: return "竹叶青与新篁白，风过留声"
+        case .amber: return "松脂的金黄，时间凝在里面"
+        case .coral: return "暖橘与贝壳白，退潮后的礁石"
+        case .rose: return "玫瑰茎秆的灰粉，不甜"
+        case .lapis: return "青金石的蓝，金箔星星"
+        case .navy: return "藏蓝制服与白衬衫，规整"
+        case .grape: return "葡萄皮的紫，霜还没擦掉"
+        case .cream: return "奶油纸与可可字，甜而不腻"
+        case .aurora: return "极夜的青绿光带，冷且亮"
+        case .obsidian: return "黑曜岩与银蓝，最深沉的一套"
         }
     }
 
@@ -330,6 +367,162 @@ enum LianaColorway: String, CaseIterable, Codable {
         case (.mecha, .pressed): hex = dark ? 0x394146 : 0xAEB6BC
         case (.mecha, .utility): hex = dark ? 0x171C1F : 0xC6CDD2
         case (.mecha, .shadow): hex = dark ? 0x000000 : 0x8B959B
+        case (.mint, .background): hex = dark ? 0x0D1512 : 0xF2F8F5
+        case (.mint, .card): hex = dark ? 0x17211C : 0xFFFFFF
+        case (.mint, .soft): hex = dark ? 0x1F2C25 : 0xE1EFE8
+        case (.mint, .ink): hex = dark ? 0xE4EFE9 : 0x142620
+        case (.mint, .muted): hex = dark ? 0x9DB4A8 : 0x52665C
+        case (.mint, .stroke): hex = dark ? 0x2A3B32 : 0xD4E4DC
+        case (.mint, .primary): hex = dark ? 0xD2E6DB : 0x1F5C46
+        case (.mint, .onPrimary): hex = dark ? 0x0E1A14 : 0xFFFFFF
+        case (.mint, .keyboard): hex = dark ? 0x111915 : 0xE0EDE7
+        case (.mint, .key): hex = dark ? 0x1F2C25 : 0xFFFFFF
+        case (.mint, .pressed): hex = dark ? 0x36493F : 0xB9D6C9
+        case (.mint, .utility): hex = dark ? 0x18231D : 0xC8DFD4
+        case (.mint, .shadow): hex = dark ? 0x040806 : 0x8FA89C
+        case (.matcha, .background): hex = dark ? 0x11140B : 0xF5F7EE
+        case (.matcha, .card): hex = dark ? 0x1A1F13 : 0xFFFFFF
+        case (.matcha, .soft): hex = dark ? 0x242B1A : 0xE6EBD8
+        case (.matcha, .ink): hex = dark ? 0xEBF0DD : 0x232916
+        case (.matcha, .muted): hex = dark ? 0xA8B08D : 0x62684B
+        case (.matcha, .stroke): hex = dark ? 0x333D22 : 0xDCE2CA
+        case (.matcha, .primary): hex = dark ? 0xD3E0AC : 0x5A6B2F
+        case (.matcha, .onPrimary): hex = dark ? 0x141810 : 0xFFFFFF
+        case (.matcha, .keyboard): hex = dark ? 0x141910 : 0xE9EDDB
+        case (.matcha, .key): hex = dark ? 0x242B1A : 0xFFFFFF
+        case (.matcha, .pressed): hex = dark ? 0x3D472C : 0xCBDAAC
+        case (.matcha, .utility): hex = dark ? 0x1C2316 : 0xD6DFB9
+        case (.matcha, .shadow): hex = dark ? 0x050703 : 0xA0AA85
+        case (.bamboo, .background): hex = dark ? 0x0F1410 : 0xF3F6F0
+        case (.bamboo, .card): hex = dark ? 0x181F17 : 0xFFFFFF
+        case (.bamboo, .soft): hex = dark ? 0x20291E : 0xE2EBDE
+        case (.bamboo, .ink): hex = dark ? 0xE7EEE5 : 0x1B2A1F
+        case (.bamboo, .muted): hex = dark ? 0xA2B19F : 0x59695D
+        case (.bamboo, .stroke): hex = dark ? 0x2C382A : 0xD7E2D6
+        case (.bamboo, .primary): hex = dark ? 0xCFE2CB : 0x3E5A34
+        case (.bamboo, .onPrimary): hex = dark ? 0x121810 : 0xFFFFFF
+        case (.bamboo, .keyboard): hex = dark ? 0x121811 : 0xE6EDE3
+        case (.bamboo, .key): hex = dark ? 0x20291E : 0xFFFFFF
+        case (.bamboo, .pressed): hex = dark ? 0x384737 : 0xC2D5BF
+        case (.bamboo, .utility): hex = dark ? 0x1A2318 : 0xCFDEC9
+        case (.bamboo, .shadow): hex = dark ? 0x050705 : 0x96A893
+        case (.amber, .background): hex = dark ? 0x151007 : 0xFAF5EA
+        case (.amber, .card): hex = dark ? 0x201A0D : 0xFFFDF6
+        case (.amber, .soft): hex = dark ? 0x2B2415 : 0xF1E6CC
+        case (.amber, .ink): hex = dark ? 0xF2EAD8 : 0x2E2410
+        case (.amber, .muted): hex = dark ? 0xB5A886 : 0x6F5F3D
+        case (.amber, .stroke): hex = dark ? 0x3B3220 : 0xE8DCC0
+        case (.amber, .primary): hex = dark ? 0xE8C868 : 0x8A6210
+        case (.amber, .onPrimary): hex = dark ? 0x181206 : 0xFFFDF6
+        case (.amber, .keyboard): hex = dark ? 0x181207 : 0xF2E7D0
+        case (.amber, .key): hex = dark ? 0x2B2415 : 0xFFFDF6
+        case (.amber, .pressed): hex = dark ? 0x4A3F22 : 0xDCC79A
+        case (.amber, .utility): hex = dark ? 0x201A0E : 0xE5D5AE
+        case (.amber, .shadow): hex = dark ? 0x060401 : 0xB3A077
+        case (.coral, .background): hex = dark ? 0x160E0B : 0xFBF4F1
+        case (.coral, .card): hex = dark ? 0x201613 : 0xFFFFFF
+        case (.coral, .soft): hex = dark ? 0x2B1E19 : 0xF6E3DC
+        case (.coral, .ink): hex = dark ? 0xF3E8E2 : 0x2D1B15
+        case (.coral, .muted): hex = dark ? 0xBCA297 : 0x75564B
+        case (.coral, .stroke): hex = dark ? 0x3B2C25 : 0xEDDBD3
+        case (.coral, .primary): hex = dark ? 0xE8896C : 0xB04A32
+        case (.coral, .onPrimary): hex = dark ? 0x180F0B : 0xFFFFFF
+        case (.coral, .keyboard): hex = dark ? 0x190F0C : 0xF5E5DF
+        case (.coral, .key): hex = dark ? 0x2B1E19 : 0xFFFFFF
+        case (.coral, .pressed): hex = dark ? 0x483128 : 0xE2C0B4
+        case (.coral, .utility): hex = dark ? 0x1D1411 : 0xEAD2C8
+        case (.coral, .shadow): hex = dark ? 0x070302 : 0xBC9F95
+        case (.rose, .background): hex = dark ? 0x150C0E : 0xFAF3F4
+        case (.rose, .card): hex = dark ? 0x1F1517 : 0xFFFFFF
+        case (.rose, .soft): hex = dark ? 0x2A1D20 : 0xF2E0E3
+        case (.rose, .ink): hex = dark ? 0xF2E5E8 : 0x2C171B
+        case (.rose, .muted): hex = dark ? 0xB89EA5 : 0x71535B
+        case (.rose, .stroke): hex = dark ? 0x39272B : 0xEAD4D8
+        case (.rose, .primary): hex = dark ? 0xE08A99 : 0xA33748
+        case (.rose, .onPrimary): hex = dark ? 0x170D0F : 0xFFFFFF
+        case (.rose, .keyboard): hex = dark ? 0x170E10 : 0xF3E3E6
+        case (.rose, .key): hex = dark ? 0x2A1D20 : 0xFFFFFF
+        case (.rose, .pressed): hex = dark ? 0x462E33 : 0xDFC0C6
+        case (.rose, .utility): hex = dark ? 0x1C1315 : 0xE8D0D5
+        case (.rose, .shadow): hex = dark ? 0x060304 : 0xB49CA2
+        case (.lapis, .background): hex = dark ? 0x0B1220 : 0xEFF4FA
+        case (.lapis, .card): hex = dark ? 0x141D30 : 0xFFFFFF
+        case (.lapis, .soft): hex = dark ? 0x1C2740 : 0xDFEAF5
+        case (.lapis, .ink): hex = dark ? 0xE6EDF8 : 0x132338
+        case (.lapis, .muted): hex = dark ? 0x9DAFC9 : 0x4D637F
+        case (.lapis, .stroke): hex = dark ? 0x243352 : 0xCFDEED
+        case (.lapis, .primary): hex = dark ? 0x7FB2F5 : 0x1D5FC2
+        case (.lapis, .onPrimary): hex = dark ? 0x0A1120 : 0xFFFFFF
+        case (.lapis, .keyboard): hex = dark ? 0x0D1524 : 0xE1EAF4
+        case (.lapis, .key): hex = dark ? 0x1C2740 : 0xFFFFFF
+        case (.lapis, .pressed): hex = dark ? 0x304060 : 0xB7CCE5
+        case (.lapis, .utility): hex = dark ? 0x152036 : 0xC9D9EC
+        case (.lapis, .shadow): hex = dark ? 0x030509 : 0x8FA5C0
+        case (.navy, .background): hex = dark ? 0x0A0F16 : 0xEFF2F6
+        case (.navy, .card): hex = dark ? 0x121A24 : 0xFFFFFF
+        case (.navy, .soft): hex = dark ? 0x1A2431 : 0xDFE4EC
+        case (.navy, .ink): hex = dark ? 0xE5EBF2 : 0x15202E
+        case (.navy, .muted): hex = dark ? 0x9AA8B8 : 0x4E5D70
+        case (.navy, .stroke): hex = dark ? 0x223042 : 0xD0D9E3
+        case (.navy, .primary): hex = dark ? 0xC4D6EA : 0x23405F
+        case (.navy, .onPrimary): hex = dark ? 0x0B1119 : 0xFFFFFF
+        case (.navy, .keyboard): hex = dark ? 0x0C1219 : 0xE2E8EF
+        case (.navy, .key): hex = dark ? 0x1A2431 : 0xFFFFFF
+        case (.navy, .pressed): hex = dark ? 0x2E3D4F : 0xBAC7D6
+        case (.navy, .utility): hex = dark ? 0x141D28 : 0xCCD6E1
+        case (.navy, .shadow): hex = dark ? 0x030508 : 0x91A0B1
+        case (.grape, .background): hex = dark ? 0x120C1A : 0xF7F3FA
+        case (.grape, .card): hex = dark ? 0x1B1426 : 0xFFFFFF
+        case (.grape, .soft): hex = dark ? 0x251C33 : 0xECE2F2
+        case (.grape, .ink): hex = dark ? 0xEFE7F8 : 0x241832
+        case (.grape, .muted): hex = dark ? 0xAC9EC0 : 0x645678
+        case (.grape, .stroke): hex = dark ? 0x332647 : 0xE2D5EC
+        case (.grape, .primary): hex = dark ? 0xC9A6F0 : 0x6A3FA0
+        case (.grape, .onPrimary): hex = dark ? 0x140E20 : 0xFFFFFF
+        case (.grape, .keyboard): hex = dark ? 0x150F20 : 0xEFE5F6
+        case (.grape, .key): hex = dark ? 0x251C33 : 0xFFFFFF
+        case (.grape, .pressed): hex = dark ? 0x3D2E55 : 0xD4C2E6
+        case (.grape, .utility): hex = dark ? 0x1B1428 : 0xDFCFF0
+        case (.grape, .shadow): hex = dark ? 0x040208 : 0xA894BE
+        case (.cream, .background): hex = dark ? 0x131009 : 0xFAF6EE
+        case (.cream, .card): hex = dark ? 0x1C1810 : 0xFFFEF9
+        case (.cream, .soft): hex = dark ? 0x262017 : 0xF2EBDB
+        case (.cream, .ink): hex = dark ? 0xF0EADB : 0x322A1C
+        case (.cream, .muted): hex = dark ? 0xAFA58C : 0x6E6350
+        case (.cream, .stroke): hex = dark ? 0x342D1F : 0xEBE3D0
+        case (.cream, .primary): hex = dark ? 0xE3D8BE : 0x4A3E28
+        case (.cream, .onPrimary): hex = dark ? 0x151109 : 0xFFFEF9
+        case (.cream, .keyboard): hex = dark ? 0x16120B : 0xF3EDDE
+        case (.cream, .key): hex = dark ? 0x262017 : 0xFFFEF9
+        case (.cream, .pressed): hex = dark ? 0x413827 : 0xDFD3B9
+        case (.cream, .utility): hex = dark ? 0x1B160F : 0xE7DCC2
+        case (.cream, .shadow): hex = dark ? 0x050402 : 0xAFA38A
+        case (.aurora, .background): hex = dark ? 0x07120F : 0xEEF6F4
+        case (.aurora, .card): hex = dark ? 0x0E1D19 : 0xFFFFFF
+        case (.aurora, .soft): hex = dark ? 0x152924 : 0xDCEEE9
+        case (.aurora, .ink): hex = dark ? 0xE2F2ED : 0x0F2622
+        case (.aurora, .muted): hex = dark ? 0x93AFA7 : 0x48615B
+        case (.aurora, .stroke): hex = dark ? 0x1C342E : 0xCFE2DD
+        case (.aurora, .primary): hex = dark ? 0x59D6BC : 0x0E6B5C
+        case (.aurora, .onPrimary): hex = dark ? 0x06110E : 0xFFFFFF
+        case (.aurora, .keyboard): hex = dark ? 0x091512 : 0xE0EEE9
+        case (.aurora, .key): hex = dark ? 0x152924 : 0xFFFFFF
+        case (.aurora, .pressed): hex = dark ? 0x24423A : 0xA9D3C9
+        case (.aurora, .utility): hex = dark ? 0x0F1F1B : 0xBEDCD3
+        case (.aurora, .shadow): hex = dark ? 0x020504 : 0x86A39B
+        case (.obsidian, .background): hex = dark ? 0x05070A : 0xEDEFF2
+        case (.obsidian, .card): hex = dark ? 0x0D1116 : 0xFBFCFD
+        case (.obsidian, .soft): hex = dark ? 0x141A21 : 0xDFE3E8
+        case (.obsidian, .ink): hex = dark ? 0xE8EDF3 : 0x12171D
+        case (.obsidian, .muted): hex = dark ? 0x98A3B0 : 0x4B5560
+        case (.obsidian, .stroke): hex = dark ? 0x1D2631 : 0xD2D8DF
+        case (.obsidian, .primary): hex = dark ? 0x9FB6CC : 0x2B3A4A
+        case (.obsidian, .onPrimary): hex = dark ? 0x070A0E : 0xFBFCFD
+        case (.obsidian, .keyboard): hex = dark ? 0x070A0F : 0xE3E7EC
+        case (.obsidian, .key): hex = dark ? 0x141A21 : 0xFBFCFD
+        case (.obsidian, .pressed): hex = dark ? 0x263340 : 0xBCC4CD
+        case (.obsidian, .utility): hex = dark ? 0x101620 : 0xCCD3DB
+        case (.obsidian, .shadow): hex = dark ? 0x020304 : 0x8D97A2
         }
         return UIColor(red: CGFloat((hex >> 16) & 255)/255,
                        green: CGFloat((hex >> 8) & 255)/255,
