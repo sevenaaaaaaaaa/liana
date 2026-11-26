@@ -46,7 +46,9 @@ die()  { printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 
 [[ "$(git rev-parse --abbrev-ref HEAD)" == "main" ]] || die "正式发版只在 main 上进行"
 [[ -z "$(git status --porcelain)" ]] || die "工作区不干净，请先提交或暂存"
-git fetch --quiet --tags origin || die "git fetch 失败"
+# --force：远端 nightly tag 每天被 daily-release 强制移动，本地旧副本会让不带
+# --force 的 --tags 拉取以 tag 冲突拒收而失败（daily-release.sh 同款）。
+git fetch --quiet --tags --force origin || die "git fetch 失败"
 [[ "$(git rev-list --count HEAD..origin/main)" == 0 ]] || die "落后 origin/main，请先 pull"
 
 CUR="$(sed -n -E '/^\[workspace\.package\]/,/^\[/ s/^version = "([^"]+)"/\1/p' Cargo.toml | head -1)"
